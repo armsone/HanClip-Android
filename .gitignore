@@ -5,6 +5,7 @@ app/build/
 local.properties
 *.iml
 .idea/
+.DS_Store
 *.apk
 /hanclip-*.png
 /hanclip-*.xml

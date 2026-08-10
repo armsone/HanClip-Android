@@ -1,5 +1,6 @@
 package com.hanclip.android.feature.editor
 
+import android.os.Build
 import android.view.WindowManager
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -31,15 +32,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.hanclip.android.core.theme.HanClipPalette
 
 @Composable
 internal fun FullScreenDialogSystemBars(
     background: Color,
-    navigationBackground: Color = background
+    navigationBackground: Color = background,
+    hideSystemBars: Boolean = false
 ) {
     val view = LocalView.current
-    DisposableEffect(view, background, navigationBackground) {
+    DisposableEffect(view, background, navigationBackground, hideSystemBars) {
         val window = ((view as? DialogWindowProvider)
             ?: (view.parent as? DialogWindowProvider))?.window
         if (window == null) {
@@ -53,13 +57,43 @@ internal fun FullScreenDialogSystemBars(
             val controller = WindowCompat.getInsetsController(window, view)
             val oldLightStatusBars = controller.isAppearanceLightStatusBars
             val oldLightNavigationBars = controller.isAppearanceLightNavigationBars
+            val oldSystemBarsBehavior = controller.systemBarsBehavior
+            val oldCutoutMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                window.attributes.layoutInDisplayCutoutMode
+            } else {
+                null
+            }
             window.statusBarColor = background.toArgb()
             window.navigationBarColor = navigationBackground.toArgb()
             window.decorView.setBackgroundColor(background.toArgb())
             window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             controller.isAppearanceLightStatusBars = background.luminance() > 0.5f
             controller.isAppearanceLightNavigationBars = navigationBackground.luminance() > 0.5f
+            if (hideSystemBars) {
+                WindowCompat.setDecorFitsSystemWindows(window, false)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    window.attributes = window.attributes.apply {
+                        layoutInDisplayCutoutMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                        } else {
+                            WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                        }
+                    }
+                }
+                controller.systemBarsBehavior =
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                controller.hide(WindowInsetsCompat.Type.systemBars())
+            }
             onDispose {
+                if (hideSystemBars) {
+                    controller.show(WindowInsetsCompat.Type.systemBars())
+                    controller.systemBarsBehavior = oldSystemBarsBehavior
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && oldCutoutMode != null) {
+                        window.attributes = window.attributes.apply {
+                            layoutInDisplayCutoutMode = oldCutoutMode
+                        }
+                    }
+                }
                 window.statusBarColor = oldStatusColor
                 window.navigationBarColor = oldNavigationColor
                 window.decorView.background = oldDecorBackground
@@ -140,7 +174,8 @@ private fun SettingsHeaderCircleButton(
             .size(52.dp)
             .combinedClickable(
                 onClick = onClick,
-                onLongClick = onLongClick
+                onLongClick = onLongClick,
+                onLongClickLabel = if (onLongClick != null) "자막 프리셋 전체 초기화" else null
             ),
         shape = RoundedCornerShape(26.dp),
         color = palette.solidPanel,

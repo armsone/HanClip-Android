@@ -30,6 +30,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.LibraryBooks
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Add
@@ -129,6 +130,7 @@ internal fun LazyListScope.movieCollectionItems(
     compressionMovieTitle: String,
     compressionProgress: Double,
     onRequestCompression: (CollectedMovie) -> Unit,
+    onRequestBulkCompression: (CollectionVideoSizeOption) -> Unit,
     onCancelCompression: () -> Unit,
     columnCount: Int = 2
 ) {
@@ -245,6 +247,99 @@ internal fun LazyListScope.movieCollectionItems(
                 )
         )
     }
+    item(key = "collection-bulk-compression", contentType = "collection-controls") {
+        CollectionBulkCompressionControls(
+            enabled = movies.isNotEmpty() && !isCompressing,
+            onRequest = onRequestBulkCompression,
+            palette = palette
+        )
+    }
+}
+
+@Composable
+private fun CollectionBulkCompressionControls(
+    enabled: Boolean,
+    onRequest: (CollectionVideoSizeOption) -> Unit,
+    palette: HanClipPalette
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(50),
+            color = palette.solidPanel.copy(alpha = 0.96f),
+            border = BorderStroke(1.dp, palette.border.copy(alpha = 0.55f)),
+            enabled = enabled,
+            onClick = { expanded = !expanded }
+        ) {
+            Row(
+                modifier = Modifier.height(28.dp).padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(Icons.Outlined.Compress, contentDescription = null, modifier = Modifier.size(14.dp))
+                Text("컬렉션 용량 줄이기", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Icon(
+                    if (expanded) Icons.AutoMirrored.Outlined.KeyboardArrowLeft
+                    else Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp).graphicsLayer { rotationZ = 90f }
+                )
+            }
+        }
+        if (expanded) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                BulkCompressionButton(
+                    title = "720p 일괄 변환",
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f),
+                    palette = palette,
+                    onClick = { onRequest(CollectionVideoSizeOption.Saver720) }
+                )
+                BulkCompressionButton(
+                    title = "540p 일괄 변환",
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f),
+                    palette = palette,
+                    onClick = { onRequest(CollectionVideoSizeOption.Minimum540) }
+                )
+            }
+            Text(
+                "선택한 해상도 이하인 영상은 그대로 둡니다.",
+                color = palette.subText.copy(alpha = 0.72f),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+@Composable
+private fun BulkCompressionButton(
+    title: String,
+    enabled: Boolean,
+    modifier: Modifier,
+    palette: HanClipPalette,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = modifier.height(38.dp),
+        shape = RoundedCornerShape(11.dp),
+        color = palette.primary.copy(alpha = 0.10f),
+        border = BorderStroke(1.dp, palette.primary.copy(alpha = 0.30f)),
+        enabled = enabled,
+        onClick = onClick
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(title, color = palette.text, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+    }
 }
 
 @Composable
@@ -330,7 +425,7 @@ private fun CollectionHeader(count: Int, palette: HanClipPalette) {
             color = palette.secondary.copy(alpha = 0.10f)
         ) {
             Icon(
-                Icons.Outlined.FolderOpen,
+                Icons.AutoMirrored.Outlined.LibraryBooks,
                 contentDescription = null,
                 tint = palette.primary.copy(alpha = 0.72f),
                 modifier = Modifier.padding(5.dp)
@@ -368,7 +463,7 @@ private fun CollectionImportCard(
                 )
             )
             .border(1.dp, palette.secondary.copy(alpha = 0.40f), shape)
-            .combinedClickable(enabled = !isImporting, onClick = onClick, onLongClick = onClick),
+            .clickable(enabled = !isImporting, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -478,7 +573,11 @@ private fun CollectionMovieCard(
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .combinedClickable(onClick = onOpen, onLongClick = { showActions = true })
+                .combinedClickable(
+                    onClick = onOpen,
+                    onLongClick = { showActions = true },
+                    onLongClickLabel = "컬렉션 영화 작업 열기"
+                )
         )
         poster?.let { posterBitmap ->
             androidx.compose.foundation.Image(

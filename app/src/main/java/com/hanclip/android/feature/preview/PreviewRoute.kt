@@ -4,16 +4,19 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
-import android.view.OrientationEventListener
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.OptIn
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
@@ -26,7 +29,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -69,6 +71,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -86,6 +89,7 @@ import com.hanclip.android.core.project.hanClipCompletionTitle
 import com.hanclip.android.core.theme.HanClipPalette
 import com.hanclip.android.core.theme.HanClipThemeStore
 import com.hanclip.android.feature.home.HanClipBrandCapsule
+import com.hanclip.android.feature.editor.FullScreenDialogSystemBars
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -94,6 +98,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -166,7 +171,6 @@ fun PreviewRoute(
     if (collectionPlaybackOnly && exportedVideoUri != null) {
         FullscreenPreviewDialog(
             uri = exportedVideoUri,
-            followDeviceOrientation = true,
             onClose = onDone
         )
         return
@@ -384,7 +388,6 @@ fun PreviewRoute(
     if (showFullscreenPreview && exportedVideoUri != null) {
         FullscreenPreviewDialog(
             uri = exportedVideoUri,
-            followDeviceOrientation = false,
             onClose = { showFullscreenPreview = false }
         )
     }
@@ -1014,34 +1017,24 @@ private fun SaveDestinationCard(
     }
 }
 
-@OptIn(UnstableApi::class)
+@OptIn(UnstableApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun FullscreenPreviewDialog(
     uri: Uri,
-    followDeviceOrientation: Boolean,
     onClose: () -> Unit
 ) {
-    val context = LocalContext.current
     var isLooping by remember { mutableStateOf(true) }
     var isFillMode by remember { mutableStateOf(false) }
     var verticalDragPx by remember { mutableFloatStateOf(0f) }
-    var deviceRotationDegrees by remember { mutableFloatStateOf(0f) }
+    var zoomScale by remember { mutableFloatStateOf(1f) }
+    var zoomOffset by remember { mutableStateOf(Offset.Zero) }
+    var areControlsVisible by remember { mutableStateOf(true) }
     val dismissThresholdPx = with(LocalDensity.current) { 120.dp.toPx() }
-    DisposableEffect(followDeviceOrientation, context) {
-        if (!followDeviceOrientation) return@DisposableEffect onDispose { }
-        val listener = object : OrientationEventListener(context) {
-            override fun onOrientationChanged(orientation: Int) {
-                if (orientation == ORIENTATION_UNKNOWN) return
-                deviceRotationDegrees = when (orientation) {
-                    in 45..134 -> -90f
-                    in 135..224 -> 180f
-                    in 225..314 -> 90f
-                    else -> 0f
-                }
-            }
+    LaunchedEffect(areControlsVisible, zoomScale) {
+        if (areControlsVisible && zoomScale <= 1.01f) {
+            delay(2_600)
+            areControlsVisible = false
         }
-        if (listener.canDetectOrientation()) listener.enable()
-        onDispose { listener.disable() }
     }
     Dialog(
         onDismissRequest = onClose,
@@ -1050,6 +1043,11 @@ private fun FullscreenPreviewDialog(
             decorFitsSystemWindows = false
         )
     ) {
+        FullScreenDialogSystemBars(
+            background = Color.Black,
+            navigationBackground = Color.Black,
+            hideSystemBars = true
+        )
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
@@ -1062,6 +1060,7 @@ private fun FullscreenPreviewDialog(
                 .pointerInput(dismissThresholdPx) {
                     detectVerticalDragGestures(
                         onVerticalDrag = { change, dragAmount ->
+                            if (zoomScale > 1.01f) return@detectVerticalDragGestures
                             if (dragAmount > 0f || verticalDragPx > 0f) {
                                 change.consume()
                                 verticalDragPx = (verticalDragPx + dragAmount).coerceAtLeast(0f)
@@ -1075,40 +1074,89 @@ private fun FullscreenPreviewDialog(
                     )
                 }
         ) {
-            val isQuarterTurn = deviceRotationDegrees == 90f || deviceRotationDegrees == -90f
+            val viewportWidthPx = with(LocalDensity.current) {
+                maxWidth.toPx()
+            }
+            val viewportHeightPx = with(LocalDensity.current) {
+                maxHeight.toPx()
+            }
+            fun clampZoomOffset(offset: Offset, scale: Float): Offset {
+                val maximumX = viewportWidthPx * (scale - 1f).coerceAtLeast(0f) / 2f
+                val maximumY = viewportHeightPx * (scale - 1f).coerceAtLeast(0f) / 2f
+                return Offset(
+                    x = offset.x.coerceIn(-maximumX, maximumX),
+                    y = offset.y.coerceIn(-maximumY, maximumY)
+                )
+            }
+            val transformableState = rememberTransformableState { zoomChange, panChange, _ ->
+                val newScale = (zoomScale * zoomChange).coerceIn(1f, 4f)
+                zoomScale = newScale
+                zoomOffset = if (newScale <= 1.01f) Offset.Zero else {
+                    clampZoomOffset(zoomOffset + panChange, newScale)
+                }
+                verticalDragPx = 0f
+                areControlsVisible = true
+            }
             Box(
                 modifier = Modifier
-                    .requiredSize(
-                        width = if (isQuarterTurn) maxHeight else maxWidth,
-                        height = if (isQuarterTurn) maxWidth else maxHeight
-                    )
+                    .fillMaxSize()
                     .align(Alignment.Center)
-                    .graphicsLayer { rotationZ = deviceRotationDegrees }
             ) {
-                ExportedVideoPlayer(
-                    uri = uri,
-                    repeatMode = if (isLooping) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF,
-                    resizeMode = if (isFillMode) {
-                        AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                    } else {
-                        AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    }
-                )
-                Row(
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = zoomScale
+                            scaleY = zoomScale
+                            translationX = zoomOffset.x
+                            translationY = zoomOffset.y
+                            clip = true
+                        }
+                        .transformable(state = transformableState)
+                        .pointerInput(zoomScale) {
+                            detectTapGestures(
+                                onDoubleTap = {
+                                    if (zoomScale > 1.01f) {
+                                        zoomScale = 1f
+                                        zoomOffset = Offset.Zero
+                                    }
+                                    areControlsVisible = true
+                                },
+                                onTap = { areControlsVisible = !areControlsVisible }
+                            )
+                        }
+                ) {
+                    ExportedVideoPlayer(
+                        uri = uri,
+                        repeatMode = if (isLooping) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF,
+                        resizeMode = if (isFillMode) {
+                            AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        } else {
+                            AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        }
+                    )
+                }
+                if (areControlsVisible) Row(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(18.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     FullscreenCircleButton(
-                        onClick = { isLooping = !isLooping },
+                        onClick = {
+                            isLooping = !isLooping
+                            areControlsVisible = true
+                        },
                         active = isLooping,
                         contentDescription = if (isLooping) "반복 재생 끄기" else "반복 재생 켜기"
                     ) {
                         Icon(Icons.Outlined.Repeat, contentDescription = null, tint = Color.White)
                     }
                     FullscreenCircleButton(
-                        onClick = { isFillMode = !isFillMode },
+                        onClick = {
+                            isFillMode = !isFillMode
+                            areControlsVisible = true
+                        },
                         active = isFillMode,
                         contentDescription = if (isFillMode) "화면에 맞추기" else "화면 채우기"
                     ) {

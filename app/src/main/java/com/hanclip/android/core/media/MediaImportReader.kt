@@ -29,8 +29,6 @@ import kotlin.math.max
 import kotlin.math.min
 
 object MediaImportReader {
-    private const val MaxWorkingMediaFiles = 80
-
     fun isMotionPhoto(context: Context, uri: Uri): Boolean {
         return runCatching {
             context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { descriptor ->
@@ -285,7 +283,9 @@ object MediaImportReader {
                 ?.takeIf { it.isNotBlank() && it.length <= 5 }
             ?: if (mimeType.startsWith("video/")) "mp4" else "jpg"
         val directory = File(context.filesDir, "working-media").apply { mkdirs() }
-        pruneDirectory(directory, MaxWorkingMediaFiles)
+        // These files are project sources, not disposable thumbnails. Deleting an old file while
+        // importing a large selection leaves an existing ClipItem pointing at a missing source.
+        // Project-aware cleanup must only remove files that no saved or active project references.
         val target = File(directory, "hanclip-${UUID.randomUUID()}.$extension")
         context.contentResolver.openInputStream(uri)?.use { input ->
             target.outputStream().use { output ->
@@ -314,16 +314,6 @@ object MediaImportReader {
             "png" -> "image/png"
             "heic", "heif" -> "image/heic"
             else -> ""
-        }
-    }
-
-    private fun pruneDirectory(directory: File, maxFiles: Int) {
-        val files = directory.listFiles()
-            ?.filter { it.isFile }
-            ?.sortedByDescending { it.lastModified() }
-            .orEmpty()
-        files.drop(maxFiles).forEach { file ->
-            runCatching { file.delete() }
         }
     }
 

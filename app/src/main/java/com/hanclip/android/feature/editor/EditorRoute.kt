@@ -65,6 +65,8 @@ import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AddCircle
 import androidx.compose.material.icons.outlined.PlayCircle
+import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material.icons.outlined.MovieCreation
 import androidx.compose.material.icons.outlined.TextFields
@@ -87,6 +89,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -109,6 +112,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
@@ -150,6 +154,7 @@ fun EditorRoute(
     preset: MoviePreset,
     onBackHome: () -> Unit,
     onPreview: () -> Unit,
+    onOpenAiShot: () -> Unit = {},
     onOpenBrowser: () -> Unit = {},
     sleepPreventionMode: SleepPreventionMode = SleepPreventionMode.Default,
     onSleepPreventionModeChange: (SleepPreventionMode) -> Unit = {},
@@ -171,10 +176,10 @@ fun EditorRoute(
     var mediaPickerTitle by remember { mutableStateOf("날짜별") }
     var isReorderMode by remember { mutableStateOf(false) }
     var isAdvancedSettingsExpanded by remember { mutableStateOf(false) }
-    var isClipSettingsExpanded by remember(state.activeProjectId) { mutableStateOf(false) }
+    var isClipSettingsExpanded by remember(state.activeProjectId) { mutableStateOf(true) }
+    var isImportMenuVisible by remember { mutableStateOf(false) }
     var isResetConfirmationVisible by remember { mutableStateOf(false) }
     var isExitConfirmationVisible by remember { mutableStateOf(false) }
-    var isExportConfirmationVisible by remember { mutableStateOf(false) }
     var isQuickDurationVisible by remember { mutableStateOf(false) }
     var reopenQuickAfterPicker by remember { mutableStateOf(false) }
     var reopenQuickAfterSettings by remember { mutableStateOf(false) }
@@ -192,7 +197,7 @@ fun EditorRoute(
                 MediaSelectionContract.fromResultIntent(context, result.data).uris
             )
         } else {
-            viewModel.showAlert("미디어 선택을 취소했습니다. 기본 사진첩이나 파일 선택으로 다시 가져올 수 있습니다.")
+            viewModel.showAlert("미디어 선택을 취소했습니다. 기본 사진첩이나 다른 앱·파일에서 다시 가져올 수 있습니다.")
         }
         if (reopenQuickAfterPicker) {
             reopenQuickAfterPicker = false
@@ -262,7 +267,7 @@ fun EditorRoute(
             }
             EditorImportAction.Files -> {
                 onInitialImportActionConsumed()
-                galleryPicker.launch(mediaFileIntent())
+                galleryPicker.launch(mediaFileIntent(context))
             }
             null -> Unit
         }
@@ -341,30 +346,8 @@ fun EditorRoute(
                 EditorHeader(
                     palette = palette,
                     onBackHome = ::requestBackHome,
-                    onAddMedia = { openCalendarPicker("기본 사진첩") }
+                    onAddMedia = { isImportMenuVisible = true }
                 )
-            }
-            if (state.clips.isEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    ImportActionRow(
-                        palette = palette,
-                        onPickMedia = { openCalendarPicker("기본 사진첩") },
-                        onPickFiles = {
-                            galleryPicker.launch(mediaFileIntent())
-                        },
-                        onPickCalendar = { openCalendarPicker("사진첩 날짜별") },
-                        onPickVideos = { openCalendarPicker("영상만") },
-                        onAiCut = {
-                            viewModel.prepareAiCutImport()
-                            openCalendarPicker("영상만")
-                        }
-                    )
-                }
-            }
-            if (state.isImportingMedia || state.progressMessage.isNotBlank()) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    ImportStatusPanel(state.progressMessage)
-                }
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
                 ProjectControls(
@@ -478,20 +461,6 @@ fun EditorRoute(
                     )
                 }
             }
-            if (state.clips.isEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    EmptyClipPanel(
-                        preset = state.preset,
-                        palette = palette,
-                        onPickMedia = { openCalendarPicker("기본 사진첩") },
-                        onPickFiles = {
-                            galleryPicker.launch(mediaFileIntent())
-                        },
-                        onPickCalendar = { openCalendarPicker("사진첩 날짜별") },
-                        onPickVideos = { openCalendarPicker("영상만") }
-                    )
-                }
-            }
             if (state.clips.isNotEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Row(
@@ -562,8 +531,8 @@ fun EditorRoute(
                 Spacer(Modifier.height(if (isReorderMode) 24.dp else 88.dp))
             }
         }
-        if (!isReorderMode && state.renderableClips.isNotEmpty()) {
-            BottomMakeBar(
+        if (!isReorderMode) {
+            if (state.renderableClips.isNotEmpty()) BottomMakeBar(
                 modifier = Modifier.align(Alignment.BottomCenter),
                 palette = palette,
                 isExporting = state.isExporting,
@@ -578,7 +547,35 @@ fun EditorRoute(
                 selectedRatio = state.outputAspectRatio,
                 onSelectRatio = { ratio -> viewModel.selectAspectRatio(context, ratio) },
                 onClose = ::requestBackHome,
-                onMakeMovie = { isExportConfirmationVisible = true }
+                onMakeMovie = { viewModel.exportMovie(context, onPreview) }
+            ) else BottomEmptyEditorBar(
+                modifier = Modifier.align(Alignment.BottomCenter),
+                palette = palette,
+                onAdd = { isImportMenuVisible = true },
+                onClose = ::requestBackHome
+            )
+        }
+        if (isImportMenuVisible) {
+            EditorImportMenu(
+                modifier = Modifier.fillMaxSize(),
+                palette = palette,
+                onAiShot = {
+                    isImportMenuVisible = false
+                    onOpenAiShot()
+                },
+                onPhoto = {
+                    isImportMenuVisible = false
+                    openCalendarPicker("기본 사진첩")
+                },
+                onCalendar = {
+                    isImportMenuVisible = false
+                    openCalendarPicker("사진첩 날짜별")
+                },
+                onFiles = {
+                    isImportMenuVisible = false
+                    galleryPicker.launch(mediaFileIntent(context))
+                },
+                onDismiss = { isImportMenuVisible = false }
             )
         }
         if (state.isImportingMedia || state.isExporting) {
@@ -587,6 +584,10 @@ fun EditorRoute(
                 message = state.progressMessage.ifBlank {
                     if (state.isExporting) "완성본을 만드는 중..." else "사진/영상을 클립으로 준비하는 중..."
                 },
+                progress = state.workProgress,
+                current = state.workCurrent,
+                total = state.workTotal,
+                previewClip = state.renderableClips.firstOrNull(),
                 isExporting = state.isExporting,
                 onCancel = if (state.isExporting) {
                     viewModel::cancelExport
@@ -737,17 +738,6 @@ fun EditorRoute(
                 text = { Text("저장 후 홈은 현재 작업을 저장하고 이동합니다. 저장은 편집 화면에 남고, 홈은 이번에 바꾼 내용을 되돌린 뒤 이동합니다.") }
             )
         }
-        if (isExportConfirmationVisible) {
-            ExportConfirmationDialog(
-                state = state,
-                palette = palette,
-                onDismiss = { isExportConfirmationVisible = false },
-                onConfirm = {
-                    isExportConfirmationVisible = false
-                    viewModel.exportMovie(context, onPreview)
-                }
-            )
-        }
         if (isQuickDurationVisible) {
             val sourceMediaCount = state.clips.count { !it.isVideoSegmentChild }.coerceAtLeast(1)
             QuickDurationDialog(
@@ -801,13 +791,13 @@ fun EditorRoute(
                 onAddFile = {
                     isQuickDurationVisible = false
                     reopenQuickAfterPicker = true
-                    galleryPicker.launch(mediaFileIntent())
+                    galleryPicker.launch(mediaFileIntent(context))
                 },
                 onDismiss = { isQuickDurationVisible = false },
                 onConfirm = {
                     viewModel.applyQuickTargetDuration(quickTargetDurationSeconds)
                     isQuickDurationVisible = false
-                    isExportConfirmationVisible = true
+                    viewModel.exportMovie(context, onPreview)
                 }
             )
         }
@@ -940,7 +930,7 @@ fun EditorRoute(
                     },
                     onPickFile = {
                         isMusicSettingsSheetVisible = false
-                        musicPicker.launch(backgroundMusicIntent())
+                        musicPicker.launch(backgroundMusicIntent(context))
                     },
                     onOpenBrowser = {
                         isMusicSettingsSheetVisible = false
@@ -1036,23 +1026,37 @@ private fun Context.hasFullGalleryAccess(): Boolean {
     }
 }
 
-private fun backgroundMusicIntent(): Intent {
-    return Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+private const val CxFileExplorerPackage = "com.cxinventor.file.explorer"
+
+private fun backgroundMusicIntent(context: Context): Intent {
+    val audioIntent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
         type = "audio/*"
         addCategory(Intent.CATEGORY_OPENABLE)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
     }
+    return fileChooserWithCx(context, audioIntent, "음악 앱 또는 파일 선택")
 }
 
-private fun mediaFileIntent(): Intent {
-    return Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+private fun mediaFileIntent(context: Context): Intent {
+    val mediaIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
         type = "*/*"
         putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("image/*", "video/*"))
         putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
         addCategory(Intent.CATEGORY_OPENABLE)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+    }
+    return fileChooserWithCx(context, mediaIntent, "사진 앱 또는 파일 선택")
+}
+
+private fun fileChooserWithCx(
+    context: Context,
+    baseIntent: Intent,
+    title: String
+): Intent = Intent.createChooser(baseIntent, title).apply {
+    val cxIntent = Intent(baseIntent).setPackage(CxFileExplorerPackage)
+    if (cxIntent.resolveActivity(context.packageManager) != null) {
+        putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(cxIntent))
     }
 }
 
@@ -1089,7 +1093,7 @@ private fun EditorHeader(
                     .size(58.dp)
                     .clickable(onClick = onAddMedia),
                 shape = androidx.compose.foundation.shape.CircleShape,
-                color = palette.panel.copy(alpha = palette.panel.alpha * 0.72f),
+                color = palette.solidPanel,
                 border = BorderStroke(
                     1.dp,
                     palette.border.copy(alpha = palette.border.alpha * 0.62f)
@@ -1120,6 +1124,73 @@ private fun EditorHeader(
                 fontWeight = FontWeight.Black
             )
         }
+    }
+}
+
+@Composable
+private fun EditorImportMenu(
+    modifier: Modifier,
+    palette: HanClipPalette,
+    onAiShot: () -> Unit,
+    onPhoto: () -> Unit,
+    onCalendar: () -> Unit,
+    onFiles: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .background(Color.Black.copy(alpha = 0.08f))
+            .clickable(onClick = onDismiss)
+    ) {
+        Surface(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(top = 74.dp, end = 16.dp)
+                .width(300.dp)
+                .clickable(enabled = true, onClick = {}),
+            shape = RoundedCornerShape(32.dp),
+            color = palette.solidPanel,
+            border = BorderStroke(1.dp, palette.border),
+            shadowElevation = 14.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                EditorImportMenuRow(Icons.Outlined.PhotoCamera, "AiShot", palette, onAiShot)
+                EditorImportMenuRow(Icons.Outlined.PhotoLibrary, "사진", palette, onPhoto)
+                EditorImportMenuRow(Icons.Outlined.CalendarMonth, "달력", palette, onCalendar)
+                EditorImportMenuRow(Icons.Outlined.FolderOpen, "파일", palette, onFiles)
+            }
+        }
+    }
+}
+
+@Composable
+private fun EditorImportMenuRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    palette: HanClipPalette,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 15.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Icon(icon, contentDescription = null, tint = palette.primary, modifier = Modifier.size(28.dp))
+        Text(
+            text = title,
+            color = palette.text,
+            fontSize = 22.sp,
+            lineHeight = 28.sp,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
 
@@ -1297,9 +1368,9 @@ private fun ExportConfirmationDialog(
             }
         },
         confirmButton = {
-            Button(
+            OutlinedButton(
                 onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(
+                colors = ButtonDefaults.outlinedButtonColors(
                     containerColor = palette.primary,
                     contentColor = Color.White
                 )
@@ -2029,12 +2100,12 @@ private fun ImportActionRow(
             PresetStatusPill("타격점 자동 컷", active = false, palette = palette)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
+            OutlinedButton(
                 modifier = Modifier
                     .weight(1f)
                     .height(46.dp),
                 onClick = onPickVideos,
-                colors = ButtonDefaults.buttonColors(
+                colors = ButtonDefaults.outlinedButtonColors(
                     containerColor = palette.secondary,
                     contentColor = Color.White
                 )
@@ -2073,7 +2144,7 @@ private fun ImportActionRow(
             ) {
                 Icon(Icons.Outlined.FolderOpen, contentDescription = null)
                 Spacer(Modifier.width(6.dp))
-                ActionButtonText("파일 선택")
+                ActionButtonText("다른 앱·파일")
             }
             OutlinedButton(
                 modifier = Modifier
@@ -2206,7 +2277,7 @@ private fun EmptyClipPanel(
                 ) {
                     Icon(Icons.Outlined.FolderOpen, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    ActionButtonText("파일 선택")
+                    ActionButtonText("다른 앱·파일")
                 }
             }
         }
@@ -2383,7 +2454,7 @@ private fun reorderTileTitle(clip: ClipItem): String {
         clip.isSimilarPhotoGroupParent -> "묶음"
         clip.isVideoSegmentParent -> "분할"
         clip.mediaKind == ClipMediaKind.Video -> "영상"
-        clip.isLivePhoto -> "라이브"
+        clip.isLivePhoto -> "모션"
         else -> "사진"
     }
 }
@@ -2500,6 +2571,10 @@ private fun autoSegmentAverageDurationText(segmentCount: Int, defaultDuration: D
 private fun WorkProgressOverlay(
     palette: HanClipPalette,
     message: String,
+    progress: Float?,
+    current: Int,
+    total: Int,
+    previewClip: ClipItem?,
     isExporting: Boolean,
     onCancel: (() -> Unit)? = null
 ) {
@@ -2508,31 +2583,54 @@ private fun WorkProgressOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.32f))
+            .background(palette.solidPanel.copy(alpha = 0.99f))
             .clickable(enabled = true, onClick = {}),
         contentAlignment = Alignment.Center
     ) {
         Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = palette.panel,
-            shadowElevation = 10.dp
+            modifier = Modifier.fillMaxWidth(0.88f),
+            shape = RoundedCornerShape(32.dp),
+            color = palette.chip.compositeOver(palette.solidPanel),
+            border = BorderStroke(1.dp, palette.border),
+            shadowElevation = 8.dp
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth(0.78f)
-                    .padding(horizontal = 24.dp, vertical = 26.dp),
+                    .fillMaxWidth()
+                    .padding(horizontal = 26.dp, vertical = 32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                if (isExporting && previewClip != null) {
+                    Surface(
+                        modifier = Modifier
+                            .width(180.dp)
+                            .height(210.dp),
+                        shape = RoundedCornerShape(22.dp),
+                        color = palette.solidPanel,
+                        border = BorderStroke(1.dp, palette.border)
+                    ) {
+                        Box(Modifier.fillMaxSize()) {
+                            ClipThumbnail(previewClip, Modifier.matchParentSize())
+                            Box(
+                                Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .fillMaxHeight()
+                                    .fillMaxWidth(0.28f)
+                                    .background(palette.solidPanel.copy(alpha = 0.55f))
+                            )
+                        }
+                    }
+                }
                 CircularProgressIndicator(
                     color = palette.primary,
-                    trackColor = palette.chip
+                    trackColor = palette.solidPanel
                 )
                 Text(
-                    text = title,
+                    text = if (isExporting) "개봉 준비 중" else "준비하고 있습니다",
                     color = palette.text,
                     fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleMedium
+                    style = MaterialTheme.typography.headlineSmall
                 )
                 if (detail.isNotBlank()) {
                     Text(
@@ -2541,9 +2639,43 @@ private fun WorkProgressOverlay(
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
+                val safeProgress = progress?.coerceIn(0f, 1f)
+                if (safeProgress != null) {
+                    LinearProgressIndicator(
+                        progress = { safeProgress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(99.dp)),
+                        color = palette.primary,
+                        trackColor = palette.solidPanel
+                    )
+                    Text(
+                        text = "${(safeProgress * 100).roundToInt()}%",
+                        color = palette.primary,
+                        fontSize = 42.sp,
+                        lineHeight = 48.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                } else {
+                    Text(
+                        text = title,
+                        color = palette.text,
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+                if (!isExporting && total > 0) {
+                    Text(
+                        text = "선택한 미디어 ${current.coerceAtMost(total)}/${total}개를 불러오는 중…",
+                        color = palette.subText,
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
                 Text(
                     text = if (isExporting) {
-                        "완성 후 시사회에서 확인하고 HanClip 앨범에 저장합니다. 앱을 닫지 말고 화면을 유지해 주세요."
+                        "완성되면 시사회 화면으로 이동합니다."
                     } else {
                         "취소해도 기존 클립과 설정은 그대로 유지됩니다."
                     },
@@ -2710,10 +2842,15 @@ private fun ProjectControls(
         if (isClipSettingsExpanded) Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(18.dp),
-            color = palette.panel,
+            color = palette.panel.compositeOver(palette.solidPanel),
             border = BorderStroke(1.dp, palette.border)
         ) {
             Column {
+                CompactSettingRow(Icons.Outlined.SwapHoriz, "영상 길이", palette) {
+                    CompactChoice("선택구간", !usesFullVideoRange, palette, onUseSelectedVideoRanges)
+                    CompactChoice("전체영상", usesFullVideoRange, palette, onUseFullVideoRanges)
+                }
+                SettingDivider(palette)
                 CompactSettingRow(Icons.Outlined.Timer, "기본시간", palette) {
                     StepperPill(
                         value = "%.1f초".format(defaultDuration),
@@ -2724,12 +2861,7 @@ private fun ProjectControls(
                     CompactChoice("적용", true, palette, onApplyDuration)
                 }
                 SettingDivider(palette)
-                CompactSettingRow(Icons.Outlined.SwapHoriz, "영상 길이", palette) {
-                    CompactChoice("선택구간", !usesFullVideoRange, palette, onUseSelectedVideoRanges)
-                    CompactChoice("전체영상", usesFullVideoRange, palette, onUseFullVideoRanges)
-                }
-                SettingDivider(palette)
-                CompactSettingRow(Icons.Outlined.RadioButtonChecked, "라이브포토", palette) {
+                CompactSettingRow(Icons.Outlined.RadioButtonChecked, "모션포토", palette) {
                     CompactChoice(
                         "사진",
                         !livePhotosUseMotion,
@@ -3734,7 +3866,7 @@ private fun clipPreviewSubtitle(clip: ClipItem, childSegmentCount: Int): String 
     } else if (clip.mediaKind == ClipMediaKind.Video) {
         "구간 ${formatClipSeconds(clip.trimStartSeconds)} - ${formatClipSeconds(clip.trimEndSeconds)} · 클립 ${formatClipSeconds(clip.durationSeconds)}"
     } else if (clip.mediaKind == ClipMediaKind.LivePhoto) {
-        "Live Photo ${formatClipSeconds(clip.durationSeconds)} · 완성본에 이 길이로 들어갑니다"
+        "모션포토 ${formatClipSeconds(clip.durationSeconds)} · 완성본에 이 길이로 들어갑니다"
     } else {
         "사진 ${formatClipSeconds(clip.durationSeconds)} · 완성본에 이 길이로 들어갑니다"
     }
@@ -3822,7 +3954,7 @@ private fun clipTitle(clip: ClipItem, position: Int?): String {
     return when (clip.mediaKind) {
         ClipMediaKind.Video -> "영상"
         ClipMediaKind.Photo -> "사진"
-        ClipMediaKind.LivePhoto -> "Live Photo"
+        ClipMediaKind.LivePhoto -> "모션포토"
     }
 }
 
@@ -3838,7 +3970,7 @@ private fun clipPrimaryTimeText(clip: ClipItem, childSegmentCount: Int): String 
     } else if (clip.mediaKind == ClipMediaKind.Video) {
         "클립 ${formatClipSeconds(clip.durationSeconds)} / 원본 ${formatClipSeconds(source)}"
     } else if (clip.mediaKind == ClipMediaKind.LivePhoto) {
-        "Live Photo ${formatClipSeconds(clip.durationSeconds)}"
+        "모션포토 ${formatClipSeconds(clip.durationSeconds)}"
     } else {
         "사진 ${formatClipSeconds(clip.durationSeconds)}"
     }
@@ -4068,6 +4200,58 @@ private fun GlobalTimePanel(
                 Icon(Icons.Outlined.MovieCreation, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text("영상은 원본 전체 길이로 사용")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BottomEmptyEditorBar(
+    modifier: Modifier,
+    palette: HanClipPalette,
+    onAdd: () -> Unit,
+    onClose: () -> Unit
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = palette.solidPanel,
+        shadowElevation = 8.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedButton(
+                onClick = onAdd,
+                modifier = Modifier.size(62.dp),
+                contentPadding = PaddingValues(0.dp),
+                shape = androidx.compose.foundation.shape.CircleShape,
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = palette.solidPanel,
+                    contentColor = palette.secondary
+                ),
+                border = BorderStroke(1.dp, palette.border)
+            ) {
+                Icon(Icons.Outlined.Add, contentDescription = "미디어 추가", modifier = Modifier.size(34.dp))
+            }
+            Spacer(Modifier.width(16.dp))
+            OutlinedButton(
+                onClick = onClose,
+                modifier = Modifier.size(62.dp),
+                contentPadding = PaddingValues(0.dp),
+                shape = androidx.compose.foundation.shape.CircleShape,
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = palette.solidPanel,
+                    contentColor = palette.secondary
+                ),
+                border = BorderStroke(1.dp, palette.border)
+            ) {
+                Icon(Icons.Outlined.Close, contentDescription = "닫기", modifier = Modifier.size(34.dp))
             }
         }
     }

@@ -74,6 +74,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -81,6 +82,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.hanclip.android.R
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -155,8 +157,6 @@ private object AiShotPreferenceStore {
     private const val SensitivityKey = "sensitivity"
     private const val ShotLengthKey = "shotLength"
     private const val NextShotLengthEdgeKey = "nextShotLengthEdge"
-    private const val ZoomPresetKey = "zoomPreset"
-    private const val LensFacingKey = "lensFacing"
 
     fun loadSensitivity(context: Context): ShotSensitivity {
         val raw = context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
@@ -172,76 +172,41 @@ private object AiShotPreferenceStore {
             .apply()
     }
 
-    fun loadShotLength(context: Context): ShotLength {
+    fun loadShotLength(context: Context, projectId: String): ShotLength {
         val raw = context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
-            .getString(ShotLengthKey, ShotLength.Normal.name)
+            .getString("$ShotLengthKey.$projectId", ShotLength.Normal.name)
         return runCatching { enumValueOf<ShotLength>(raw.orEmpty()) }
             .getOrDefault(ShotLength.Normal)
     }
 
-    fun saveShotLength(context: Context, shotLength: ShotLength) {
+    fun saveShotLength(context: Context, projectId: String, shotLength: ShotLength) {
         context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
             .edit()
-            .putString(ShotLengthKey, shotLength.name)
+            .putString("$ShotLengthKey.$projectId", shotLength.name)
             .apply()
     }
 
-    fun loadNextShotLengthEdge(context: Context): ShotLength {
+    fun loadNextShotLengthEdge(context: Context, projectId: String): ShotLength {
         val raw = context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
-            .getString(NextShotLengthEdgeKey, ShotLength.Long.name)
+            .getString("$NextShotLengthEdgeKey.$projectId", ShotLength.Long.name)
         return runCatching { enumValueOf<ShotLength>(raw.orEmpty()) }
             .getOrDefault(ShotLength.Long)
             .takeIf { it != ShotLength.Normal }
             ?: ShotLength.Long
     }
 
-    fun saveNextShotLengthEdge(context: Context, shotLength: ShotLength) {
+    fun saveNextShotLengthEdge(context: Context, projectId: String, shotLength: ShotLength) {
         val safeValue = if (shotLength == ShotLength.Short) ShotLength.Short else ShotLength.Long
         context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
             .edit()
-            .putString(NextShotLengthEdgeKey, safeValue.name)
-            .apply()
-    }
-
-    fun loadZoomPreset(context: Context): ZoomPreset {
-        val raw = context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
-            .getString(ZoomPresetKey, ZoomPreset.One.name)
-        return runCatching { enumValueOf<ZoomPreset>(raw.orEmpty()) }
-            .getOrDefault(ZoomPreset.One)
-    }
-
-    fun saveZoomPreset(context: Context, zoomPreset: ZoomPreset) {
-        context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
-            .edit()
-            .putString(ZoomPresetKey, zoomPreset.name)
-            .apply()
-    }
-
-    fun loadLensFacing(context: Context): Int {
-        val value = context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
-            .getInt(LensFacingKey, CameraSelector.LENS_FACING_BACK)
-        return if (value == CameraSelector.LENS_FACING_FRONT) {
-            CameraSelector.LENS_FACING_FRONT
-        } else {
-            CameraSelector.LENS_FACING_BACK
-        }
-    }
-
-    fun saveLensFacing(context: Context, lensFacing: Int) {
-        val safeValue = if (lensFacing == CameraSelector.LENS_FACING_FRONT) {
-            CameraSelector.LENS_FACING_FRONT
-        } else {
-            CameraSelector.LENS_FACING_BACK
-        }
-        context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
-            .edit()
-            .putInt(LensFacingKey, safeValue)
+            .putString("$NextShotLengthEdgeKey.$projectId", safeValue.name)
             .apply()
     }
 }
 
 @Composable
 fun AiShotRoute(
+    projectId: String,
     onClose: () -> Unit,
     onOpenEditor: (List<Uri>) -> Unit
 ) {
@@ -273,13 +238,15 @@ fun AiShotRoute(
     var activeShotLength by remember { mutableStateOf<ShotLength?>(null) }
     var discardCurrentRecording by remember { mutableStateOf(false) }
     var pendingSaveCount by remember { mutableIntStateOf(0) }
-    var lensFacing by remember { mutableIntStateOf(AiShotPreferenceStore.loadLensFacing(context)) }
+    var lensFacing by remember { mutableIntStateOf(CameraSelector.LENS_FACING_BACK) }
     var sensitivity by remember { mutableStateOf(AiShotPreferenceStore.loadSensitivity(context)) }
-    var shotLength by remember { mutableStateOf(AiShotPreferenceStore.loadShotLength(context)) }
-    var nextShotLengthEdge by remember {
-        mutableStateOf(AiShotPreferenceStore.loadNextShotLengthEdge(context))
+    var shotLength by remember(projectId) {
+        mutableStateOf(AiShotPreferenceStore.loadShotLength(context, projectId))
     }
-    var zoomPreset by remember { mutableStateOf(AiShotPreferenceStore.loadZoomPreset(context)) }
+    var nextShotLengthEdge by remember(projectId) {
+        mutableStateOf(AiShotPreferenceStore.loadNextShotLengthEdge(context, projectId))
+    }
+    var zoomPreset by remember { mutableStateOf(ZoomPreset.One) }
     var level by remember { mutableDoubleStateOf(0.0) }
     var statusText by remember { mutableStateOf("스윙 감지 대기") }
     var savedCount by remember { mutableIntStateOf(0) }
@@ -446,26 +413,18 @@ fun AiShotRoute(
     }
 
     LaunchedEffect(shotLength) {
-        AiShotPreferenceStore.saveShotLength(context, shotLength)
+        AiShotPreferenceStore.saveShotLength(context, projectId, shotLength)
         activeRecordingSeconds = shotLength.recordingSeconds
     }
 
     LaunchedEffect(nextShotLengthEdge) {
-        AiShotPreferenceStore.saveNextShotLengthEdge(context, nextShotLengthEdge)
+        AiShotPreferenceStore.saveNextShotLengthEdge(context, projectId, nextShotLengthEdge)
     }
 
     LaunchedEffect(shotLengthNotice) {
         if (shotLengthNotice == null) return@LaunchedEffect
         delay(1700L)
         shotLengthNotice = null
-    }
-
-    LaunchedEffect(zoomPreset) {
-        AiShotPreferenceStore.saveZoomPreset(context, zoomPreset)
-    }
-
-    LaunchedEffect(lensFacing) {
-        AiShotPreferenceStore.saveLensFacing(context, lensFacing)
     }
 
     LaunchedEffect(previewView, lensFacing, hasPermissions) {
@@ -744,8 +703,12 @@ private fun AiShotBottomPanel(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.GraphicEq, contentDescription = null, tint = Color.White)
-                Spacer(Modifier.size(8.dp))
+                Box(
+                    Modifier
+                        .size(7.dp)
+                        .background(Color(0xFFFFB432), CircleShape)
+                )
+                Spacer(Modifier.size(9.dp))
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -759,8 +722,31 @@ private fun AiShotBottomPanel(
                             .background(Color(0xFF1DBA7A), RoundedCornerShape(16.dp))
                     )
                 }
+                Spacer(Modifier.size(10.dp))
+                Text(
+                    if (isRecording) "저장 중" else "감지 중",
+                    color = Color(0xFFFFB432),
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.labelMedium
+                )
             }
-            ChipRow {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                Icon(
+                    Icons.Outlined.GraphicEq,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    "감도",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.labelMedium
+                )
                 listOf(
                     ShotSensitivity.Loud,
                     ShotSensitivity.Normal,
@@ -770,6 +756,7 @@ private fun AiShotBottomPanel(
                     DarkFilterChip(
                         text = it.title,
                         selected = sensitivity == it,
+                        modifier = Modifier.weight(1f),
                         onClick = { onSensitivityChange(it) }
                     )
                 }
@@ -779,8 +766,6 @@ private fun AiShotBottomPanel(
                     remainingSeconds = recordingRemainingSeconds,
                     totalSeconds = activeRecordingSeconds
                 )
-            } else {
-                Text("감지 중", color = Color(0xFFFFB432), fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -944,6 +929,7 @@ private fun GolfSwingSpriteIndicator(
         bitmap = frames[frameIndex],
         contentDescription = null,
         modifier = modifier
+            .clip(CircleShape)
             .background(Color.Black, CircleShape),
         contentScale = ContentScale.Crop
     )
@@ -1132,25 +1118,33 @@ private object RowScopeHack
 private fun DarkFilterChip(
     text: String,
     selected: Boolean,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    FilterChip(
-        selected = selected,
+    Surface(
         onClick = onClick,
-        label = { Text(text, fontWeight = FontWeight.SemiBold) },
-        colors = FilterChipDefaults.filterChipColors(
-            containerColor = Color.Black.copy(alpha = 0.36f),
-            labelColor = Color.White,
-            selectedContainerColor = Color(0xFF0D7778),
-            selectedLabelColor = Color.White
-        ),
-        border = FilterChipDefaults.filterChipBorder(
-            enabled = true,
-            selected = selected,
-            borderColor = Color.White.copy(alpha = 0.24f),
-            selectedBorderColor = Color(0xFF6BA5A7)
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = if (selected) Color(0xFF0D7778) else Color.Black.copy(alpha = 0.36f),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (selected) Color(0xFF6BA5A7) else Color.White.copy(alpha = 0.24f)
         )
-    )
+    ) {
+        Box(
+            modifier = Modifier.height(36.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text,
+                color = Color.White,
+                fontSize = 11.sp,
+                lineHeight = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1
+            )
+        }
+    }
 }
 
 @Composable

@@ -136,16 +136,8 @@ fun HanClipApp(
                 return@LaunchedEffect
             }
             val result = BrowserFavoritesStore.merge(context, sharedBrowserFavorites)
-            val message = when {
-                result.addedCount > 0 && result.replacedCount > 0 ->
-                    "브라우저 즐겨찾기 ${result.addedCount}개 추가, ${result.replacedCount}개 갱신"
-                result.addedCount > 0 ->
-                    "브라우저 즐겨찾기 ${result.addedCount}개를 추가했습니다."
-                result.replacedCount > 0 ->
-                    "브라우저 즐겨찾기 ${result.replacedCount}개를 갱신했습니다."
-                else ->
-                    "새로 가져올 브라우저 즐겨찾기가 없습니다."
-            }
+            val message = com.hanclip.android.feature.browser
+                .browserFavoritesImportMessage(result)
             Toast.makeText(context, message, Toast.LENGTH_LONG).show()
             navController.navigate(HanClipDestination.Browser.route)
             onSharedBrowserFavoritesHandled()
@@ -266,6 +258,24 @@ fun HanClipApp(
                         navController.navigate(HanClipDestination.Editor.routeFor(preset))
                     }
                 },
+                onOpenPhotos = {
+                    DraftProjectStore.clear(context)
+                    editorViewModel.startNewPreset(context, MoviePreset.NewMovie)
+                    pendingEditorImportAction = EditorImportAction.Photo
+                    navController.navigate(HanClipDestination.Editor.routeFor(MoviePreset.NewMovie))
+                },
+                onOpenCalendar = {
+                    DraftProjectStore.clear(context)
+                    editorViewModel.startNewPreset(context, MoviePreset.NewMovie)
+                    pendingEditorImportAction = EditorImportAction.Calendar
+                    navController.navigate(HanClipDestination.Editor.routeFor(MoviePreset.NewMovie))
+                },
+                onOpenFiles = {
+                    DraftProjectStore.clear(context)
+                    editorViewModel.startNewPreset(context, MoviePreset.NewMovie)
+                    pendingEditorImportAction = EditorImportAction.Files
+                    navController.navigate(HanClipDestination.Editor.routeFor(MoviePreset.NewMovie))
+                },
                 onOpenProject = {
                     previewHistorySummary = null
                     previewCollectionMovie = null
@@ -363,6 +373,7 @@ fun HanClipApp(
                     previewHistorySummary = null
                     navController.navigate(HanClipDestination.Preview.route)
                 },
+                onOpenAiShot = { navController.navigate(HanClipDestination.AiShot.route) },
                 onOpenBrowser = { navController.navigate(HanClipDestination.Browser.route) },
                 sleepPreventionMode = sleepPreventionMode,
                 onSleepPreventionModeChange = { mode ->
@@ -430,6 +441,7 @@ fun HanClipApp(
         }
         composable(HanClipDestination.AiShot.route) {
             AiShotRoute(
+                projectId = editorState.activeProjectId,
                 onClose = { navController.popBackStack() },
                 onOpenEditor = { uris ->
                     editorViewModel.addPickedMedia(context, uris)

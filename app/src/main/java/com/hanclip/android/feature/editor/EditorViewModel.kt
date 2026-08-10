@@ -1,5 +1,6 @@
 package com.hanclip.android.feature.editor
 
+import android.util.Log
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
@@ -74,6 +75,9 @@ data class EditorUiState(
     val exportedVideoUri: Uri? = null,
     val recentlySavedMovieUriString: String? = null,
     val progressMessage: String = "",
+    val workProgress: Float? = null,
+    val workCurrent: Int = 0,
+    val workTotal: Int = 0,
     val alertMessage: String? = null,
     val undoDeleteMessage: String? = null,
     val expandedSimilarPhotoGroupIds: Set<String> = emptySet()
@@ -167,17 +171,24 @@ class EditorViewModel : ViewModel() {
                 it.copy(
                     isImportingMedia = true,
                     progressMessage = "사진첩 선택 ${uniqueUris.size}개를 번호순으로 정리하는 중...",
+                    workProgress = 0f,
+                    workCurrent = 0,
+                    workTotal = uniqueUris.size,
                     alertMessage = null
                 )
             }
 
             val state = _uiState.value
             val imported = mutableListOf<ClipItem>()
+            val failedMedia = mutableListOf<String>()
             uniqueUris.forEachIndexed { index, uri ->
                 currentCoroutineContext().ensureActive()
                 _uiState.update {
                     it.copy(
-                        progressMessage = "선택 번호순 ${index + 1}/${uniqueUris.size} · 영상은 타격점 자동 컷 준비 중..."
+                        progressMessage = "선택 번호순 ${index + 1}/${uniqueUris.size} · 영상은 타격점 자동 컷 준비 중...",
+                        workProgress = index.toFloat() / uniqueUris.size.coerceAtLeast(1),
+                        workCurrent = index,
+                        workTotal = uniqueUris.size
                     )
                 }
                 runCatching {
@@ -189,6 +200,16 @@ class EditorViewModel : ViewModel() {
                     )
                 }.onSuccess { clip ->
                     imported += clip
+                }.onFailure { error ->
+                    failedMedia += (error.message ?: error::class.java.simpleName)
+                    Log.e("HanClipImport", "Failed to import media ${index + 1}/${uniqueUris.size}", error)
+                }
+                _uiState.update {
+                    it.copy(
+                        workProgress = (index + 1).toFloat() / uniqueUris.size.coerceAtLeast(1),
+                        workCurrent = index + 1,
+                        workTotal = uniqueUris.size
+                    )
                 }
             }
 
@@ -197,7 +218,11 @@ class EditorViewModel : ViewModel() {
                     it.copy(
                         isImportingMedia = false,
                         progressMessage = "",
+                        workProgress = null,
+                        workCurrent = 0,
+                        workTotal = 0,
                         alertMessage = "선택한 사진/영상을 클립으로 준비하지 못했습니다. Android 기본 사진첩 권한을 확인하거나 파일 선택으로 다시 가져와 주세요."
+                            + failedMedia.firstOrNull()?.let { "\n원인: $it" }.orEmpty()
                     )
                 } else {
                     val failedCount = uniqueUris.size - imported.size
@@ -228,6 +253,9 @@ class EditorViewModel : ViewModel() {
                         isImportingMedia = false,
                         importedMediaCount = it.importedMediaCount + groupedImported.count { clip -> clip.isRenderableClip },
                         progressMessage = "",
+                        workProgress = null,
+                        workCurrent = 0,
+                        workTotal = 0,
                         alertMessage = if (duplicateCount > 0) {
                             "$importMessage 이미 들어 있는 ${duplicateCount}개는 제외했습니다."
                         } else {
@@ -242,6 +270,9 @@ class EditorViewModel : ViewModel() {
                     it.copy(
                         isImportingMedia = false,
                         progressMessage = "",
+                        workProgress = null,
+                        workCurrent = 0,
+                        workTotal = 0,
                         alertMessage = "미디어 가져오기를 취소했습니다. 기존 클립과 설정은 그대로 유지됩니다."
                     )
                 }
@@ -347,6 +378,9 @@ class EditorViewModel : ViewModel() {
                 it.copy(
                     isExporting = true,
                     progressMessage = "완성본을 만드는 중... 완료 후 시사회로 이동 · $exportLabel",
+                    workProgress = 0f,
+                    workCurrent = 0,
+                    workTotal = 100,
                     alertMessage = null
                 )
             }
@@ -393,7 +427,10 @@ class EditorViewModel : ViewModel() {
                         "${clips.size}개 클립 · ${renderSize.first}x${renderSize.second} · ${quality.chipTitle} · ${OutputQualityPreset.GallerySaveDetail}"
                     _uiState.update {
                         it.copy(
-                            progressMessage = "완성본을 만드는 중... ${(progress * 100).toInt()}% · 완료 후 시사회로 이동 · $attemptLabel"
+                            progressMessage = "완성본을 만드는 중... ${(progress * 100).toInt()}% · 완료 후 시사회로 이동 · $attemptLabel",
+                            workProgress = progress.toFloat().coerceIn(0f, 1f),
+                            workCurrent = (progress * 100).toInt().coerceIn(0, 100),
+                            workTotal = 100
                         )
                     }
                 }
@@ -408,7 +445,10 @@ class EditorViewModel : ViewModel() {
                     actualOutputQualityPreset = OutputQualityPreset.Standard
                     _uiState.update {
                         it.copy(
-                            progressMessage = "60fps 제작이 불안정해 30fps 호환 모드로 다시 만드는 중... 완료 후 시사회로 이동"
+                            progressMessage = "60fps 제작이 불안정해 30fps 호환 모드로 다시 만드는 중... 완료 후 시사회로 이동",
+                            workProgress = 0f,
+                            workCurrent = 0,
+                            workTotal = 100
                         )
                     }
                     runExportAttempt(
@@ -453,6 +493,9 @@ class EditorViewModel : ViewModel() {
                         recentlySavedMovieUriString = outputUri.toString(),
                         outputQualityPreset = actualOutputQualityPreset,
                         progressMessage = "",
+                        workProgress = null,
+                        workCurrent = 0,
+                        workTotal = 0,
                         alertMessage = if (usedCompatibilityRetry) {
                             "60fps 제작이 불안정해 30fps 호환 모드로 완성했습니다."
                         } else {
@@ -462,10 +505,14 @@ class EditorViewModel : ViewModel() {
                 }
                 onExported()
             }.onFailure { error ->
+                Log.e("HanClipExport", "Failed to export movie: $exportLabel", error)
                 _uiState.update {
                     it.copy(
                         isExporting = false,
                         progressMessage = "",
+                        workProgress = null,
+                        workCurrent = 0,
+                        workTotal = 0,
                         alertMessage = exportFailureMessage(error, exportLabel)
                     )
                 }
@@ -483,6 +530,9 @@ class EditorViewModel : ViewModel() {
                 it.copy(
                     isExporting = false,
                     progressMessage = "",
+                    workProgress = null,
+                    workCurrent = 0,
+                    workTotal = 0,
                     alertMessage = "완성본 만들기를 취소했습니다. 클립과 설정은 그대로 유지됩니다."
                 )
             }
@@ -1005,9 +1055,9 @@ class EditorViewModel : ViewModel() {
                     }
                 },
                 alertMessage = if (state.clips.any { it.mediaKind == ClipMediaKind.LivePhoto }) {
-                    if (useMotion) "라이브포토를 영상으로 사용합니다." else "라이브포토를 사진으로 사용합니다."
+                    if (useMotion) "모션포토를 영상으로 사용합니다." else "모션포토를 사진으로 사용합니다."
                 } else {
-                    "현재 프로젝트에 라이브포토가 없습니다."
+                    "현재 프로젝트에 모션포토가 없습니다."
                 }
             )
         }
@@ -1258,6 +1308,9 @@ class EditorViewModel : ViewModel() {
                 isImportingMedia = false,
                 isExporting = false,
                 progressMessage = "",
+                workProgress = null,
+                workCurrent = 0,
+                workTotal = 0,
                 alertMessage = snapshot.restoredMessage,
                 undoDeleteMessage = null
             )
@@ -1408,6 +1461,9 @@ class EditorViewModel : ViewModel() {
                 importedMediaCount = 0,
                 exportedVideoUri = null,
                 progressMessage = "",
+                workProgress = null,
+                workCurrent = 0,
+                workTotal = 0,
                 alertMessage = if (previousState.clips.isNotEmpty()) {
                     "현재 MP4 완성본 편집 작업을 초기화했습니다. 필요하면 방금 작업을 되돌릴 수 있습니다."
                 } else {
@@ -1733,9 +1789,10 @@ class EditorViewModel : ViewModel() {
             MoviePreset.Life -> 2.0
             MoviePreset.Golf -> 4.0
         }
-        val defaultDuration = context?.let {
-            EditorPreferenceStore.defaultDurationSeconds(it, presetDefaultDuration)
-        } ?: presetDefaultDuration
+        // iOS applies the selected movie preset's duration every time a new
+        // project starts. A previously edited global value must not leak into
+        // a different preset's initial state.
+        val defaultDuration = presetDefaultDuration
         val outputAspectRatio = context?.let(EditorPreferenceStore::outputAspectRatio)
         val outputQualityPreset = context?.let(EditorPreferenceStore::outputQualityPreset)
             ?: OutputQualityPreset.Standard
@@ -1835,8 +1892,7 @@ class EditorViewModel : ViewModel() {
             DateTimeFormatter.ofPattern("yy.MM.dd(E)", Locale.KOREAN)
         )
         return when (preset) {
-            MoviePreset.AiShot,
-            MoviePreset.Golf -> WatermarkSettings(
+            MoviePreset.AiShot -> WatermarkSettings(
                 isEnabled = true,
                 logoEnabled = true,
                 text = dateText,
@@ -1875,10 +1931,20 @@ class EditorViewModel : ViewModel() {
             )
             MoviePreset.NewMovie,
             MoviePreset.Quick,
-            MoviePreset.Life -> WatermarkSettings(
+            MoviePreset.Life,
+            MoviePreset.Golf -> WatermarkSettings(
                 isEnabled = true,
                 logoEnabled = false,
                 text = if (preset == MoviePreset.Quick) "" else dateText,
+                position = WatermarkPosition.TopLeading,
+                fontName = "poppins",
+                textColorHex = "#FFE45C",
+                shadowEnabled = true,
+                shadowOpacity = 0.75,
+                shadowColorHex = "#642BFF",
+                lineSpacing = WatermarkLineSpacing.Normal,
+                lineSpacingScale = WatermarkLineSpacing.DefaultScale,
+                fontSize = WatermarkFontSize.ExtraLarge,
                 copyrightPosition = WatermarkPosition.BottomTrailing
             )
         }

@@ -116,6 +116,17 @@ data class CollectionVideoCompressionInfo(
     val durationSeconds: Double,
     val fileSizeBytes: Long
 ) {
+    fun isAtOrBelow(option: CollectionVideoSizeOption): Boolean {
+        val sourceLongEdge = max(width, height)
+        val sourceShortEdge = min(width, height)
+        val targetLongEdge = when (option) {
+            CollectionVideoSizeOption.High1080 -> 1_920
+            CollectionVideoSizeOption.Saver720 -> 1_280
+            CollectionVideoSizeOption.Minimum540 -> 960
+        }
+        return sourceLongEdge <= targetLongEdge && sourceShortEdge <= option.shortSidePixels
+    }
+
     fun estimatedBytes(option: CollectionVideoSizeOption): Long {
         if (durationSeconds <= 0 || fileSizeBytes <= 0) return 0
         val sourceBitsPerSecond = fileSizeBytes * 8.0 / durationSeconds

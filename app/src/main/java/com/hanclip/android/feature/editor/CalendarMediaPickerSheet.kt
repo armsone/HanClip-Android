@@ -13,6 +13,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,8 +32,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -64,12 +67,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
@@ -110,12 +115,12 @@ fun CalendarMediaPickerSheet(
 ) {
     FullScreenDialogSystemBars(palette.solidPanel)
     val context = LocalContext.current
-    val pickerMode = remember(title) {
+    var pickerMode by remember(title) {
         when (title) {
             "기본 사진첩",
-            "사진첩 전체" -> MediaPickerSheetMode.Recent
-            "영상만" -> MediaPickerSheetMode.Videos
-            else -> MediaPickerSheetMode.Calendar
+            "사진첩 전체" -> mutableStateOf(MediaPickerSheetMode.Recent)
+            "영상만" -> mutableStateOf(MediaPickerSheetMode.Videos)
+            else -> mutableStateOf(MediaPickerSheetMode.Calendar)
         }
     }
     var visibleMonth by remember { mutableStateOf(YearMonth.now()) }
@@ -138,13 +143,21 @@ fun CalendarMediaPickerSheet(
     }
     var pendingRecentDate by remember(title) { mutableStateOf<LocalDate?>(null) }
     var pendingBulkImportUris by remember { mutableStateOf<List<Uri>?>(null) }
-    var sortOrder by remember { mutableStateOf(MediaSortOrder.TakenNewest) }
-    var recentFilter by remember { mutableStateOf(RecentMediaFilter.Photo) }
-    var recentFilterBeforeDuration by remember { mutableStateOf(RecentMediaFilter.Photo) }
+    var sortOrder by remember { mutableStateOf(MediaSortOrder.TakenOldest) }
+    var recentFilter by remember { mutableStateOf(RecentMediaFilter.All) }
+    var recentFilterBeforeDuration by remember { mutableStateOf(RecentMediaFilter.All) }
     var videoDurationFilter by remember { mutableStateOf<VideoDurationFilter?>(null) }
     var showVideoDurationFilter by remember { mutableStateOf(false) }
-    val loadedMonthItems by produceState<Pair<YearMonth, List<CalendarMediaItem>>?>(null, visibleMonth) {
-        value = visibleMonth to CalendarMediaRepository.loadMonth(context, visibleMonth)
+    val loadedMonthItems by produceState<Pair<YearMonth, List<CalendarMediaItem>>?>(
+        null,
+        visibleMonth,
+        pickerMode
+    ) {
+        value = visibleMonth to if (pickerMode == MediaPickerSheetMode.Recent) {
+            CalendarMediaRepository.loadAll(context)
+        } else {
+            CalendarMediaRepository.loadMonth(context, visibleMonth)
+        }
     }
     val monthItems = loadedMonthItems
         ?.takeIf { (loadedMonth) -> loadedMonth == visibleMonth }
@@ -225,14 +238,18 @@ fun CalendarMediaPickerSheet(
         shape = RoundedCornerShape(0.dp),
         color = palette.solidPanel
     ) {
-        Column(
+        Box(
             modifier = Modifier
                 .background(palette.background)
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
             val moveToPreviousMonth = {
                 val newMonth = visibleMonth.minusMonths(1)
                 visibleMonth = newMonth
@@ -250,10 +267,9 @@ fun CalendarMediaPickerSheet(
                     palette = palette,
                     selectedCount = selectedUris.size,
                     onCancel = onDismiss,
-                    onToday = {
-                        visibleMonth = YearMonth.now()
-                        selectedDates = setOf(LocalDate.now())
-                        selectedUris = emptyList()
+                    onShowPhotos = {
+                        pickerMode = MediaPickerSheetMode.Recent
+                        hasAppliedInitialSelection = true
                     },
                     onConfirm = ::requestImport
                 )
@@ -268,21 +284,16 @@ fun CalendarMediaPickerSheet(
                     palette = palette,
                     selectedCount = selectedUris.size,
                     canApplyEmptySelection = initialSelectedUris.isNotEmpty(),
-                    filter = recentFilter,
-                    onFilterChange = {
-                        recentFilter = it
-                        if (it != RecentMediaFilter.Video) videoDurationFilter = null
-                        selectedUris = emptyList()
-                        hasAppliedInitialSelection = false
+                    onShowCalendar = {
+                        val selectedDays = selectedUris.mapNotNull { uri ->
+                            recentKnownItems[uri]?.date
+                        }.toSet()
+                        selectedDates = selectedDays.ifEmpty { setOf(LocalDate.now()) }
+                        visibleMonth = YearMonth.from(selectedDates.first())
+                        pickerMode = MediaPickerSheetMode.Calendar
                     },
                     onCancel = onDismiss,
                     onConfirm = ::requestImport
-                )
-                RecentMonthNavigation(
-                    palette = palette,
-                    visibleMonth = visibleMonth,
-                    onPrevious = moveToPreviousMonth,
-                    onNext = moveToNextMonth
                 )
             } else {
                 CalendarSheetHeader(
@@ -322,6 +333,7 @@ fun CalendarMediaPickerSheet(
                 )
             }
             CalendarMediaStrip(
+                modifier = Modifier.weight(1f),
                 palette = palette,
                 mode = pickerMode,
                 visibleMonth = visibleMonth,
@@ -347,20 +359,69 @@ fun CalendarMediaPickerSheet(
                     }
                 }
             )
-            when (pickerMode) {
-                MediaPickerSheetMode.Calendar -> Unit
-                MediaPickerSheetMode.Recent -> {
-                    RecentSelectionPreview(
+            if (pickerMode == MediaPickerSheetMode.Videos) {
+                MediaSelectionSummary(
+                    palette = palette,
+                    items = visibleItems,
+                    selectedUris = selectedUris
+                )
+                StandardPickerBottomActions(
+                    palette = palette,
+                    selectedCount = selectedUris.size,
+                    onDismiss = onDismiss,
+                    onImport = ::requestImport
+                )
+            }
+        }
+
+        if (pickerMode != MediaPickerSheetMode.Videos) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 44.dp)
+            ) {
+                when (pickerMode) {
+                MediaPickerSheetMode.Calendar -> {
+                    CalendarDayActions(
                         palette = palette,
-                        items = recentKnownItems.values.toList(),
-                        selectedUris = selectedUris,
-                        onRemove = { uri ->
-                            selectedUris = selectedUris.filterNot { it == uri }
-                        }
+                        selectedCount = selectedUris.size,
+                        canClear = selectedDates.isNotEmpty(),
+                        onPreviousDay = {
+                            val target = (selectedDates.minOrNull() ?: LocalDate.now()).minusDays(1)
+                            visibleMonth = YearMonth.from(target)
+                            selectedDates = setOf(target)
+                            selectedUris = emptyList()
+                        },
+                        onToday = {
+                            val today = LocalDate.now()
+                            visibleMonth = YearMonth.from(today)
+                            selectedDates = setOf(today)
+                            selectedUris = emptyList()
+                        },
+                        onClear = {
+                            selectedDates = emptySet()
+                            selectedUris = emptyList()
+                        },
+                        onAdd = ::requestImport
                     )
+                }
+                MediaPickerSheetMode.Recent -> {
                     RecentDayActions(
                         palette = palette,
+                        selectedCount = selectedUris.size,
+                        currentFilter = recentFilter,
+                        currentSort = sortOrder,
                         canClear = selectedUris.isNotEmpty(),
+                        onFilterChange = {
+                            recentFilter = it
+                            if (it != RecentMediaFilter.Video) videoDurationFilter = null
+                            selectedUris = emptyList()
+                            hasAppliedInitialSelection = false
+                        },
+                        onSortChange = { sortOrder = it },
+                        onDurationFilter = { showVideoDurationFilter = true },
                         onPreviousDay = {
                             val anchor = selectedUris.firstOrNull()
                                 ?.let { uri -> recentKnownItems[uri]?.date }
@@ -384,24 +445,15 @@ fun CalendarMediaPickerSheet(
                                 selectedUris = visibleItems.filter { it.date == today }.map { it.uri }
                             }
                         },
-                        onClear = { selectedUris = emptyList() }
+                        onClear = { selectedUris = emptyList() },
+                        onAdd = ::requestImport
                     )
                 }
-                MediaPickerSheetMode.Videos -> {
-                    MediaSelectionSummary(
-                        palette = palette,
-                        items = visibleItems,
-                        selectedUris = selectedUris
-                    )
-                    StandardPickerBottomActions(
-                        palette = palette,
-                        selectedCount = selectedUris.size,
-                        onDismiss = onDismiss,
-                        onImport = ::requestImport
-                    )
+                MediaPickerSheetMode.Videos -> Unit
                 }
             }
         }
+    }
     }
     pendingBulkImportUris?.let { uris ->
         AlertDialog(
@@ -482,11 +534,13 @@ private enum class MediaPickerSheetMode {
 }
 
 private enum class RecentMediaFilter(val title: String) {
+    All("전체"),
     Photo("사진"),
-    LivePhoto("Live"),
+    LivePhoto("모션포토"),
     Video("영상");
 
     fun accepts(item: CalendarMediaItem): Boolean = when (this) {
+        All -> true
         Photo -> item.kind == ClipMediaKind.Photo
         LivePhoto -> item.kind == ClipMediaKind.LivePhoto
         Video -> item.kind == ClipMediaKind.Video
@@ -518,8 +572,7 @@ private fun RecentPickerHeader(
     palette: HanClipPalette,
     selectedCount: Int,
     canApplyEmptySelection: Boolean,
-    filter: RecentMediaFilter,
-    onFilterChange: (RecentMediaFilter) -> Unit,
+    onShowCalendar: () -> Unit,
     onCancel: () -> Unit,
     onConfirm: () -> Unit
 ) {
@@ -536,26 +589,12 @@ private fun RecentPickerHeader(
                 containerColor = palette.solidPanel,
                 contentColor = palette.text
             )
+        ) { Text("취소", fontWeight = FontWeight.Bold) }
+        Row(
+            modifier = Modifier.clickable(onClick = onShowCalendar),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(5.dp))
-            Text("취소", fontWeight = FontWeight.Bold)
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Surface(
-                modifier = Modifier.size(36.dp),
-                shape = RoundedCornerShape(9.dp),
-                color = palette.chip
-            ) {
-                Icon(
-                    Icons.Outlined.Photo,
-                    contentDescription = null,
-                    tint = palette.primary,
-                    modifier = Modifier.padding(8.dp)
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            Text("미디어 선택", color = palette.text, fontWeight = FontWeight.Black)
+            Text("사진", color = palette.text, fontWeight = FontWeight.Black)
         }
         Button(
             onClick = onConfirm,
@@ -569,38 +608,9 @@ private fun RecentPickerHeader(
             )
         ) {
             Text(
-                if (selectedCount == 0) "선택 적용" else "+ ${selectedCount}개 적용",
+                if (selectedCount == 0) "0개 추가" else "${selectedCount}개 추가",
                 fontWeight = FontWeight.Bold
             )
-        }
-    }
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(50),
-        color = palette.chip,
-        border = BorderStroke(1.dp, palette.border)
-    ) {
-        Row(Modifier.padding(3.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            RecentMediaFilter.entries.forEach { candidate ->
-                Surface(
-                    modifier = Modifier.weight(1f).height(38.dp),
-                    shape = RoundedCornerShape(50),
-                    color = if (filter == candidate) palette.panel else Color.Transparent,
-                    border = BorderStroke(
-                        1.dp,
-                        if (filter == candidate) palette.primary.copy(alpha = 0.42f) else Color.Transparent
-                    ),
-                    onClick = { onFilterChange(candidate) }
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            candidate.title,
-                            color = if (filter == candidate) palette.text else palette.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
         }
     }
 }
@@ -798,19 +808,88 @@ private fun CalendarMediaPreviewDialog(
 @Composable
 private fun RecentDayActions(
     palette: HanClipPalette,
+    selectedCount: Int,
+    currentFilter: RecentMediaFilter,
+    currentSort: MediaSortOrder,
+    canClear: Boolean,
+    onFilterChange: (RecentMediaFilter) -> Unit,
+    onSortChange: (MediaSortOrder) -> Unit,
+    onDurationFilter: () -> Unit,
+    onPreviousDay: () -> Unit,
+    onToday: () -> Unit,
+    onClear: () -> Unit,
+    onAdd: () -> Unit
+) {
+    var showFilterMenu by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box {
+            DayCircleButton("필터", palette, enabled = true, onClick = { showFilterMenu = true })
+            DropdownMenu(
+                expanded = showFilterMenu,
+                onDismissRequest = { showFilterMenu = false },
+                shape = RoundedCornerShape(16.dp),
+                containerColor = palette.solidPanel
+            ) {
+                RecentMediaFilter.entries.forEach { filter ->
+                    DropdownMenuItem(
+                        text = { Text(if (filter == currentFilter) "✓ ${filter.title}" else filter.title) },
+                        onClick = {
+                            showFilterMenu = false
+                            onFilterChange(filter)
+                        }
+                    )
+                }
+                DropdownMenuItem(
+                    text = { Text("영상 시간 필터") },
+                    onClick = {
+                        showFilterMenu = false
+                        onDurationFilter()
+                    }
+                )
+                listOf(
+                    if (currentSort == MediaSortOrder.TakenNewest) MediaSortOrder.TakenOldest else MediaSortOrder.TakenNewest,
+                    if (currentSort == MediaSortOrder.AddedNewest) MediaSortOrder.AddedOldest else MediaSortOrder.AddedNewest
+                ).forEach { order ->
+                    DropdownMenuItem(
+                        text = { Text(order.label) },
+                        onClick = {
+                            showFilterMenu = false
+                            onSortChange(order)
+                        }
+                    )
+                }
+            }
+        }
+        DayCircleButton("전날", palette, enabled = true, onClick = onPreviousDay)
+        DayCircleButton("오늘", palette, enabled = true, onClick = onToday)
+        DayCircleButton("해제", palette, enabled = canClear, onClick = onClear)
+        DayCircleButton("추가", palette, enabled = selectedCount > 0, onClick = onAdd)
+    }
+}
+
+@Composable
+private fun CalendarDayActions(
+    palette: HanClipPalette,
+    selectedCount: Int,
     canClear: Boolean,
     onPreviousDay: () -> Unit,
     onToday: () -> Unit,
-    onClear: () -> Unit
+    onClear: () -> Unit,
+    onAdd: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        DayCircleButton("어제", palette, enabled = true, onClick = onPreviousDay)
+        DayCircleButton("전날", palette, enabled = true, onClick = onPreviousDay)
         DayCircleButton("오늘", palette, enabled = true, onClick = onToday)
         DayCircleButton("해제", palette, enabled = canClear, onClick = onClear)
+        DayCircleButton("추가", palette, enabled = selectedCount > 0, onClick = onAdd)
     }
 }
 
@@ -824,15 +903,18 @@ private fun DayCircleButton(
     Surface(
         modifier = Modifier.size(64.dp),
         shape = CircleShape,
-        color = palette.panel.copy(alpha = if (enabled) 0.94f else 0.42f),
-        border = BorderStroke(1.dp, palette.border.copy(alpha = if (enabled) 1f else 0.46f)),
+        color = palette.solidPanel.copy(alpha = if (enabled) 0.88f else 0.46f),
+        border = BorderStroke(
+            1.25.dp,
+            palette.primary.copy(alpha = if (enabled) 0.48f else 0.16f)
+        ),
         enabled = enabled,
         onClick = onClick
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
                 title,
-                color = palette.text.copy(alpha = if (enabled) 1f else 0.36f),
+                color = palette.primary.copy(alpha = if (enabled) 1f else 0.30f),
                 fontWeight = FontWeight.Bold
             )
         }
@@ -881,7 +963,7 @@ private fun CalendarTopActions(
     palette: HanClipPalette,
     selectedCount: Int,
     onCancel: () -> Unit,
-    onToday: () -> Unit,
+    onShowPhotos: () -> Unit,
     onConfirm: () -> Unit
 ) {
     Row(
@@ -896,11 +978,11 @@ private fun CalendarTopActions(
             colors = ButtonDefaults.outlinedButtonColors(containerColor = palette.solidPanel, contentColor = palette.text)
         ) { Text("취소", fontWeight = FontWeight.Bold) }
         OutlinedButton(
-            onClick = onToday,
+            onClick = onShowPhotos,
             shape = RoundedCornerShape(50),
             border = BorderStroke(1.dp, palette.border),
             colors = ButtonDefaults.outlinedButtonColors(containerColor = palette.solidPanel, contentColor = palette.text)
-        ) { Text("오늘", fontWeight = FontWeight.Bold) }
+        ) { Text("달력", fontWeight = FontWeight.Bold) }
         OutlinedButton(
             onClick = onConfirm,
             enabled = selectedCount > 0,
@@ -912,7 +994,7 @@ private fun CalendarTopActions(
                 disabledContainerColor = palette.chip,
                 disabledContentColor = palette.subText
             )
-        ) { Text("확인", fontWeight = FontWeight.Bold) }
+        ) { Text("추가", fontWeight = FontWeight.Bold) }
     }
 }
 
@@ -1203,7 +1285,7 @@ private fun CalendarSelectionSummary(
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    text = "지우기",
+                text = "해제",
                     color = if (selectedDateCount == 0) palette.subText else palette.secondary,
                     fontWeight = FontWeight.Bold
                 )
@@ -1214,6 +1296,7 @@ private fun CalendarSelectionSummary(
 
 @Composable
 private fun CalendarMediaStrip(
+    modifier: Modifier = Modifier,
     palette: HanClipPalette,
     mode: MediaPickerSheetMode,
     visibleMonth: YearMonth,
@@ -1231,6 +1314,21 @@ private fun CalendarMediaStrip(
 ) {
     var previewItem by remember { mutableStateOf<CalendarMediaItem?>(null) }
     var showSortMenu by remember { mutableStateOf(false) }
+    val gridState = rememberLazyGridState()
+    val itemByKey = remember(items) { items.associateBy { it.uri.toString() } }
+    val currentSelectedUris by rememberUpdatedState(selectedUris)
+    val currentOnToggle by rememberUpdatedState(onToggle)
+    var dragSelects by remember { mutableStateOf(true) }
+    var lastDraggedUri by remember { mutableStateOf<Uri?>(null) }
+    LaunchedEffect(mode, items, sortOrder) {
+        if (mode == MediaPickerSheetMode.Recent &&
+            sortOrder.ascending &&
+            items.isNotEmpty()
+        ) {
+            val lastGridIndex = items.size + items.map { it.date }.distinct().size - 1
+            gridState.scrollToItem(lastGridIndex.coerceAtLeast(0))
+        }
+    }
     val screenWidthDp = LocalConfiguration.current.screenWidthDp
     val mediaColumnCount = when {
         screenWidthDp >= 1_200 -> 12
@@ -1238,8 +1336,11 @@ private fun CalendarMediaStrip(
         screenWidthDp >= 600 -> 8
         else -> 5
     }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        if (mode == MediaPickerSheetMode.Videos) Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
@@ -1333,39 +1434,124 @@ private fun CalendarMediaStrip(
                 }
             }
         }
-        val gridHeight = when (mode) {
-            MediaPickerSheetMode.Recent, MediaPickerSheetMode.Videos -> 374.dp
-            MediaPickerSheetMode.Calendar -> 260.dp
-        }
         if (items.isEmpty()) {
             EmptyMediaStrip(
                 mode = mode,
                 recentFilter = recentFilter,
                 palette = palette,
-                modifier = Modifier.height(gridHeight)
+                modifier = Modifier.weight(1f)
             )
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(mediaColumnCount),
-                modifier = Modifier.height(gridHeight),
-                contentPadding = PaddingValues(bottom = 4.dp),
+                state = gridState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .then(
+                        if (mode == MediaPickerSheetMode.Recent) {
+                            Modifier.pointerInput(items) {
+                                fun mediaAt(x: Float, y: Float): CalendarMediaItem? {
+                                    val info = gridState.layoutInfo.visibleItemsInfo.firstOrNull { cell ->
+                                        x >= cell.offset.x &&
+                                            x < cell.offset.x + cell.size.width &&
+                                            y >= cell.offset.y &&
+                                            y < cell.offset.y + cell.size.height
+                                    } ?: return null
+                                    return itemByKey[info.key.toString()]
+                                }
+
+                                detectDragGestures(
+                                    onDragStart = { position ->
+                                        mediaAt(position.x, position.y)?.let { item ->
+                                            dragSelects = item.uri !in currentSelectedUris
+                                            lastDraggedUri = item.uri
+                                            currentOnToggle(item.uri)
+                                        }
+                                    },
+                                    onDragEnd = { lastDraggedUri = null },
+                                    onDragCancel = { lastDraggedUri = null },
+                                    onDrag = { change, _ ->
+                                        change.consume()
+                                        mediaAt(change.position.x, change.position.y)?.let { item ->
+                                            if (item.uri != lastDraggedUri) {
+                                                lastDraggedUri = item.uri
+                                                val isSelected = item.uri in currentSelectedUris
+                                                if (isSelected != dragSelects) currentOnToggle(item.uri)
+                                            }
+                                        }
+                                    }
+                                )
+                            }
+                        } else {
+                            Modifier
+                        }
+                    ),
+                contentPadding = PaddingValues(
+                    bottom = if (mode == MediaPickerSheetMode.Videos) 4.dp else 86.dp
+                ),
                 verticalArrangement = Arrangement.spacedBy(5.dp),
                 horizontalArrangement = Arrangement.spacedBy(5.dp)
             ) {
-                items(items, key = { it.uri.toString() }) { item ->
-                    CalendarMediaThumb(
-                        palette = palette,
-                        item = item,
-                        selectedOrder = selectedUris.indexOf(item.uri)
-                            .takeIf { it >= 0 }
-                            ?.plus(1),
-                        onClick = { onToggle(item.uri) },
-                        onLongClick = if (item.uri in selectedUris) {
-                            { previewItem = item }
-                        } else {
-                            null
+                if (mode == MediaPickerSheetMode.Recent) {
+                    val datedSections = items.groupBy { it.date }.toList()
+                    datedSections.forEach { (date, dayItems) ->
+                        item(
+                            key = "date-$date",
+                            span = { GridItemSpan(maxLineSpan) }
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp, bottom = 3.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = palette.chip
+                                ) {
+                                    Text(
+                                        date.format(
+                                            DateTimeFormatter.ofPattern(
+                                                "yyyy년 M월 d일 EEEE",
+                                                Locale.KOREAN
+                                            )
+                                        ),
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                                        color = palette.text,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                }
+                            }
                         }
-                    )
+                        items(dayItems, key = { it.uri.toString() }) { item ->
+                            CalendarMediaThumb(
+                                palette = palette,
+                                item = item,
+                                selectedOrder = selectedUris.indexOf(item.uri)
+                                    .takeIf { it >= 0 }
+                                    ?.plus(1),
+                                onClick = { onToggle(item.uri) },
+                                onLongClick = if (item.uri in selectedUris) {
+                                    { previewItem = item }
+                                } else null
+                            )
+                        }
+                    }
+                } else {
+                    items(items, key = { it.uri.toString() }) { item ->
+                        CalendarMediaThumb(
+                            palette = palette,
+                            item = item,
+                            selectedOrder = selectedUris.indexOf(item.uri)
+                                .takeIf { it >= 0 }
+                                ?.plus(1),
+                            onClick = { onToggle(item.uri) },
+                            onLongClick = if (item.uri in selectedUris) {
+                                { previewItem = item }
+                            } else null
+                        )
+                    }
                 }
             }
         }
@@ -1642,15 +1828,19 @@ private fun EmptyMediaStrip(
                     mode == MediaPickerSheetMode.Videos || recentFilter == RecentMediaFilter.Video ->
                         "이번 달 기본 사진첩에는 영상이 없습니다."
                     mode == MediaPickerSheetMode.Recent && recentFilter == RecentMediaFilter.LivePhoto ->
-                        "이번 달 기본 사진첩에는 Live Photo가 없습니다."
-                    else -> "이번 달 기본 사진첩에는 사진이나 영상이 없습니다."
+                        "기본 사진첩에는 모션포토가 없습니다."
+                    else -> "기본 사진첩에는 사진이나 영상이 없습니다."
                 },
                 color = palette.text,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
             Text(
-                text = "상단 화살표로 다른 달을 보거나, 파일 선택으로 폰에 있는 항목을 직접 가져오세요.",
+                text = if (mode == MediaPickerSheetMode.Recent) {
+                    "필터를 바꾸거나 파일에서 미디어를 직접 가져오세요."
+                } else {
+                    "상단 화살표로 다른 달을 보거나 파일에서 미디어를 직접 가져오세요."
+                },
                 color = palette.subText,
                 style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Center
@@ -1673,8 +1863,9 @@ private fun mediaStripTitle(
         return if (count == 0) {
             when (recentFilter) {
                 RecentMediaFilter.Photo -> "${visibleMonth.monthValue}월 기본 사진첩에는 사진이 없습니다."
-                RecentMediaFilter.LivePhoto -> "${visibleMonth.monthValue}월 기본 사진첩에는 Live Photo가 없습니다."
+                RecentMediaFilter.LivePhoto -> "기본 사진첩에는 모션포토가 없습니다."
                 RecentMediaFilter.Video -> "${visibleMonth.monthValue}월 기본 사진첩에는 영상이 없습니다."
+                RecentMediaFilter.All -> "기본 사진첩에는 미디어가 없습니다."
             }
         } else {
             mediaCountText("이번 달", photoCount, videoCount)
@@ -1865,6 +2056,23 @@ private fun formatDurationBadge(durationMillis: Long): String {
 }
 
 private object CalendarMediaRepository {
+    suspend fun loadAll(context: Context): List<CalendarMediaItem> =
+        withContext(Dispatchers.IO) {
+            (queryCollection(
+                context,
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                ClipMediaKind.Photo,
+                0L,
+                Long.MAX_VALUE
+            ) + queryCollection(
+                context,
+                MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                ClipMediaKind.Video,
+                0L,
+                Long.MAX_VALUE
+            )).sortedByDescending { it.takenMillis }
+        }
+
     suspend fun loadMonth(context: Context, month: YearMonth): List<CalendarMediaItem> =
         withContext(Dispatchers.IO) {
             val start = month.atDay(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -1922,6 +2130,7 @@ private object CalendarMediaRepository {
                         while (cursor.moveToNext()) {
                             val id = cursor.getLong(idColumn)
                             val takenMillis = cursor.getLong(takenColumn).takeIf { it > 0L }
+                                ?.let(::normalizeMediaTimestamp)
                                 ?: cursor.getLong(addedColumn).takeIf { it > 0L }?.times(1000)
                                 ?: cursor.getLong(modifiedColumn).takeIf { it > 0L }?.times(1000)
                                 ?: continue
@@ -1962,6 +2171,14 @@ private object CalendarMediaRepository {
                     }
                 }.orEmpty()
         }.getOrDefault(emptyList())
+    }
+
+    private fun normalizeMediaTimestamp(rawValue: Long): Long {
+        return if (rawValue in 1 until 100_000_000_000L) {
+            rawValue * 1_000L
+        } else {
+            rawValue
+        }
     }
 }
 

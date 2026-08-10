@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
@@ -14,6 +15,7 @@
 
     <queries>
         <package android:name="com.sec.android.gallery3d" />
+        <package android:name="com.cxinventor.file.explorer" />
         <intent>
             <action android:name="android.intent.action.GET_CONTENT" />
             <data android:mimeType="image/*" />
@@ -39,6 +41,22 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.HanClip">
+        <!-- Android 10 이하에서도 Play 서비스가 표준 Photo Picker 백포트를
+             준비하게 한다. 선택기가 연결한 Google Photos 항목은 별도 OAuth 없이
+             사용자가 고른 URI만 기존 가져오기 경로로 전달된다. -->
+        <service
+            android:name="com.google.android.gms.metadata.ModuleDependencies"
+            android:enabled="false"
+            android:exported="false"
+            tools:ignore="MissingClass">
+            <intent-filter>
+                <action android:name="com.google.android.gms.metadata.MODULE_DEPENDENCIES" />
+            </intent-filter>
+            <meta-data
+                android:name="photopicker_activity:0:required"
+                android:value="" />
+        </service>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -62,6 +80,7 @@
 
         <activity
             android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|density"
             android:exported="true"
             android:launchMode="singleTop"
             android:resizeableActivity="true">
@@ -85,6 +104,7 @@
                 <data android:scheme="file" />
                 <data android:mimeType="application/vnd.hanclip.browser-favorites+json" />
                 <data android:mimeType="application/json" />
+                <data android:mimeType="application/octet-stream" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
@@ -94,6 +114,7 @@
                 <data android:mimeType="audio/*" />
                 <data android:mimeType="application/vnd.hanclip.browser-favorites+json" />
                 <data android:mimeType="application/json" />
+                <data android:mimeType="application/octet-stream" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND_MULTIPLE" />

@@ -1,7 +1,9 @@
 package com.hanclip.android.feature.browser
 
+import android.app.Activity
 import android.content.Intent
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.app.DownloadManager
@@ -12,10 +14,16 @@ import android.os.Looper
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.URLUtil
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -51,6 +59,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
@@ -71,10 +80,13 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -83,8 +95,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -92,6 +107,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
 import androidx.core.content.FileProvider
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.hanclip.android.core.theme.HanClipThemeStore
 import org.json.JSONArray
 import org.json.JSONObject
@@ -100,6 +117,12 @@ import kotlinx.coroutines.delay
 
 private const val PixabayMusicUrl = "https://pixabay.com/music/"
 private const val MixkitMusicUrl = "https://mixkit.co/free-stock-music/"
+private const val CxFileExplorerPackage = "com.cxinventor.file.explorer"
+
+private data class BrowserFullscreenContent(
+    val view: View,
+    val callback: WebChromeClient.CustomViewCallback
+)
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
@@ -107,13 +130,16 @@ fun OnlineMusicBrowserRoute(
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
+    val composeView = LocalView.current
     val hapticFeedback = LocalHapticFeedback.current
     val palette = remember { HanClipThemeStore.load(context).palette }
     var favorites by remember { mutableStateOf(BrowserFavoritesStore.load(context)) }
     var isFavoritePanelVisible by remember { mutableStateOf(false) }
     var isFavoriteManagerVisible by remember { mutableStateOf(false) }
-    var targetUrl by remember { mutableStateOf(favorites.firstOrNull() ?: PixabayMusicUrl) }
-    var addressText by remember { mutableStateOf(targetUrl) }
+    var targetUrl by rememberSaveable {
+        mutableStateOf(favorites.firstOrNull() ?: PixabayMusicUrl)
+    }
+    var addressText by rememberSaveable { mutableStateOf(targetUrl) }
     var webView by remember { mutableStateOf<WebView?>(null) }
     var canGoBack by remember { mutableStateOf(false) }
     var canGoForward by remember { mutableStateOf(false) }
@@ -122,6 +148,62 @@ fun OnlineMusicBrowserRoute(
     var dismissedVideoUrl by remember { mutableStateOf<String?>(null) }
     var activeDownload by remember { mutableStateOf<BrowserDownloadTicket?>(null) }
     var downloadProgress by remember { mutableStateOf<BrowserDownloadProgress?>(null) }
+    var fullscreenContent by remember { mutableStateOf<BrowserFullscreenContent?>(null) }
+    val cxFavoriteImportIntent = remember(context) {
+        cxBrowserFavoritesFileIntent(context)
+    }
+    val favoriteImportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val uri = result.data?.data
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching { BrowserFavoritesStore.parseArchive(context, uri) }
+            .onSuccess { importedFavorites ->
+                if (importedFavorites.isEmpty()) {
+                    Toast.makeText(
+                        context,
+                        "즐겨찾기 파일에서 주소를 찾지 못했습니다.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } else {
+                    val result = BrowserFavoritesStore.merge(context, importedFavorites)
+                    favorites = BrowserFavoritesStore.load(context)
+                    Toast.makeText(
+                        context,
+                        browserFavoritesImportMessage(result),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+            .onFailure {
+                Toast.makeText(
+                    context,
+                    "HanClip 즐겨찾기 파일을 읽지 못했습니다.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+    }
+
+    fun closeFullscreenVideo() {
+        fullscreenContent?.callback?.onCustomViewHidden()
+        fullscreenContent = null
+    }
+
+    DisposableEffect(fullscreenContent, composeView) {
+        val isFullscreen = fullscreenContent != null
+        val window = context.findActivity()?.window
+        val controller = window?.let { WindowInsetsControllerCompat(it, composeView) }
+        if (isFullscreen) {
+            controller?.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller?.hide(WindowInsetsCompat.Type.systemBars())
+        }
+        onDispose {
+            if (isFullscreen) {
+                controller?.show(WindowInsetsCompat.Type.systemBars())
+            }
+        }
+    }
 
     fun beginDownload(
         url: String,
@@ -238,6 +320,13 @@ fun OnlineMusicBrowserRoute(
                 favorites = nextFavorites
                 BrowserFavoritesStore.save(context, nextFavorites)
             },
+            onImport = {
+                favoriteImportLauncher.launch(browserFavoritesFileIntent(context))
+            },
+            onImportWithCx = {
+                cxFavoriteImportIntent?.let(favoriteImportLauncher::launch)
+            },
+            isCxAvailable = cxFavoriteImportIntent != null,
             onShare = { BrowserFavoritesStore.share(context, favorites) },
             onClose = {
                 isFavoriteManagerVisible = false
@@ -248,7 +337,9 @@ fun OnlineMusicBrowserRoute(
     }
 
     BackHandler {
-        if (isFavoritePanelVisible) {
+        if (fullscreenContent != null) {
+            closeFullscreenVideo()
+        } else if (isFavoritePanelVisible) {
             isFavoritePanelVisible = false
         } else {
             val view = webView
@@ -289,16 +380,19 @@ fun OnlineMusicBrowserRoute(
                                 onClose()
                             },
                             onLongClickLabel = "브라우저 닫기"
-                        ),
+                        )
+                        .semantics(mergeDescendants = true) {
+                            contentDescription = if (canGoBack) {
+                                "이전 페이지, 길게 눌러 브라우저 닫기"
+                            } else {
+                                "브라우저 닫기"
+                            }
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         if (canGoBack) Icons.AutoMirrored.Outlined.ArrowBack else Icons.Outlined.Close,
-                        contentDescription = if (canGoBack) {
-                            "이전 페이지, 길게 눌러 브라우저 닫기"
-                        } else {
-                            "브라우저 닫기"
-                        },
+                        contentDescription = null,
                         tint = palette.text
                     )
                 }
@@ -328,16 +422,19 @@ fun OnlineMusicBrowserRoute(
                                 pasteCopiedAddressAndLoad()
                             },
                             onLongClickLabel = "복사한 주소로 이동"
-                        ),
+                        )
+                        .semantics(mergeDescendants = true) {
+                            contentDescription = if (isPageLoading) {
+                                "로딩 중지"
+                            } else {
+                                "주소로 이동, 길게 눌러 복사한 주소로 이동"
+                            }
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         if (isPageLoading) Icons.Outlined.Close else Icons.AutoMirrored.Outlined.ArrowBack,
-                        contentDescription = if (isPageLoading) {
-                            "로딩 중지"
-                        } else {
-                            "주소로 이동, 길게 눌러 복사한 주소로 이동"
-                        },
+                        contentDescription = null,
                         tint = palette.text
                     )
                 }
@@ -354,12 +451,15 @@ fun OnlineMusicBrowserRoute(
                                 toggleCurrentFavorite()
                             },
                             onLongClickLabel = "현재 주소 즐겨찾기 등록 또는 해제"
-                        ),
+                        )
+                        .semantics(mergeDescendants = true) {
+                            contentDescription = "즐겨찾기 목록, 길게 눌러 현재 주소 등록 또는 해제"
+                        },
                     color = Color.Transparent
                 ) {
                     Icon(
                         Icons.Outlined.Bookmark,
-                        contentDescription = "즐겨찾기 목록, 길게 눌러 현재 주소 등록 또는 해제",
+                        contentDescription = null,
                         tint = if (favorites.contains(normalizedBrowserUrl(addressText))) palette.primary else palette.text
                     )
                 }
@@ -438,6 +538,20 @@ fun OnlineMusicBrowserRoute(
                                 installBrowserVideoDetection(view)
                             }
                         }
+                        webChromeClient = object : WebChromeClient() {
+                            override fun onShowCustomView(
+                                view: View?,
+                                callback: CustomViewCallback?
+                            ) {
+                                if (view == null || callback == null) return
+                                fullscreenContent?.callback?.onCustomViewHidden()
+                                fullscreenContent = BrowserFullscreenContent(view, callback)
+                            }
+
+                            override fun onHideCustomView() {
+                                closeFullscreenVideo()
+                            }
+                        }
                         setDownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
                             if (isDownloadableVideo(url, mimeType)) {
                                 if (url != dismissedVideoUrl) detectedVideoUrl = url
@@ -482,8 +596,69 @@ fun OnlineMusicBrowserRoute(
                 }
             )
         }
+        fullscreenContent?.let { content ->
+            key(content.view) {
+                BrowserFullscreenVideo(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .zIndex(10f),
+                    content = content
+                )
+            }
+        }
         }
     }
+}
+
+@Composable
+private fun BrowserFullscreenVideo(
+    modifier: Modifier,
+    content: BrowserFullscreenContent
+) {
+    AndroidView(
+        modifier = modifier,
+        factory = { context ->
+            FrameLayout(context).apply {
+                setBackgroundColor(android.graphics.Color.BLACK)
+                (content.view.parent as? ViewGroup)?.removeView(content.view)
+                addView(
+                    content.view,
+                    FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                )
+            }
+        },
+        onRelease = { container ->
+            container.removeView(content.view)
+        }
+    )
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
+private fun browserFavoritesFileIntent(context: Context): Intent {
+    val openDocument = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+        type = "*/*"
+        addCategory(Intent.CATEGORY_OPENABLE)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    return Intent.createChooser(openDocument, "HanClip 즐겨찾기 파일 선택")
+}
+
+private fun cxBrowserFavoritesFileIntent(context: Context): Intent? {
+    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+        type = "*/*"
+        setPackage(CxFileExplorerPackage)
+        addCategory(Intent.CATEGORY_OPENABLE)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    return intent.takeIf { it.resolveActivity(context.packageManager) != null }
 }
 
 @Composable
@@ -872,11 +1047,15 @@ private fun BrowserFavoriteRow(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BrowserFavoriteManager(
     favorites: List<String>,
     palette: com.hanclip.android.core.theme.HanClipPalette,
     onFavoritesChange: (List<String>) -> Unit,
+    onImport: () -> Unit,
+    onImportWithCx: () -> Unit,
+    isCxAvailable: Boolean,
     onShare: () -> Unit,
     onClose: () -> Unit
 ) {
@@ -899,7 +1078,20 @@ private fun BrowserFavoriteManager(
                     Icon(Icons.Outlined.Close, contentDescription = "즐겨찾기 관리 닫기", tint = palette.text)
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(onClick = onImport) {
+                    Icon(Icons.Outlined.FolderOpen, contentDescription = null)
+                    Text("파일 불러오기")
+                }
+                if (isCxAvailable) {
+                    OutlinedButton(onClick = onImportWithCx) {
+                        Icon(Icons.Outlined.FolderOpen, contentDescription = null)
+                        Text("CX 파일 탐색기")
+                    }
+                }
                 OutlinedButton(
                     onClick = { onFavoritesChange(emptyList()) },
                     enabled = favorites.isNotEmpty()
@@ -1036,7 +1228,7 @@ object BrowserFavoritesStore {
         }
 
         var addedCount = 0
-        var replacedCount = 0
+        var skippedCount = 0
         importedFavorites.forEach { value ->
             val normalized = normalizedBrowserUrl(value)
             val key = browserFavoriteAddressKey(normalized) ?: return@forEach
@@ -1046,17 +1238,14 @@ object BrowserFavoritesStore {
                 merged.add(normalized)
                 addedCount += 1
             } else {
-                if (merged[existingIndex] != normalized) {
-                    replacedCount += 1
-                }
-                merged[existingIndex] = normalized
+                skippedCount += 1
             }
         }
 
         save(context, merged)
         return BrowserFavoritesMergeResult(
             addedCount = addedCount,
-            replacedCount = replacedCount,
+            skippedCount = skippedCount,
             totalCount = merged.size
         )
     }
@@ -1106,9 +1295,20 @@ object BrowserFavoritesStore {
 
 data class BrowserFavoritesMergeResult(
     val addedCount: Int,
-    val replacedCount: Int,
+    val skippedCount: Int,
     val totalCount: Int
 )
+
+fun browserFavoritesImportMessage(result: BrowserFavoritesMergeResult): String = when {
+    result.addedCount > 0 && result.skippedCount > 0 ->
+        "브라우저 즐겨찾기 ${result.addedCount}개 추가, 중복 ${result.skippedCount}개 제외"
+    result.addedCount > 0 ->
+        "브라우저 즐겨찾기 ${result.addedCount}개를 추가했습니다."
+    result.skippedCount > 0 ->
+        "중복된 즐겨찾기 ${result.skippedCount}개는 가져오지 않았습니다."
+    else ->
+        "가져올 브라우저 즐겨찾기가 없습니다."
+}
 
 private fun normalizedBrowserUrl(raw: String): String {
     val trimmed = raw.trim()
