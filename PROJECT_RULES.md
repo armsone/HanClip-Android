@@ -14,6 +14,9 @@
 ## 2. 독립 프로젝트 원칙
 
 - 이 저장소는 iOS 저장소 없이도 clone 후 Gradle 빌드가 되어야 한다.
+- 기존 HanClip iOS 저장소 `/Users/armsone/git/HanClip`과 프로젝트 안의 `ios-source-readonly` 링크는 비교·분석을 위한 읽기 전용 자료다.
+- Codex는 기존 HanClip iOS 저장소에서 파일 생성, 수정, 삭제, 이동, 이름 변경, 포맷팅, 빌드 산출물 생성, Git stage·commit·push를 절대로 수행하지 않는다.
+- iOS 기준 갱신이 필요해도 기존 HanClip 폴더는 읽기만 하고, 필요한 스냅샷은 이 Android 저장소의 `reference/ios-current` 안에서만 갱신한다.
 - 빌드가 형제 폴더나 개인 Mac의 절대 경로에서 폰트·이미지·설정을 가져오지 않게 한다.
 - Android 빌드 자산은 `app/src/main/assets` 또는 Android 리소스 폴더 안에서 관리한다.
 - iOS 비교 기준은 `reference/ios-current`에 복사된 고정 자료를 사용하며, 기준 갱신은 하루 한 번 또는 사용자가 다시 읽으라고 요청할 때만 수행한다.

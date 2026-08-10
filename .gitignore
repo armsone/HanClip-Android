@@ -6,6 +6,7 @@ local.properties
 *.iml
 .idea/
 .DS_Store
+ios-source-readonly
 *.apk
 /hanclip-*.png
 /hanclip-*.xml
