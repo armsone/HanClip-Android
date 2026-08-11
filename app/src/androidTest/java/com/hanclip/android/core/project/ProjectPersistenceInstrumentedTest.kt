@@ -3,6 +3,7 @@ package com.hanclip.android.core.project
 import android.content.Context
 import android.content.ContextWrapper
 import android.net.Uri
+import android.graphics.Bitmap
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.hanclip.android.core.model.ClipItem
@@ -11,6 +12,7 @@ import com.hanclip.android.core.model.OutputQualityPreset
 import com.hanclip.android.core.model.VideoSegmentMode
 import com.hanclip.android.core.model.WatermarkSettings
 import com.hanclip.android.core.media.MediaImportReader
+import com.hanclip.android.R
 import org.junit.After
 import org.junit.Before
 import org.junit.Assert.assertEquals
@@ -18,6 +20,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.io.FileOutputStream
 import java.util.UUID
 
 @RunWith(AndroidJUnit4::class)
@@ -142,6 +145,111 @@ class ProjectPersistenceInstrumentedTest {
 
         assertEquals(emptyList<String>(), workingDirectory.listFiles().orEmpty().map(File::getName))
         assertEquals(8, savedSources.count(File::isFile))
+    }
+
+    @Test
+    fun fontLimitPreservesAllExistingFilesAndRejectsNextImport() {
+        val fontDirectory = File(context.filesDir, "imported-fonts").apply { mkdirs() }
+        val originalNames = (0 until ImportedFontStore.MaximumFontCount).map { index ->
+            "font-$index--fixed.ttf"
+        }
+        originalNames.forEach { name -> fontDirectory.resolve(name).writeText("existing-$name") }
+        val nextSource = File(context.filesDir, "next-font.ttf").apply { writeText("invalid-new-font") }
+
+        val error = runCatching { ImportedFontStore.import(context, Uri.fromFile(nextSource)) }.exceptionOrNull()
+
+        assertEquals(true, error?.message?.contains("최대 30개") == true)
+        assertEquals(originalNames.sorted(), fontDirectory.listFiles().orEmpty().map(File::getName).sorted())
+    }
+
+    @Test
+    fun invalidFontImportLeavesNoPartialOrStagingFile() {
+        val fontDirectory = File(context.filesDir, "imported-fonts").apply { mkdirs() }
+        val invalidSource = File(context.filesDir, "invalid-font.ttf").apply { writeText("not-a-font") }
+
+        val error = runCatching { ImportedFontStore.import(context, Uri.fromFile(invalidSource)) }.exceptionOrNull()
+
+        assertNotNull(error)
+        assertEquals(emptyList<String>(), fontDirectory.listFiles().orEmpty().map(File::getName))
+    }
+
+    @Test
+    fun validFontIsVerifiedAndKeepsStableImportedId() {
+        val source = File(context.filesDir, "poppins-test.ttf")
+        baseContext.assets.open("fonts/poppins_regular.ttf")
+            .use { input ->
+                FileOutputStream(source).use { output ->
+                    input.copyTo(output)
+                    output.fd.sync()
+                }
+            }
+
+        val imported = ImportedFontStore.import(context, Uri.fromFile(source))
+
+        assertEquals(true, ImportedFontStore.isImportedFont(imported.id))
+        assertNotNull(ImportedFontStore.typeface(context, imported.id))
+        assertEquals(listOf(imported.id), ImportedFontStore.list(context).map(ImportedFontSummary::id))
+    }
+
+    @Test
+    fun invalidCopyrightIconPreservesPreviousVerifiedImage() {
+        val source = File(context.filesDir, "valid-source.png")
+        FileOutputStream(source).use { output ->
+            val bitmap = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)
+            try {
+                bitmap.eraseColor(android.graphics.Color.MAGENTA)
+                assertEquals(true, bitmap.compress(Bitmap.CompressFormat.PNG, 100, output))
+            } finally {
+                bitmap.recycle()
+            }
+            output.fd.sync()
+        }
+        val storedPath = CopyrightIconStore.persist(context, Uri.fromFile(source))
+        val stored = File(storedPath)
+        val verifiedBytes = stored.readBytes()
+        val invalid = File(context.filesDir, "invalid-icon.bin").apply { writeText("not-an-image") }
+
+        val error = runCatching { CopyrightIconStore.persist(context, Uri.fromFile(invalid)) }.exceptionOrNull()
+
+        assertNotNull(error)
+        assertEquals(verifiedBytes.toList(), stored.readBytes().toList())
+        assertEquals(
+            emptyList<String>(),
+            stored.parentFile?.listFiles().orEmpty()
+                .filter { it.name.startsWith(".icon-staging-") }
+                .map(File::getName)
+        )
+    }
+
+    @Test
+    fun invalidBackgroundMusicLeavesNoPartialWorkingFile() {
+        val invalid = File(context.filesDir, "invalid-music.m4a").apply { writeText("not-audio") }
+
+        val error = runCatching { BackgroundMusicStore.persist(context, Uri.fromFile(invalid)) }.exceptionOrNull()
+        val musicDirectory = File(context.filesDir, "background-music")
+
+        assertNotNull(error)
+        assertEquals(emptyList<String>(), musicDirectory.listFiles().orEmpty().map(File::getName))
+    }
+
+    @Test
+    fun validBackgroundMusicIsVerifiedAndPersisted() {
+        val source = File(context.filesDir, "valid-music.wav")
+        baseContext.resources.openRawResource(R.raw.daily_loop).use { input ->
+            FileOutputStream(source).use { output ->
+                input.copyTo(output)
+                output.fd.sync()
+            }
+        }
+
+        val stored = BackgroundMusicStore.persist(context, Uri.fromFile(source))
+        val storedFile = File(stored.path.orEmpty())
+
+        assertEquals(true, storedFile.isFile && storedFile.length() > 0L)
+        assertEquals("background-music", storedFile.parentFile?.name)
+        assertEquals(emptyList<String>(), storedFile.parentFile?.listFiles().orEmpty()
+            .filter { it.name.startsWith(".music-staging-") }
+            .map(File::getName))
     }
 
     @Test

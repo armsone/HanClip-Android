@@ -5,6 +5,8 @@ import android.graphics.Typeface
 import android.net.Uri
 import android.provider.OpenableColumns
 import java.io.File
+import java.io.FileOutputStream
+import java.io.RandomAccessFile
 import java.util.UUID
 
 data class ImportedFontSummary(
@@ -15,7 +17,7 @@ data class ImportedFontSummary(
 object ImportedFontStore {
     private const val DirectoryName = "imported-fonts"
     private const val IdPrefix = "imported_font:"
-    private const val MaximumFontCount = 30
+    internal const val MaximumFontCount = 30
 
     fun list(context: Context): List<ImportedFontSummary> {
         return directory(context).listFiles()
@@ -31,6 +33,9 @@ object ImportedFontStore {
     }
 
     fun import(context: Context, uri: Uri): ImportedFontSummary {
+        check(canImportMoreFonts(list(context).size)) {
+            "사용자 글꼴은 최대 ${MaximumFontCount}개까지 보관할 수 있습니다. 기존 프로젝트의 글꼴을 보호하기 위해 새 파일을 추가하지 않았습니다."
+        }
         val sourceName = queryDisplayName(context, uri)
             ?: uri.lastPathSegment
             ?: "font.ttf"
@@ -46,20 +51,55 @@ object ImportedFontStore {
             directory(context),
             "$baseName--${UUID.randomUUID()}.$extension"
         )
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            target.outputStream().use(input::copyTo)
-        } ?: error("글꼴 파일을 열 수 없습니다.")
-        runCatching { Typeface.createFromFile(target) }
-            .onFailure {
-                target.delete()
-                throw IllegalArgumentException("TTF 또는 OTF 글꼴 파일이 아닙니다.", it)
-            }
-        prune(context)
+        val staging = File(directory(context), ".font-staging-${UUID.randomUUID()}.$extension")
+        try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(staging).use { output ->
+                    input.copyTo(output)
+                    output.fd.sync()
+                }
+            } ?: error("글꼴 파일을 열 수 없습니다.")
+            require(staging.length() > 0L) { "비어 있는 글꼴 파일은 가져올 수 없습니다." }
+            require(hasSupportedFontStructure(staging)) { "TTF 또는 OTF 글꼴 파일이 아닙니다." }
+            runCatching { Typeface.createFromFile(staging) }
+                .getOrElse { error ->
+                    throw IllegalArgumentException("TTF 또는 OTF 글꼴 파일이 아닙니다.", error)
+                }
+            check(staging.renameTo(target)) { "검증한 글꼴 파일을 저장하지 못했습니다." }
+        } catch (error: Throwable) {
+            staging.delete()
+            target.delete()
+            throw error
+        } finally {
+            staging.delete()
+        }
         return ImportedFontSummary(
             id = IdPrefix + target.name,
             displayName = displayName(target.name)
         )
     }
+
+    internal fun canImportMoreFonts(currentCount: Int): Boolean {
+        return currentCount.coerceAtLeast(0) < MaximumFontCount
+    }
+
+    internal fun hasSupportedFontStructure(file: File): Boolean = runCatching {
+        if (!file.isFile || file.length() < 12L) return@runCatching false
+        RandomAccessFile(file, "r").use { input ->
+            val signature = input.readInt()
+            if (signature == TrueTypeCollectionSignature) {
+                input.readInt()
+                val fontCount = input.readInt()
+                fontCount in 1..MaximumCollectionFontCount &&
+                    12L + fontCount * 4L <= input.length()
+            } else {
+                if (signature !in SupportedSfntSignatures) return@use false
+                val tableCount = input.readUnsignedShort()
+                tableCount in 1..MaximumTableCount &&
+                    12L + tableCount * 16L <= input.length()
+            }
+        }
+    }.getOrDefault(false)
 
     fun typeface(context: Context, id: String): Typeface? {
         val filename = id.takeIf { it.startsWith(IdPrefix) }
@@ -97,11 +137,13 @@ object ImportedFontStore {
         }.getOrNull()
     }
 
-    private fun prune(context: Context) {
-        directory(context).listFiles()
-            ?.filter { it.isFile }
-            ?.sortedByDescending { it.lastModified() }
-            ?.drop(MaximumFontCount)
-            ?.forEach { file -> runCatching { file.delete() } }
-    }
+    private const val TrueTypeCollectionSignature = 0x74746366
+    private const val MaximumCollectionFontCount = 256
+    private const val MaximumTableCount = 4_096
+    private val SupportedSfntSignatures = setOf(
+        0x00010000,
+        0x4F54544F,
+        0x74727565,
+        0x74797031
+    )
 }

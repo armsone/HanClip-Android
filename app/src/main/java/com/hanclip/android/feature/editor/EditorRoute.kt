@@ -107,6 +107,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -180,9 +181,12 @@ fun EditorRoute(
     var mediaPickerTitle by remember { mutableStateOf("날짜별") }
     var isReorderMode by remember { mutableStateOf(false) }
     var isAdvancedSettingsExpanded by remember { mutableStateOf(false) }
-    var isClipSettingsExpanded by remember(state.activeProjectId) { mutableStateOf(true) }
+    var isClipSettingsExpanded by remember(state.activeProjectId) {
+        mutableStateOf(DefaultClipSettingsExpanded)
+    }
     var isImportMenuVisible by remember { mutableStateOf(false) }
     var isResetConfirmationVisible by remember { mutableStateOf(false) }
+    var pendingDeleteClipID by remember { mutableStateOf<String?>(null) }
     var isExitConfirmationVisible by remember { mutableStateOf(false) }
     var isQuickDurationVisible by remember { mutableStateOf(false) }
     var reopenQuickAfterPicker by remember { mutableStateOf(false) }
@@ -190,10 +194,11 @@ fun EditorRoute(
     var showPermissionSettingsAction by remember { mutableStateOf(false) }
     var quickDurationShownProjectId by remember { mutableStateOf<String?>(null) }
     var quickTargetDurationSeconds by remember { mutableStateOf(1.0) }
-    var pendingExportAfterNotificationPermission by remember { mutableStateOf(false) }
+    var pendingExportAfterNotificationPermission by rememberSaveable { mutableStateOf(false) }
     val trimmingClip = state.clips.firstOrNull { it.id == trimmingClipID }
     val photoDurationClip = state.clips.firstOrNull { it.id == photoDurationClipID }
     val previewClip = state.clips.firstOrNull { it.id == previewClipID }
+    val pendingDeleteClip = state.clips.firstOrNull { it.id == pendingDeleteClipID }
     val previewClips = state.renderableClips
     val previewClipIndex = previewClips.indexOfFirst { it.id == previewClipID }
     val galleryPicker = rememberLauncherForActivityResult(
@@ -479,7 +484,7 @@ fun EditorRoute(
                         palette = palette,
                         onMoveUp = { id -> viewModel.moveClipUp(id) },
                         onMoveDown = { id -> viewModel.moveClipDown(id) },
-                        onDelete = { id -> viewModel.removeClip(id) },
+                        onDelete = { id -> pendingDeleteClipID = id },
                         onDone = { isReorderMode = false }
                     )
                 }
@@ -549,7 +554,7 @@ fun EditorRoute(
                     onIncreaseDuration = { viewModel.adjustClipDuration(clip.id, 1.0) },
                     onMoveUp = { viewModel.moveClipUp(clip.id) },
                     onMoveDown = { viewModel.moveClipDown(clip.id) },
-                    onDelete = { viewModel.removeClip(clip.id) },
+                    onDelete = { pendingDeleteClipID = clip.id },
                     onToggleSegmentMode = { viewModel.toggleVideoSegmentMode(clip.id) },
                     onToggleLivePhotoMode = { viewModel.toggleLivePhotoMode(clip.id) },
                     onResetSegments = { viewModel.resetVideoSegments(clip.id) },
@@ -730,6 +735,43 @@ fun EditorRoute(
                 textContentColor = palette.subText,
                 title = { Text("현재 완성본 초기화") },
                 text = { Text("가져온 클립과 편집 설정을 모두 비우고 처음부터 다시 시작할까요? 초기화 직후에는 되돌릴 수 있습니다.") }
+            )
+        }
+        pendingDeleteClip?.let { clip ->
+            val removalKind = when {
+                clip.isVideoSegmentChild -> ClipRemovalKind.SegmentChild
+                clip.isVideoSegmentParent -> ClipRemovalKind.VideoWithSegments
+                clip.isSimilarPhotoGroupParent -> ClipRemovalKind.SimilarPhotoRepresentative
+                else -> ClipRemovalKind.Standard
+            }
+            AlertDialog(
+                onDismissRequest = { pendingDeleteClipID = null },
+                dismissButton = {
+                    OutlinedButton(onClick = { pendingDeleteClipID = null }) {
+                        Text("취소")
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val targetId = clip.id
+                            pendingDeleteClipID = null
+                            viewModel.removeClip(targetId)
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFE45D42),
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text("제외")
+                    }
+                },
+                shape = RoundedCornerShape(16.dp),
+                containerColor = palette.solidPanel,
+                titleContentColor = palette.text,
+                textContentColor = palette.subText,
+                title = { Text("HanClip") },
+                text = { Text(clipRemovalConfirmationMessage(removalKind)) }
             )
         }
         if (isExitConfirmationVisible) {
@@ -3795,7 +3837,7 @@ private fun ClipPreviewDialog(
     onDismiss: () -> Unit
 ) {
     var isDeleteConfirmationVisible by remember(clip.id) { mutableStateOf(false) }
-    var playbackMode by remember { mutableStateOf(ClipPreviewPlaybackMode.Loop) }
+    var playbackMode by remember { mutableStateOf(DefaultClipPreviewPlaybackMode) }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(

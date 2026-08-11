@@ -4,7 +4,6 @@ import android.util.Log
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
-import android.webkit.MimeTypeMap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hanclip.android.core.media.MediaImportReader
@@ -30,6 +29,7 @@ import com.hanclip.android.core.project.EditorPreferenceStore
 import com.hanclip.android.core.project.EditableProjectStore
 import com.hanclip.android.core.project.ExportHistoryStore
 import com.hanclip.android.core.project.MovieCollectionStore
+import com.hanclip.android.core.project.BackgroundMusicStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -773,7 +773,16 @@ class EditorViewModel : ViewModel() {
             return
         }
         val appContext = context.applicationContext
-        val storedUri = persistBackgroundMusic(appContext, uri)
+        val storedUri = runCatching { BackgroundMusicStore.persist(appContext, uri) }
+            .getOrElse { error ->
+                _uiState.update {
+                    it.copy(
+                        alertMessage = error.message ?: "선택한 음악 파일을 가져오지 못했습니다.",
+                        undoDeleteMessage = null
+                    )
+                }
+                return
+            }
         _uiState.update {
             it.copy(
                 backgroundMusicUri = storedUri,
@@ -1924,39 +1933,6 @@ class EditorViewModel : ViewModel() {
             ?.takeIf { it.isNotBlank() }
             ?: uri.lastPathSegment
             ?: "선택한 음악"
-    }
-
-    private fun persistBackgroundMusic(context: Context, uri: Uri): Uri {
-        if (uri.scheme == "android.resource") return uri
-        if (uri.scheme == "file" && uri.path.orEmpty().contains("/background-music/")) return uri
-
-        val mimeType = context.contentResolver.getType(uri).orEmpty()
-        val extension = MimeTypeMap.getSingleton()
-            .getExtensionFromMimeType(mimeType)
-            ?.takeIf { it.isNotBlank() }
-            ?: uri.lastPathSegment
-                ?.substringAfterLast('.', missingDelimiterValue = "")
-                ?.takeIf { it.isNotBlank() && it.length <= 5 }
-            ?: "m4a"
-        val directory = File(context.filesDir, "background-music").apply { mkdirs() }
-        pruneBackgroundMusicDirectory(directory)
-        val target = File(directory, "hanclip-music-${UUID.randomUUID()}.$extension")
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            target.outputStream().use { output ->
-                input.copyTo(output)
-            }
-        } ?: return uri
-        return Uri.fromFile(target)
-    }
-
-    private fun pruneBackgroundMusicDirectory(directory: File) {
-        val files = directory.listFiles()
-            ?.filter { it.isFile }
-            ?.sortedByDescending { it.lastModified() }
-            .orEmpty()
-        files.drop(24).forEach { file ->
-            runCatching { file.delete() }
-        }
     }
 
     private fun sampleBackgroundMusicUri(context: Context?, sample: BackgroundMusicSample): Uri {

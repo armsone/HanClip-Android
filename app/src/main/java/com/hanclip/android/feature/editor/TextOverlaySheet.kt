@@ -79,6 +79,7 @@ import com.hanclip.android.core.model.WatermarkPlatform
 import com.hanclip.android.core.model.WatermarkSettings
 import com.hanclip.android.core.model.drawableResId
 import com.hanclip.android.core.project.ImportedFontStore
+import com.hanclip.android.core.project.CopyrightIconStore
 import com.hanclip.android.core.theme.HanClipPalette
 import org.json.JSONObject
 import java.time.LocalDate
@@ -147,15 +148,7 @@ fun TextOverlaySheet(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            runCatching {
-                val directory = File(context.filesDir, "copyright-icons").apply { mkdirs() }
-                val target = File(directory, "custom-icon")
-                context.contentResolver.openInputStream(uri).use { input ->
-                    requireNotNull(input) { "선택한 이미지를 읽을 수 없습니다." }
-                    target.outputStream().use(input::copyTo)
-                }
-                target.absolutePath
-            }.onSuccess { path ->
+            runCatching { CopyrightIconStore.persist(context, uri) }.onSuccess { path ->
                 draft = draft.copy(
                     platform = WatermarkPlatform.Custom,
                     customCopyrightIconPath = path
