@@ -190,6 +190,7 @@ fun EditorRoute(
     var showPermissionSettingsAction by remember { mutableStateOf(false) }
     var quickDurationShownProjectId by remember { mutableStateOf<String?>(null) }
     var quickTargetDurationSeconds by remember { mutableStateOf(1.0) }
+    var pendingExportAfterNotificationPermission by remember { mutableStateOf(false) }
     val trimmingClip = state.clips.firstOrNull { it.id == trimmingClipID }
     val photoDurationClip = state.clips.firstOrNull { it.id == photoDurationClipID }
     val previewClip = state.clips.firstOrNull { it.id == previewClipID }
@@ -227,6 +228,14 @@ fun EditorRoute(
             isQuickDurationVisible = true
         }
     }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) {
+        if (pendingExportAfterNotificationPermission) {
+            pendingExportAfterNotificationPermission = false
+            viewModel.exportMovie(context, onPreview)
+        }
+    }
     val calendarPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { grants ->
@@ -258,6 +267,18 @@ fun EditorRoute(
             isCalendarPickerVisible = true
         } else {
             calendarPermissionLauncher.launch(missingPermissions.toTypedArray())
+        }
+    }
+
+    fun beginMovieExport() {
+        val needsNotificationPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        if (needsNotificationPermission) {
+            pendingExportAfterNotificationPermission = true
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            viewModel.exportMovie(context, onPreview)
         }
     }
 
@@ -559,7 +580,7 @@ fun EditorRoute(
                 selectedRatio = state.outputAspectRatio,
                 onSelectRatio = { ratio -> viewModel.selectAspectRatio(context, ratio) },
                 onClose = ::requestBackHome,
-                onMakeMovie = { viewModel.exportMovie(context, onPreview) }
+                onMakeMovie = ::beginMovieExport
             ) else BottomEmptyEditorBar(
                 modifier = Modifier.align(Alignment.BottomCenter).widthIn(max = 920.dp),
                 palette = palette,
@@ -837,7 +858,7 @@ fun EditorRoute(
                 onConfirm = {
                     viewModel.applyQuickTargetDuration(quickTargetDurationSeconds)
                     isQuickDurationVisible = false
-                    viewModel.exportMovie(context, onPreview)
+                    beginMovieExport()
                 }
             )
         }
@@ -3774,6 +3795,7 @@ private fun ClipPreviewDialog(
     onDismiss: () -> Unit
 ) {
     var isDeleteConfirmationVisible by remember(clip.id) { mutableStateOf(false) }
+    var playbackMode by remember { mutableStateOf(ClipPreviewPlaybackMode.Loop) }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -3819,6 +3841,18 @@ private fun ClipPreviewDialog(
                 }
                 ClipPreviewPlayer(
                     clip = clip,
+                    playbackMode = playbackMode,
+                    onPlaybackEnded = {
+                        if (
+                            nextClipIndexOnPlaybackEnded(
+                                mode = playbackMode,
+                                currentIndex = position - 1,
+                                clipCount = total
+                            ) != null
+                        ) {
+                            onNext?.invoke()
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
@@ -3868,6 +3902,40 @@ private fun ClipPreviewDialog(
                                 )
                             ) {
                                 Text("확인")
+                            }
+                        }
+                        if (clip.mediaKind == ClipMediaKind.Video || clip.livePhotoMode == com.hanclip.android.core.model.LivePhotoMode.Motion) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                FilterChip(
+                                    selected = playbackMode == ClipPreviewPlaybackMode.Stop,
+                                    onClick = { playbackMode = ClipPreviewPlaybackMode.Stop },
+                                    label = { Text("한 번") }
+                                )
+                                FilterChip(
+                                    selected = playbackMode == ClipPreviewPlaybackMode.Loop,
+                                    onClick = { playbackMode = ClipPreviewPlaybackMode.Loop },
+                                    label = { Text("반복") }
+                                )
+                                FilterChip(
+                                    selected = playbackMode == ClipPreviewPlaybackMode.AutoNext,
+                                    onClick = { playbackMode = ClipPreviewPlaybackMode.AutoNext },
+                                    enabled = onNext != null,
+                                    label = { Text("자동 다음") }
+                                )
+                                clipPreviewPeakText(clip)?.let { peakText ->
+                                    Text(
+                                        text = peakText,
+                                        modifier = Modifier.weight(1f),
+                                        color = palette.subText,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
                         Row(
@@ -3929,6 +3997,8 @@ private fun ClipPreviewDialog(
 @Composable
 private fun ClipPreviewPlayer(
     clip: ClipItem,
+    playbackMode: ClipPreviewPlaybackMode,
+    onPlaybackEnded: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -3958,7 +4028,6 @@ private fun ClipPreviewPlayer(
     val player = remember(mediaItem) {
         mediaItem?.let {
             ExoPlayer.Builder(context).build().apply {
-                repeatMode = Player.REPEAT_MODE_ONE
                 playWhenReady = true
                 setMediaItem(it)
                 prepare()
@@ -3966,8 +4035,23 @@ private fun ClipPreviewPlayer(
         }
     }
 
-    DisposableEffect(player) {
+    LaunchedEffect(player, playbackMode) {
+        player?.repeatMode = if (playbackMode == ClipPreviewPlaybackMode.Loop) {
+            Player.REPEAT_MODE_ONE
+        } else {
+            Player.REPEAT_MODE_OFF
+        }
+    }
+
+    DisposableEffect(player, onPlaybackEnded) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED) onPlaybackEnded()
+            }
+        }
+        player?.addListener(listener)
         onDispose {
+            player?.removeListener(listener)
             player?.release()
         }
     }
@@ -4000,6 +4084,12 @@ private fun ClipPreviewPlayer(
             }
         }
     }
+}
+
+private fun clipPreviewPeakText(clip: ClipItem): String? {
+    val peak = clip.audioPeakTimeSeconds ?: clip.audioPeakTimesSeconds.firstOrNull() ?: return null
+    val count = clip.audioPeakTimesSeconds.size.coerceAtLeast(1)
+    return "주요 타격점 ${formatClipSeconds(peak)} · 후보 ${count}개"
 }
 
 private fun clipPreviewSubtitle(clip: ClipItem, childSegmentCount: Int): String {

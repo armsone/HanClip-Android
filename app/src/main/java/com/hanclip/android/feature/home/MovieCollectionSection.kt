@@ -150,11 +150,16 @@ internal fun LazyListScope.movieCollectionItems(
         }
     }
 
-    val cells = buildList<CollectedMovie?> {
-        addAll(movies)
-        if (movies.size < MovieCollectionStore.MaximumMovieCount) add(null)
-        repeat((columnCount - size % columnCount) % columnCount) {
-            add(CollectionSpacer)
+    val movieIterator = movies.iterator()
+    val cells = collectionShelfCellPlan(
+        movieCount = movies.size,
+        columnCount = columnCount,
+        maximumMovieCount = MovieCollectionStore.MaximumMovieCount
+    ).map { kind ->
+        when (kind) {
+            CollectionShelfCellKind.Movie -> movieIterator.next()
+            CollectionShelfCellKind.Add -> null
+            CollectionShelfCellKind.Spacer -> CollectionSpacer
         }
     }
     items(

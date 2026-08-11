@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hanclip.android.core.media.MediaImportReader
 import com.hanclip.android.core.media.Media3TransformerExportService
+import com.hanclip.android.core.media.ExportForegroundService
 import com.hanclip.android.core.media.VideoExportRequest
 import com.hanclip.android.core.model.BackgroundMusicSample
 import com.hanclip.android.core.model.ClipItem
@@ -115,6 +116,8 @@ class EditorViewModel : ViewModel() {
     val uiState: StateFlow<EditorUiState> = _uiState.asStateFlow()
     private var exportJob: Job? = null
     private val exportOperationGate = ExportOperationGate()
+    private var exportApplicationContext: Context? = null
+    private var foregroundExportToken: Long? = null
     private var importJob: Job? = null
     private var lastUndoSnapshot: EditorUndoSnapshot? = null
     private var editingSessionBaseline: DraftProject? = null
@@ -392,6 +395,18 @@ class EditorViewModel : ViewModel() {
                     alertMessage = null
                 )
             }
+            exportApplicationContext = context.applicationContext
+            foregroundExportToken = exportToken
+            runCatching {
+                ExportForegroundService.start(
+                    context = context.applicationContext,
+                    token = exportToken,
+                    message = "완성본 제작을 준비하고 있습니다.",
+                    onCancel = ::cancelExport
+                )
+            }.onFailure { error ->
+                Log.w("HanClipExport", "Foreground export notification unavailable", error)
+            }
             var actualOutputQualityPreset = state.outputQualityPreset
             var usedCompatibilityRetry = false
             val madeAtMillis = System.currentTimeMillis()
@@ -436,11 +451,13 @@ class EditorViewModel : ViewModel() {
                         if (!exportOperationGate.isCurrent(exportToken)) return@export
                         val attemptLabel =
                             "${clips.size}개 클립 · ${renderSize.first}x${renderSize.second} · ${quality.chipTitle} · ${OutputQualityPreset.GallerySaveDetail}"
+                        var notificationProgress = 0
+                        var notificationMessage = "완성본을 만드는 중입니다."
                         _uiState.update {
                             val safeProgress = progress.toFloat().coerceIn(0f, 1f)
                             val monotonicProgress = max(it.workProgress ?: 0f, safeProgress)
                             val elapsedMillis = (System.nanoTime() - attemptStartedAtNanos) / 1_000_000
-                            it.copy(
+                            val nextState = it.copy(
                                 progressMessage = exportProgressMessage(
                                     progress = monotonicProgress,
                                     elapsedMillis = elapsedMillis,
@@ -449,6 +466,17 @@ class EditorViewModel : ViewModel() {
                                 workProgress = monotonicProgress,
                                 workCurrent = (monotonicProgress * 100).toInt().coerceIn(0, 100),
                                 workTotal = 100
+                            )
+                            notificationProgress = nextState.workCurrent
+                            notificationMessage = nextState.progressMessage
+                            nextState
+                        }
+                        runCatching {
+                            ExportForegroundService.update(
+                                context = context.applicationContext,
+                                token = exportToken,
+                                progress = notificationProgress,
+                                message = notificationMessage
                             )
                         }
                     }
@@ -477,6 +505,7 @@ class EditorViewModel : ViewModel() {
                 }
             }.onSuccess { outputUri ->
                 if (!exportOperationGate.isCurrent(exportToken)) return@onSuccess
+                stopExportForeground()
                 ExportHistoryStore.add(
                     context = context.applicationContext,
                     outputUri = outputUri,
@@ -527,6 +556,7 @@ class EditorViewModel : ViewModel() {
                 onExported()
             }.onFailure { error ->
                 if (!exportOperationGate.isCurrent(exportToken)) return@onFailure
+                stopExportForeground()
                 Log.e("HanClipExport", "Failed to export movie: $exportLabel", error)
                 _uiState.update {
                     it.copy(
@@ -561,6 +591,7 @@ class EditorViewModel : ViewModel() {
             viewModelScope.launch {
                 if (!exportOperationGate.isCurrent(cancellationToken)) return@launch
                 if (exportJob === job) exportJob = null
+                stopExportForeground()
                 _uiState.update {
                     it.copy(
                         isExporting = false,
@@ -583,6 +614,19 @@ class EditorViewModel : ViewModel() {
             it.copy(
                 defaultDurationSeconds = safeSeconds
             )
+        }
+    }
+
+    private fun stopExportForeground() {
+        val appContext = exportApplicationContext
+        val token = foregroundExportToken
+        exportApplicationContext = null
+        foregroundExportToken = null
+        if (appContext != null && token != null) {
+            runCatching { ExportForegroundService.stop(appContext, token) }
+                .onFailure { error ->
+                    Log.w("HanClipExport", "Unable to stop foreground export notification", error)
+                }
         }
     }
 

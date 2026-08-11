@@ -121,6 +121,30 @@ class ProjectPersistenceInstrumentedTest {
     }
 
     @Test
+    fun largeImportRollbackRemovesEveryStagedFileAndKeepsSavedSources() {
+        val workingDirectory = File(context.filesDir, "working-media").apply { mkdirs() }
+        val savedDirectory = File(context.filesDir, "editable-projects/saved").apply { mkdirs() }
+        val savedSources = (0 until 8).map { index ->
+            savedDirectory.resolve("saved-$index.jpg").apply { writeText("saved-$index") }
+        }
+        val stagedClips = (0 until 240).map { index ->
+            val staged = workingDirectory.resolve("batch-$index.jpg").apply { writeText("staged-$index") }
+            ClipItem(
+                id = "batch-$index",
+                sourceUri = Uri.fromFile(staged),
+                thumbnailUri = Uri.fromFile(savedSources[index % savedSources.size])
+            )
+        }
+
+        stagedClips.forEach { clip ->
+            MediaImportReader.discardUncommittedClipFiles(context, clip)
+        }
+
+        assertEquals(emptyList<String>(), workingDirectory.listFiles().orEmpty().map(File::getName))
+        assertEquals(8, savedSources.count(File::isFile))
+    }
+
+    @Test
     fun collectionFallsBackToBackupAndKeepsLastValidIndexOnNextSave() {
         val directory = File(context.filesDir, "movie-collection").apply { mkdirs() }
         directory.resolve("collection-test.mp4").writeText("video")
