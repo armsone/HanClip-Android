@@ -76,6 +76,31 @@ class ProjectPersistenceInstrumentedTest {
     }
 
     @Test
+    fun mixedProjectFixtureKeepsKindsOrderSelectionAndGroupingAcrossSaveReload() {
+        val fixture = InstrumentationRegistry.getInstrumentation().context.assets
+            .open("fixtures/project-v1-mixed.json")
+            .bufferedReader()
+            .use { it.readText() }
+        context.getSharedPreferences("hanclip_draft_project", Context.MODE_PRIVATE)
+            .edit()
+            .putString("draft", fixture)
+            .commit()
+
+        val loaded = requireNotNull(DraftProjectStore.load(context))
+        DraftProjectStore.save(context, loaded)
+        val reloaded = requireNotNull(DraftProjectStore.load(context))
+
+        assertEquals(
+            listOf("photo-1", "video-parent", "video-child-excluded", "motion-1", "similar-parent", "similar-child"),
+            reloaded.clips.map(ClipItem::id)
+        )
+        assertEquals(false, reloaded.clips.first { it.id == "video-child-excluded" }.isVideoSegmentSelected)
+        assertEquals(true, reloaded.clips.first { it.id == "motion-1" }.isLivePhoto)
+        assertEquals("group-1", reloaded.clips.first { it.id == "similar-child" }.similarPhotoGroupId)
+        assertEquals(false, reloaded.clips.first { it.id == "similar-child" }.isSimilarPhotoGroupRepresentative)
+    }
+
+    @Test
     fun corruptPrimaryMetadataFallsBackToPreviousVerifiedBackup() {
         val projectId = "test-${UUID.randomUUID()}"
         val first = sampleProject(projectId, defaultDurationSeconds = 3.0)
@@ -271,6 +296,29 @@ class ProjectPersistenceInstrumentedTest {
         assertEquals(true, directory.resolve("collection.json.bak").isFile)
         assertEquals("기존 제목", org.json.JSONObject(directory.resolve("collection.json.bak").readText())
             .getJSONArray("movies").getJSONObject(0).getString("title"))
+    }
+
+    @Test
+    fun thirtyMovieCollectionKeepsTitlesPinnedOrderAndMaximumAcrossRewrite() {
+        val directory = File(context.filesDir, "movie-collection").apply { mkdirs() }
+        (1..MovieCollectionStore.MaximumMovieCount).forEach { index ->
+            directory.resolve("movie-${index.toString().padStart(2, '0')}.mp4").writeText("video-$index")
+        }
+        val fixture = InstrumentationRegistry.getInstrumentation().context.assets
+            .open("fixtures/collection-v4-30.json")
+            .bufferedReader()
+            .use { it.readText() }
+        directory.resolve("collection.json").writeText(fixture)
+
+        val loaded = MovieCollectionStore.list(context)
+        MovieCollectionStore.updateTitle(context, "movie-30", "마지막 사용자 제목")
+        val reloaded = MovieCollectionStore.list(context)
+
+        assertEquals(MovieCollectionStore.MaximumMovieCount, loaded.size)
+        assertEquals(listOf("movie-05", "movie-04", "movie-03", "movie-02", "movie-01"), loaded.take(5).map(CollectedMovie::id))
+        assertEquals("마지막 사용자 제목", reloaded.first { it.id == "movie-30" }.title)
+        assertEquals(5, reloaded.count(CollectedMovie::isPinned))
+        assertEquals(MovieCollectionStore.MaximumMovieCount, reloaded.size)
     }
 
     private fun sampleProject(projectId: String, defaultDurationSeconds: Double) = DraftProject(

@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "projectId": "mixed-project",
+  "createdAtMillis": 1700000000000,
+  "preset": "travel",
+  "defaultDurationSeconds": 1.0,
+  "defaultVideoSegmentMode": "Multiple",
+  "similarPhotoRepresentativeInterval": 6,
+  "clips": [
+    {
+      "id": "photo-1",
+      "sourceUri": "sample://photo-1.jpg",
+      "durationSeconds": 1.0,
+      "mediaKind": "Photo",
+      "sourceWidth": 3024,
+      "sourceHeight": 4032
+    },
+    {
+      "id": "video-parent",
+      "sourceUri": "sample://video.mp4",
+      "durationSeconds": 8.0,
+      "sourceDurationSeconds": 8.0,
+      "mediaKind": "Video",
+      "videoSegmentMode": "Multiple",
+      "isVideoSegmentParent": true,
+      "sourceWidth": 1920,
+      "sourceHeight": 1080
+    },
+    {
+      "id": "video-child-excluded",
+      "sourceUri": "sample://video.mp4",
+      "durationSeconds": 1.0,
+      "sourceDurationSeconds": 8.0,
+      "trimStartSeconds": 2.0,
+      "mediaKind": "Video",
+      "videoSegmentMode": "Multiple",
+      "videoSegmentParentId": "video-parent",
+      "isVideoSegmentSelected": false,
+      "audioPeakTimeSeconds": 2.5,
+      "sourceWidth": 1920,
+      "sourceHeight": 1080
+    },
+    {
+      "id": "motion-1",
+      "sourceUri": "sample://motion-1.mp4",
+      "thumbnailUri": "sample://motion-1.jpg",
+      "livePhotoStillUri": "sample://motion-1.jpg",
+      "durationSeconds": 1.5,
+      "livePhotoDurationSeconds": 1.5,
+      "isLivePhoto": true,
+      "livePhotoMode": "Motion",
+      "mediaKind": "LivePhoto",
+      "sourceWidth": 3024,
+      "sourceHeight": 4032
+    },
+    {
+      "id": "similar-parent",
+      "sourceUri": "sample://similar-1.jpg",
+      "durationSeconds": 1.0,
+      "mediaKind": "Photo",
+      "similarPhotoGroupId": "group-1",
+      "similarPhotoGroupIndex": 0,
+      "similarPhotoGroupCount": 2,
+      "isSimilarPhotoGroupRepresentative": true
+    },
+    {
+      "id": "similar-child",
+      "sourceUri": "sample://similar-2.jpg",
+      "durationSeconds": 1.0,
+      "mediaKind": "Photo",
+      "similarPhotoGroupId": "group-1",
+      "similarPhotoGroupIndex": 1,
+      "similarPhotoGroupCount": 2,
+      "isSimilarPhotoGroupRepresentative": false
+    }
+  ]
+}
