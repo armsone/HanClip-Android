@@ -41,6 +41,7 @@ import com.hanclip.android.core.model.CopyrightIconColorMode
 import com.hanclip.android.core.model.drawableResId
 import com.hanclip.android.core.safety.isDurationWithinTolerance
 import com.hanclip.android.core.safety.StorageSpaceGuard
+import com.hanclip.android.core.safety.ExportFileTransaction
 import androidx.media3.effect.OverlayEffect
 import androidx.media3.effect.BitmapOverlay
 import androidx.media3.effect.Presentation
@@ -108,6 +109,7 @@ class Media3TransformerExportService(
         val outputDirectory = File(context.cacheDir, "exports").apply {
             mkdirs()
         }
+        ExportFileTransaction.cleanupInterrupted(outputDirectory)
         pruneExportCache(outputDirectory)
         StorageSpaceGuard.requireAvailable(
             directory = outputDirectory,
@@ -123,7 +125,8 @@ class Media3TransformerExportService(
                     }
             )
         )
-        val outputFile = File(outputDirectory, "hanclip-preview-${System.currentTimeMillis()}.mp4")
+        val finalOutputFile = File(outputDirectory, "hanclip-preview-${System.currentTimeMillis()}.mp4")
+        val outputFile = ExportFileTransaction.stagingFile(finalOutputFile)
         if (outputFile.exists()) outputFile.delete()
         val endingInfoFile = EndingInfoCardRenderer.renderToFile(
             context = context,
@@ -151,12 +154,12 @@ class Media3TransformerExportService(
             ?.takeIf { it.mediaKind == ClipMediaKind.Video }
             ?.takeIf { canUseMuxerFastPath(it, request) }
             ?.let { clip ->
-                val uri = trimSingleVideoClip(clip, outputFile, onProgress)
+                trimSingleVideoClip(clip, outputFile, onProgress)
                 if (!isPlayableVideoWithExpectedDuration(outputFile, clip.durationSeconds)) {
                     outputFile.delete()
                     error("완성된 영상의 재생 시간이나 영상 트랙을 확인하지 못했습니다.")
                 }
-                return uri
+                return Uri.fromFile(ExportFileTransaction.promote(outputFile, finalOutputFile))
             }
 
         val effects = effectsForRequest(request)
@@ -203,8 +206,17 @@ class Media3TransformerExportService(
                         if (continuation.isActive) {
                             val expectedDuration = effectiveClips.sumOf(ClipItem::durationSeconds)
                             if (isPlayableVideoWithExpectedDuration(outputFile, expectedDuration)) {
-                                onProgress(1.0)
-                                continuation.resume(Uri.fromFile(outputFile))
+                                runCatching {
+                                    Uri.fromFile(
+                                        ExportFileTransaction.promote(outputFile, finalOutputFile)
+                                    )
+                                }.onSuccess { finalUri ->
+                                    onProgress(1.0)
+                                    continuation.resume(finalUri)
+                                }.onFailure { error ->
+                                    runCatching { outputFile.delete() }
+                                    continuation.resumeWithException(error)
+                                }
                             } else {
                                 outputFile.delete()
                                 continuation.resumeWithException(
