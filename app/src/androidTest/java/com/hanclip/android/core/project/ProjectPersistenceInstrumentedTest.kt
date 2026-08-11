@@ -21,6 +21,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
@@ -80,6 +81,50 @@ class ProjectPersistenceInstrumentedTest {
         assertEquals(1, migrated?.schemaVersion)
         assertEquals(VideoSegmentMode.Multiple, migrated?.defaultVideoSegmentMode)
         assertEquals(listOf("legacy-photo"), migrated?.clips?.map(ClipItem::id))
+    }
+
+    @Test
+    fun missingDraftProjectIdIsGeneratedOnceAndPersisted() {
+        val fixture = InstrumentationRegistry.getInstrumentation().context.assets
+            .open("fixtures/project-v0.json")
+            .bufferedReader()
+            .use { JSONObject(it.readText()).apply { remove("projectId") } }
+        val preferences = context.getSharedPreferences("hanclip_draft_project", Context.MODE_PRIVATE)
+        preferences.edit().putString("draft", fixture.toString()).commit()
+
+        val first = requireNotNull(DraftProjectStore.load(context))
+        val second = requireNotNull(DraftProjectStore.load(context))
+        val persisted = JSONObject(requireNotNull(preferences.getString("draft", null)))
+
+        assertEquals(first.projectId, second.projectId)
+        assertEquals(first.projectId, persisted.getString("projectId"))
+    }
+
+    @Test
+    fun missingSavedProjectIdUsesDirectoryNameAndPersistsIt() {
+        val fixture = InstrumentationRegistry.getInstrumentation().context.assets
+            .open("fixtures/project-v0.json")
+            .bufferedReader()
+            .use { JSONObject(it.readText()).apply { remove("projectId") } }
+        val directory = File(context.filesDir, "editable-projects/stable-project").apply { mkdirs() }
+        directory.resolve("project.json").writeText(
+            JSONObject()
+                .put("project", fixture)
+                .put("isPinned", true)
+                .put("memo", "사용자 메모")
+                .toString()
+        )
+
+        val first = EditableProjectStore.list(context).single()
+        val second = EditableProjectStore.list(context).single()
+        val persistedProject = JSONObject(directory.resolve("project.json").readText())
+            .getJSONObject("project")
+
+        assertEquals("stable-project", first.projectId)
+        assertEquals(first.projectId, second.projectId)
+        assertEquals("stable-project", persistedProject.getString("projectId"))
+        assertEquals(true, first.isPinned)
+        assertEquals("사용자 메모", first.memo)
     }
 
     @Test

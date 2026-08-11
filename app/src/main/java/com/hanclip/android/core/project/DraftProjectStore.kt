@@ -69,11 +69,16 @@ object DraftProjectStore {
     }
 
     fun load(context: Context): DraftProject? {
-        val raw = context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
-            .getString(DraftKey, null)
+        val preferences = context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
+        val raw = preferences.getString(DraftKey, null)
             ?: return null
         return runCatching {
-            JSONObject(raw).toDraftProject()
+            val json = JSONObject(raw)
+            val project = json.toDraftProject()
+            if (json.optString("projectId").isBlank() && project.clips.isNotEmpty()) {
+                preferences.edit().putString(DraftKey, project.toJson().toString()).apply()
+            }
+            project
         }.getOrNull()
     }
 
@@ -330,8 +335,22 @@ object EditableProjectStore {
             ?.mapNotNull { directory ->
                 runCatching {
                     val json = loadProjectMetadata(directory) ?: error("프로젝트 메타데이터가 없습니다.")
+                    val projectJson = json.getJSONObject("project")
+                    val missingProjectId = projectJson.optString("projectId").isBlank()
+                    val project = projectJson.toDraftProject().let { decoded ->
+                        if (missingProjectId) decoded.copy(projectId = directory.name) else decoded
+                    }
+                    if (missingProjectId) {
+                        val destination = File(directory, ProjectMetadataFilename)
+                        writeVerifiedJsonAtomically(
+                            metadata = json.put("project", project.toJson()),
+                            staging = File(directory, "$ProjectMetadataFilename.tmp"),
+                            destination = destination,
+                            backup = File(directory, ProjectMetadataBackupFilename)
+                        )
+                    }
                     EditableProjectRecord(
-                        project = json.getJSONObject("project").toDraftProject(),
+                        project = project,
                         isPinned = json.optBoolean("isPinned", false),
                         memo = json.optString("memo", "")
                     )
