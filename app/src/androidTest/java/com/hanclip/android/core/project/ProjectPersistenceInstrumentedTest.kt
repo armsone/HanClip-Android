@@ -299,6 +299,32 @@ class ProjectPersistenceInstrumentedTest {
     }
 
     @Test
+    fun interruptedCompressionFixtureDeletesOnlyStagingAndKeepsOriginalAcrossRewrite() {
+        val directory = File(context.filesDir, "movie-collection").apply { mkdirs() }
+        val original = directory.resolve("interrupted-original.mp4")
+            .apply { writeBytes("verified-original-video".toByteArray()) }
+        val originalBytes = original.readBytes().toList()
+        val staging = directory.resolve(".compression-interrupted-movie-deadbeef.tmp.mp4")
+            .apply { writeBytes("partial-compression".toByteArray()) }
+        val fixture = InstrumentationRegistry.getInstrumentation().context.assets
+            .open("fixtures/collection-v4-interrupted-compression.json")
+            .bufferedReader()
+            .use { it.readText() }
+        directory.resolve("collection.json").writeText(fixture)
+
+        val loaded = MovieCollectionStore.list(context)
+        MovieCollectionStore.updateTitle(context, "interrupted-movie", "복구 후 사용자 제목")
+        val reloaded = MovieCollectionStore.list(context).single()
+
+        assertEquals("interrupted-original.mp4", loaded.single().videoFilename)
+        assertEquals(false, staging.exists())
+        assertEquals(true, original.isFile)
+        assertEquals(originalBytes, original.readBytes().toList())
+        assertEquals("복구 후 사용자 제목", reloaded.title)
+        assertEquals(true, reloaded.isPinned)
+    }
+
+    @Test
     fun thirtyMovieCollectionKeepsTitlesPinnedOrderAndMaximumAcrossRewrite() {
         val directory = File(context.filesDir, "movie-collection").apply { mkdirs() }
         (1..MovieCollectionStore.MaximumMovieCount).forEach { index ->

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 4,
+  "movies": [
+    {
+      "id": "interrupted-movie",
+      "title": "압축 전 사용자 제목",
+      "videoFilename": "interrupted-original.mp4",
+      "posterFilename": "",
+      "createdAtMillis": 1700000000000,
+      "durationSeconds": 12.5,
+      "isPinned": true,
+      "pinnedAtMillis": 1700000001000
+    }
+  ]
+}

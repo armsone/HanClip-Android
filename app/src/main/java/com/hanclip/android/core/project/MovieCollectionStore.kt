@@ -157,21 +157,27 @@ object MovieCollectionStore {
     const val MaximumMovieCount = 30
     private const val DirectoryName = "movie-collection"
     private const val IndexFilename = "collection.json"
+    private const val CompressionStagingPrefix = ".compression-"
+    private const val CompressionStagingSuffix = ".tmp.mp4"
     private const val MigrationPreferences = "hanclip_movie_collection_migration"
     private const val LegacyMigrationCompletedKey = "export_history_v1_completed"
     private const val MigratedLegacyUrisKey = "export_history_v1_imported_uris"
     private const val SchemaVersion = 4
     const val CurrentPosterSelectionVersion = 2
     private val collectionWriteLock = Any()
+    private val recoveredCollectionDirectories = mutableSetOf<String>()
 
     fun list(context: Context): List<CollectedMovie> {
         val index = indexFile(context)
         val backup = File(collectionDirectory(context), "$IndexFilename.bak")
-        return sequenceOf(index, backup)
+        val loaded = sequenceOf(index, backup)
             .filter(File::isFile)
             .mapNotNull { source -> parseIndex(context, source) }
             .firstOrNull()
-            .orEmpty()
+        if (loaded != null) {
+            cleanupInterruptedCompression(collectionDirectory(context))
+        }
+        return loaded.orEmpty()
     }
 
     fun videoUri(context: Context, movie: CollectedMovie): Uri =
@@ -233,9 +239,15 @@ object MovieCollectionStore {
             min(sourceInfo.width, sourceInfo.height),
             option.shortSidePixels
         ).coerceAtLeast(1)
-        val compressedFilename = "${movie.id}-compressed-${UUID.randomUUID()}.mp4"
-        val outputFile = File(collectionDirectory(appContext), compressedFilename)
+        val compressionId = UUID.randomUUID()
+        val compressedFilename = "${movie.id}-compressed-$compressionId.mp4"
+        val outputFile = File(
+            collectionDirectory(appContext),
+            "$CompressionStagingPrefix${movie.id}-$compressionId$CompressionStagingSuffix"
+        )
+        val compressedFile = File(collectionDirectory(appContext), compressedFilename)
         outputFile.delete()
+        compressedFile.delete()
 
         val editedItem = EditedMediaItem.Builder(MediaItem.fromUri(Uri.fromFile(sourceFile)))
             .setEffects(
@@ -312,17 +324,22 @@ object MovieCollectionStore {
                     outputFile.delete()
                     error("컬렉션 영상이 변경되어 원본을 유지했습니다.")
                 }
-                val updated = movies.toMutableList().apply {
-                    this[index] = this[index].copy(
-                        videoFilename = compressedFilename,
-                        contentSha256 = sha256(outputFile)
-                    )
-                }
                 try {
+                    if (!outputFile.renameTo(compressedFile)) {
+                        outputFile.delete()
+                        error("변환 결과를 안전하게 확정하지 못해 원본 파일을 유지했습니다.")
+                    }
+                    val updated = movies.toMutableList().apply {
+                        this[index] = this[index].copy(
+                            videoFilename = compressedFilename,
+                            contentSha256 = sha256(compressedFile)
+                        )
+                    }
                     save(appContext, updated)
                     sourceFile.delete()
                 } catch (error: Throwable) {
                     outputFile.delete()
+                    compressedFile.delete()
                     throw error
                 }
             }
@@ -735,6 +752,21 @@ object MovieCollectionStore {
 
     private fun collectionDirectory(context: Context): File =
         File(context.filesDir, DirectoryName).apply { mkdirs() }
+
+    private fun cleanupInterruptedCompression(directory: File) {
+        synchronized(collectionWriteLock) {
+            val directoryKey = directory.absolutePath
+            if (directoryKey in recoveredCollectionDirectories) return
+            val stagingFiles = directory.listFiles().orEmpty().filter { file ->
+                file.isFile &&
+                    file.name.startsWith(CompressionStagingPrefix) &&
+                    file.name.endsWith(CompressionStagingSuffix)
+            }
+            if (stagingFiles.all { file -> !file.exists() || file.delete() }) {
+                recoveredCollectionDirectories += directoryKey
+            }
+        }
+    }
 
     private fun indexFile(context: Context): File =
         File(collectionDirectory(context), IndexFilename)
