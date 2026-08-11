@@ -552,6 +552,22 @@ class ProjectPersistenceInstrumentedTest {
     }
 
     @Test
+    fun wrongTypeMoviesInPrimaryDoesNotHideValidCollectionBackup() {
+        val directory = File(context.filesDir, "movie-collection").apply { mkdirs() }
+        directory.resolve("collection-test.mp4").writeText("video")
+        val fixture = InstrumentationRegistry.getInstrumentation().context.assets
+            .open("fixtures/collection-v1.json")
+            .bufferedReader()
+            .use { it.readText() }
+        directory.resolve("collection.json").writeText("""{"movies":"corrupt"}""")
+        directory.resolve("collection.json.bak").writeText(fixture)
+
+        val recovered = MovieCollectionStore.list(context)
+
+        assertEquals(listOf("legacy-movie"), recovered.map(CollectedMovie::id))
+    }
+
+    @Test
     fun interruptedCompressionFixtureDeletesOnlyStagingAndKeepsOriginalAcrossRewrite() {
         val directory = File(context.filesDir, "movie-collection").apply { mkdirs() }
         val original = directory.resolve("interrupted-original.mp4")

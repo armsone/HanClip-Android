@@ -783,7 +783,9 @@ object MovieCollectionStore {
     }
 
     private fun isValidCollectionIndex(file: File): Boolean = runCatching {
-        JSONObject(file.readText()).optJSONArray("movies") ?: JSONArray()
+        check(JSONObject(file.readText()).optJSONArray("movies") != null) {
+            "컬렉션 목록의 movies가 배열이 아닙니다."
+        }
     }.isSuccess
 
     private fun recoverInterruptedIndex(directory: File) {
@@ -836,7 +838,8 @@ object MovieCollectionStore {
 
     private fun parseIndex(context: Context, source: File): List<CollectedMovie>? = runCatching {
         val root = JSONObject(source.readText())
-        val items = root.optJSONArray("movies") ?: JSONArray()
+        val items = root.optJSONArray("movies")
+            ?: error("컬렉션 목록의 movies가 배열이 아닙니다.")
         buildList {
             repeat(items.length()) { position ->
                 runCatching { items.getJSONObject(position).toCollectedMovie() }
