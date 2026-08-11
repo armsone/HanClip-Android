@@ -679,24 +679,81 @@ private fun ClipItem.toJson(): JSONObject {
         .put("sourceHeight", sourceHeight)
 }
 
+internal data class NormalizedClipTiming(
+    val durationSeconds: Double,
+    val photoDurationSeconds: Double,
+    val sourceDurationSeconds: Double?,
+    val trimStartSeconds: Double
+)
+
+internal fun normalizeStoredClipTiming(
+    isTimelineVideo: Boolean,
+    durationSeconds: Double,
+    photoDurationSeconds: Double,
+    sourceDurationSeconds: Double?,
+    trimStartSeconds: Double
+): NormalizedClipTiming {
+    val safePhotoDuration = photoDurationSeconds.takeIf(Double::isFinite)
+        ?.coerceIn(0.1, 30.0) ?: 2.0
+    if (!isTimelineVideo) {
+        val safeDuration = durationSeconds.takeIf(Double::isFinite)
+            ?.coerceIn(0.1, 30.0) ?: safePhotoDuration
+        return NormalizedClipTiming(safeDuration, safePhotoDuration, sourceDurationSeconds, 0.0)
+    }
+
+    val safeSourceDuration = sourceDurationSeconds
+        ?.takeIf { it.isFinite() && it > 0.0 }
+        ?.coerceAtLeast(0.1)
+    val safeDuration = durationSeconds.takeIf { it.isFinite() && it > 0.0 }
+        ?.coerceAtLeast(0.1) ?: 0.1
+    if (safeSourceDuration == null) {
+        return NormalizedClipTiming(
+            durationSeconds = safeDuration,
+            photoDurationSeconds = safePhotoDuration,
+            sourceDurationSeconds = null,
+            trimStartSeconds = trimStartSeconds.takeIf(Double::isFinite)?.coerceAtLeast(0.0) ?: 0.0
+        )
+    }
+
+    val boundedDuration = safeDuration.coerceAtMost(safeSourceDuration)
+    val boundedStart = trimStartSeconds.takeIf(Double::isFinite)
+        ?.coerceIn(0.0, safeSourceDuration - boundedDuration) ?: 0.0
+    return NormalizedClipTiming(
+        durationSeconds = boundedDuration,
+        photoDurationSeconds = safePhotoDuration,
+        sourceDurationSeconds = safeSourceDuration,
+        trimStartSeconds = boundedStart
+    )
+}
+
 private fun JSONObject.toClipItem(): ClipItem {
+    val mediaKind = enumValueOrDefault(optString("mediaKind"), ClipMediaKind.Photo)
+    val livePhotoMode = enumValueOrDefault(optString("livePhotoMode"), LivePhotoMode.Still)
+    val timing = normalizeStoredClipTiming(
+        isTimelineVideo = mediaKind == ClipMediaKind.Video ||
+            (mediaKind == ClipMediaKind.LivePhoto && livePhotoMode == LivePhotoMode.Motion),
+        durationSeconds = optDouble("durationSeconds", 2.0),
+        photoDurationSeconds = optDouble("photoDurationSeconds", optDouble("durationSeconds", 2.0)),
+        sourceDurationSeconds = optNullableDouble("sourceDurationSeconds"),
+        trimStartSeconds = optDouble("trimStartSeconds", 0.0)
+    )
     return ClipItem(
         id = getString("id"),
         sourceUri = Uri.parse(getString("sourceUri")),
         thumbnailUri = optString("thumbnailUri")
             .takeIf { it.isNotBlank() && it != "null" }
             ?.let(Uri::parse),
-        durationSeconds = optDouble("durationSeconds", 2.0),
-        photoDurationSeconds = optDouble("photoDurationSeconds", optDouble("durationSeconds", 2.0)),
+        durationSeconds = timing.durationSeconds,
+        photoDurationSeconds = timing.photoDurationSeconds,
         livePhotoDurationSeconds = optNullableDouble("livePhotoDurationSeconds"),
         livePhotoStillUri = optString("livePhotoStillUri")
             .takeIf { it.isNotBlank() && it != "null" }
             ?.let(Uri::parse),
         isLivePhoto = optBoolean("isLivePhoto", false),
-        livePhotoMode = enumValueOrDefault(optString("livePhotoMode"), LivePhotoMode.Still),
-        mediaKind = enumValueOrDefault(optString("mediaKind"), ClipMediaKind.Photo),
-        sourceDurationSeconds = optNullableDouble("sourceDurationSeconds"),
-        trimStartSeconds = optDouble("trimStartSeconds", 0.0),
+        livePhotoMode = livePhotoMode,
+        mediaKind = mediaKind,
+        sourceDurationSeconds = timing.sourceDurationSeconds,
+        trimStartSeconds = timing.trimStartSeconds,
         audioWaveform = optDoubleList("audioWaveform"),
         audioPeakTimeSeconds = optNullableDouble("audioPeakTimeSeconds"),
         audioPeakTimesSeconds = optDoubleList("audioPeakTimesSeconds"),
