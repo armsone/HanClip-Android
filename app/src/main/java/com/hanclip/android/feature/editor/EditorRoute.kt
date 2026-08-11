@@ -184,8 +184,8 @@ fun EditorRoute(
     var isTextOverlaySheetVisible by remember { mutableStateOf(false) }
     var isEndingInfoSettingsSheetVisible by remember { mutableStateOf(false) }
     var isMusicSettingsSheetVisible by remember { mutableStateOf(false) }
-    var isCalendarPickerVisible by remember { mutableStateOf(false) }
-    var mediaPickerTitle by remember { mutableStateOf("날짜별") }
+    var isCalendarPickerVisible by rememberSaveable { mutableStateOf(false) }
+    var mediaPickerTitle by rememberSaveable { mutableStateOf("날짜별") }
     var isReorderMode by remember { mutableStateOf(false) }
     var isAdvancedSettingsExpanded by remember { mutableStateOf(false) }
     var isClipSettingsExpanded by remember(state.activeProjectId) {

@@ -65,11 +65,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -121,7 +123,7 @@ fun CalendarMediaPickerSheet(
 ) {
     FullScreenDialogSystemBars(palette.solidPanel)
     val context = LocalContext.current
-    var pickerMode by remember(title) {
+    var pickerMode by rememberSaveable(title, saver = MediaPickerModeStateSaver) {
         when (title) {
             "기본 사진첩",
             "사진첩 전체" -> mutableStateOf(MediaPickerSheetMode.Recent)
@@ -129,9 +131,13 @@ fun CalendarMediaPickerSheet(
             else -> mutableStateOf(MediaPickerSheetMode.Calendar)
         }
     }
-    var visibleMonth by remember { mutableStateOf(YearMonth.now()) }
-    var selectedDates by remember { mutableStateOf(setOf(LocalDate.now())) }
-    var selectedUris by remember(title, initialSelectedUris) {
+    var visibleMonth by rememberSaveable(saver = YearMonthStateSaver) {
+        mutableStateOf(YearMonth.now())
+    }
+    var selectedDates by rememberSaveable(saver = LocalDateSetStateSaver) {
+        mutableStateOf(setOf(LocalDate.now()))
+    }
+    var selectedUris by rememberSaveable(title, initialSelectedUris, saver = UriListStateSaver) {
         mutableStateOf(
             if (pickerMode == MediaPickerSheetMode.Recent) {
                 initialSelectedUris.distinctBy(Uri::toString)
@@ -140,20 +146,32 @@ fun CalendarMediaPickerSheet(
             }
         )
     }
-    var hasAppliedInitialSelection by remember(title) {
+    var hasAppliedInitialSelection by rememberSaveable(title) {
         mutableStateOf(pickerMode == MediaPickerSheetMode.Recent)
     }
-    var recentScopeUris by remember(title) { mutableStateOf<Set<Uri>>(emptySet()) }
+    var recentScopeUris by rememberSaveable(title, saver = UriSetStateSaver) {
+        mutableStateOf(emptySet())
+    }
     var recentKnownItems by remember(title) {
         mutableStateOf<Map<Uri, CalendarMediaItem>>(emptyMap())
     }
-    var pendingRecentDate by remember(title) { mutableStateOf<LocalDate?>(null) }
+    var pendingRecentDate by rememberSaveable(title, saver = NullableLocalDateStateSaver) {
+        mutableStateOf(null)
+    }
     var pendingBulkImportUris by remember { mutableStateOf<List<Uri>?>(null) }
-    var sortOrder by remember { mutableStateOf(MediaSortOrder.TakenOldest) }
-    var recentFilter by remember { mutableStateOf(RecentMediaFilter.All) }
-    var recentFilterBeforeDuration by remember { mutableStateOf(RecentMediaFilter.All) }
-    var videoDurationFilter by remember { mutableStateOf<VideoDurationFilter?>(null) }
-    var showVideoDurationFilter by remember { mutableStateOf(false) }
+    var sortOrder by rememberSaveable(saver = MediaSortOrderStateSaver) {
+        mutableStateOf(MediaSortOrder.TakenOldest)
+    }
+    var recentFilter by rememberSaveable(saver = RecentMediaFilterStateSaver) {
+        mutableStateOf(RecentMediaFilter.All)
+    }
+    var recentFilterBeforeDuration by rememberSaveable(saver = RecentMediaFilterStateSaver) {
+        mutableStateOf(RecentMediaFilter.All)
+    }
+    var videoDurationFilter by rememberSaveable(saver = VideoDurationFilterStateSaver) {
+        mutableStateOf(null)
+    }
+    var showVideoDurationFilter by rememberSaveable { mutableStateOf(false) }
     val loadedMonthItems by produceState<Pair<YearMonth, List<CalendarMediaItem>>?>(
         null,
         visibleMonth,
@@ -572,6 +590,86 @@ private data class VideoDurationFilter(
     val label: String
         get() = "${seconds / 60}분 ${seconds % 60}초 ${comparison.title}"
 }
+
+internal fun encodeSavedDateSet(dates: Set<LocalDate>): ArrayList<String> =
+    ArrayList(dates.map(LocalDate::toString).sorted())
+
+internal fun decodeSavedDateSet(values: List<String>): Set<LocalDate> =
+    values.mapNotNull { value -> runCatching { LocalDate.parse(value) }.getOrNull() }.toSet()
+
+internal fun encodeSavedYearMonth(month: YearMonth): String = month.toString()
+
+internal fun decodeSavedYearMonth(value: String): YearMonth? =
+    runCatching { YearMonth.parse(value) }.getOrNull()
+
+internal fun encodeSavedVideoFilter(comparisonName: String?, seconds: Int?): String =
+    if (comparisonName == null || seconds == null) "" else "$comparisonName|$seconds"
+
+internal fun decodeSavedVideoFilter(value: String): Pair<String, Int>? {
+    val separator = value.indexOf('|')
+    if (separator <= 0) return null
+    val seconds = value.substring(separator + 1).toIntOrNull()?.takeIf { it >= 1 } ?: return null
+    return value.substring(0, separator) to seconds
+}
+
+private inline fun <reified T : Enum<T>> savedEnumOrDefault(value: String, default: T): T =
+    enumValues<T>().firstOrNull { it.name == value } ?: default
+
+private val MediaPickerModeStateSaver = Saver<MutableState<MediaPickerSheetMode>, String>(
+    save = { it.value.name },
+    restore = { value ->
+        mutableStateOf(savedEnumOrDefault(value, MediaPickerSheetMode.Calendar))
+    }
+)
+
+private val YearMonthStateSaver = Saver<MutableState<YearMonth>, String>(
+    save = { encodeSavedYearMonth(it.value) },
+    restore = { value -> mutableStateOf(decodeSavedYearMonth(value) ?: YearMonth.now()) }
+)
+
+private val LocalDateSetStateSaver = Saver<MutableState<Set<LocalDate>>, ArrayList<String>>(
+    save = { encodeSavedDateSet(it.value) },
+    restore = { values -> mutableStateOf(decodeSavedDateSet(values)) }
+)
+
+private val UriListStateSaver = Saver<MutableState<List<Uri>>, ArrayList<String>>(
+    save = { state -> ArrayList(state.value.map(Uri::toString)) },
+    restore = { values -> mutableStateOf(values.map(Uri::parse)) }
+)
+
+private val UriSetStateSaver = Saver<MutableState<Set<Uri>>, ArrayList<String>>(
+    save = { state -> ArrayList(state.value.map(Uri::toString)) },
+    restore = { values -> mutableStateOf(values.map(Uri::parse).toSet()) }
+)
+
+private val NullableLocalDateStateSaver = Saver<MutableState<LocalDate?>, String>(
+    save = { it.value?.toString().orEmpty() },
+    restore = { value -> mutableStateOf(value.takeIf(String::isNotEmpty)?.let(LocalDate::parse)) }
+)
+
+private val MediaSortOrderStateSaver = Saver<MutableState<MediaSortOrder>, String>(
+    save = { it.value.name },
+    restore = { value -> mutableStateOf(savedEnumOrDefault(value, MediaSortOrder.TakenOldest)) }
+)
+
+private val RecentMediaFilterStateSaver = Saver<MutableState<RecentMediaFilter>, String>(
+    save = { it.value.name },
+    restore = { value -> mutableStateOf(savedEnumOrDefault(value, RecentMediaFilter.All)) }
+)
+
+private val VideoDurationFilterStateSaver = Saver<MutableState<VideoDurationFilter?>, String>(
+    save = { state ->
+        encodeSavedVideoFilter(state.value?.comparison?.name, state.value?.seconds)
+    },
+    restore = { value ->
+        val decoded = decodeSavedVideoFilter(value)
+        val filter = decoded?.let { (comparisonName, seconds) ->
+            savedEnumOrDefault(comparisonName, VideoDurationComparison.AtLeast)
+                .let { comparison -> VideoDurationFilter(comparison, seconds) }
+        }
+        mutableStateOf(filter)
+    }
+)
 
 @Composable
 private fun RecentPickerHeader(

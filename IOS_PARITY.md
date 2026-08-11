@@ -392,3 +392,4 @@ Android 작업이 다음 날까지 이어지면 그날 첫 소스 변경 전에 
 - AiShot 새 세션의 첫 녹화 전에는 이전 프로세스·세션에서 남은 정확한 `aishot-buffer-<시각>.mp4`와 `aishot-<순번>-<시각>.mp4` cache 파일만 정리한다. 현재 세션 파일 생성 전에 한 번만 실행하며 비슷한 이름이나 일반 cache 영상은 보존하는 단위시험을 추가했다. trigger 전후 계산은 계속 monotonic `elapsedRealtime`을 사용한다.
 - 컬렉션 index의 `movies`가 없거나 배열이 아닌 경우 유효한 빈 컬렉션으로 오인하지 않고 손상 primary로 판정해 정상 backup을 읽는다. 배열 안의 개별 손상 항목만 격리하는 기존 정책은 유지하며, 의미상 손상된 primary와 정상 v1 backup fixture로 silent reset 방지를 확인했다.
 - 저장 프로젝트 metadata도 문법상 JSON이라는 이유만으로 primary를 채택하지 않고 `project` 객체 구조까지 확인한다. `project`가 문자열로 손상된 primary가 정상 `.bak`을 가리지 않는 기존 backup 회귀 시험으로 프로젝트가 홈에서 조용히 사라지는 경계를 막았다.
+- 미디어 선택 Dialog의 표시·종류와 내부 월·선택 날짜/URI·정렬·필터를 `rememberSaveable`로 옮겼다. 회전·폴드뿐 아니라 saved-state가 제공되는 프로세스 재생성에서도 선택 세션을 복원하며, preview·drag·가져오기 확인창 같은 순간 상태는 완료로 오인되지 않도록 복원하지 않는다. 월·날짜·영상 길이 필터 codec 경계를 단위시험으로 고정했다.
