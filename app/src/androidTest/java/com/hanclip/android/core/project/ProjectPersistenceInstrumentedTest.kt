@@ -12,6 +12,7 @@ import com.hanclip.android.core.model.OutputQualityPreset
 import com.hanclip.android.core.model.VideoSegmentMode
 import com.hanclip.android.core.model.WatermarkSettings
 import com.hanclip.android.core.media.MediaImportReader
+import com.hanclip.android.core.media.CaptionTypefaceLoader
 import com.hanclip.android.R
 import org.junit.After
 import org.junit.Before
@@ -98,6 +99,60 @@ class ProjectPersistenceInstrumentedTest {
         assertEquals(true, reloaded.clips.first { it.id == "motion-1" }.isLivePhoto)
         assertEquals("group-1", reloaded.clips.first { it.id == "similar-child" }.similarPhotoGroupId)
         assertEquals(false, reloaded.clips.first { it.id == "similar-child" }.isSimilarPhotoGroupRepresentative)
+    }
+
+    @Test
+    fun userAssetFixtureKeepsProjectIconAndFallsBackWhenImportedFontDisappears() {
+        val fontSource = File(context.filesDir, "fixture-font.ttf")
+        baseContext.assets.open("fonts/poppins_regular.ttf").use { input ->
+            FileOutputStream(fontSource).use { output ->
+                input.copyTo(output)
+                output.fd.sync()
+            }
+        }
+        val importedFont = ImportedFontStore.import(context, Uri.fromFile(fontSource))
+        fun writeIcon(file: File, color: Int) {
+            FileOutputStream(file).use { output ->
+                val bitmap = Bitmap.createBitmap(6, 6, Bitmap.Config.ARGB_8888)
+                try {
+                    bitmap.eraseColor(color)
+                    assertEquals(true, bitmap.compress(Bitmap.CompressFormat.PNG, 100, output))
+                } finally {
+                    bitmap.recycle()
+                }
+                output.fd.sync()
+            }
+        }
+        val firstIconSource = File(context.filesDir, "first-icon.png")
+        writeIcon(firstIconSource, android.graphics.Color.MAGENTA)
+        val globalIconPath = CopyrightIconStore.persist(context, Uri.fromFile(firstIconSource))
+        val fixture = InstrumentationRegistry.getInstrumentation().context.assets
+            .open("fixtures/project-v4-user-assets.json")
+            .bufferedReader()
+            .use { it.readText() }
+            .replace("__IMPORTED_FONT_ID__", importedFont.id)
+            .replace("__CUSTOM_ICON_PATH__", globalIconPath)
+        context.getSharedPreferences("hanclip_draft_project", Context.MODE_PRIVATE)
+            .edit()
+            .putString("draft", fixture)
+            .commit()
+
+        val stored = EditableProjectStore.upsert(context, requireNotNull(DraftProjectStore.load(context)))
+        val projectIcon = File(stored.watermarkSettings.customCopyrightIconPath)
+        val projectIconBytes = projectIcon.readBytes().toList()
+        val secondIconSource = File(context.filesDir, "second-icon.png")
+        writeIcon(secondIconSource, android.graphics.Color.CYAN)
+        CopyrightIconStore.persist(context, Uri.fromFile(secondIconSource))
+        File(context.filesDir, "imported-fonts/${importedFont.id.substringAfter(':')}").delete()
+
+        EditableProjectStore.updateMemo(context, stored.projectId, "자산 누락 후 재저장")
+        val reloaded = requireNotNull(EditableProjectStore.load(context, stored.projectId))
+
+        assertEquals(true, projectIcon.isFile)
+        assertEquals(projectIconBytes, projectIcon.readBytes().toList())
+        assertEquals(importedFont.id, reloaded.watermarkSettings.fontName)
+        assertEquals(projectIcon.absolutePath, reloaded.watermarkSettings.customCopyrightIconPath)
+        assertNotNull(CaptionTypefaceLoader.load(context, reloaded.watermarkSettings.fontName))
     }
 
     @Test
@@ -275,6 +330,38 @@ class ProjectPersistenceInstrumentedTest {
         assertEquals(emptyList<String>(), storedFile.parentFile?.listFiles().orEmpty()
             .filter { it.name.startsWith(".music-staging-") }
             .map(File::getName))
+    }
+
+    @Test
+    fun replacingProjectMusicWithSameExtensionStoresTheNewVerifiedAsset() {
+        fun copyRawMusic(resourceId: Int, filename: String): File {
+            return File(context.filesDir, filename).also { target ->
+                baseContext.resources.openRawResource(resourceId).use { input ->
+                    FileOutputStream(target).use { output ->
+                        input.copyTo(output)
+                        output.fd.sync()
+                    }
+                }
+            }
+        }
+        val firstSource = copyRawMusic(R.raw.daily_loop, "first-project-music.wav")
+        val secondSource = copyRawMusic(R.raw.travel_joy, "second-project-music.wav")
+        val first = EditableProjectStore.upsert(
+            context,
+            sampleProject("music-replacement", 2.0).copy(
+                backgroundMusicUri = Uri.fromFile(firstSource)
+            )
+        )
+        val firstBytes = File(requireNotNull(first.backgroundMusicUri).path.orEmpty()).readBytes().toList()
+
+        val second = EditableProjectStore.upsert(
+            context,
+            first.copy(backgroundMusicUri = Uri.fromFile(secondSource))
+        )
+        val secondBytes = File(requireNotNull(second.backgroundMusicUri).path.orEmpty()).readBytes().toList()
+
+        assertEquals(false, firstBytes == secondBytes)
+        assertEquals(secondSource.readBytes().toList(), secondBytes)
     }
 
     @Test

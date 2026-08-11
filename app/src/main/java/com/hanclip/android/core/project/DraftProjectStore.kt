@@ -25,6 +25,7 @@ import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.UUID
 
 data class DraftProject(
@@ -412,10 +413,40 @@ object EditableProjectStore {
             persistProjectUri(
                 context = context,
                 source = source,
-                destination = File(directory, "background-music.${fileExtension(source, null)}")
+                destination = File(directory, "background-music.${fileExtension(source, null)}"),
+                replaceExisting = true
             )
         }
-        return project.copy(clips = clips, backgroundMusicUri = musicUri)
+        val watermarkSettings = project.watermarkSettings.let { settings ->
+            val source = settings.customCopyrightIconPath
+                .takeIf { settings.platform == WatermarkPlatform.Custom && it.isNotBlank() }
+                ?.let(::File)
+                ?.takeIf(File::isFile)
+            val persistedPath = source?.let { sourceFile ->
+                val sourceUri = Uri.fromFile(sourceFile)
+                runCatching {
+                    persistProjectUri(
+                        context = context,
+                        source = sourceUri,
+                        destination = File(
+                            directory,
+                            "copyright-icon.${fileExtension(sourceUri, null)}"
+                        ),
+                        replaceExisting = true
+                    ).path
+                }.getOrNull()
+            }
+            if (settings.platform == WatermarkPlatform.Custom) {
+                settings.copy(customCopyrightIconPath = persistedPath.orEmpty())
+            } else {
+                settings
+            }
+        }
+        return project.copy(
+            clips = clips,
+            backgroundMusicUri = musicUri,
+            watermarkSettings = watermarkSettings
+        )
     }
 
     private fun ensureProjectThumbnail(
@@ -472,11 +503,18 @@ object EditableProjectStore {
         )
     }
 
-    private fun persistProjectUri(context: Context, source: Uri, destination: File): Uri {
+    private fun persistProjectUri(
+        context: Context,
+        source: Uri,
+        destination: File,
+        replaceExisting: Boolean = false
+    ): Uri {
         if (source.scheme == "sample") return source
         val sourceFile = source.takeIf { it.scheme == "file" }?.path?.let(::File)
         if (sourceFile?.canonicalPath == destination.canonicalPath) return Uri.fromFile(destination)
-        if (destination.isFile && destination.length() > 0L) return Uri.fromFile(destination)
+        if (!replaceExisting && destination.isFile && destination.length() > 0L) {
+            return Uri.fromFile(destination)
+        }
         destination.parentFile?.mkdirs()
         val staging = File(destination.parentFile, "${destination.name}.tmp-${UUID.randomUUID()}")
         try {
@@ -493,7 +531,24 @@ object EditableProjectStore {
                 } ?: error("프로젝트 미디어를 열 수 없습니다: $source")
             }
             check(staging.isFile && staging.length() > 0L) { "프로젝트 미디어 복사본이 비어 있습니다: $source" }
-            check(staging.renameTo(destination)) { "프로젝트 미디어를 확정하지 못했습니다: $source" }
+            if (replaceExisting) {
+                runCatching {
+                    Files.move(
+                        staging.toPath(),
+                        destination.toPath(),
+                        StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.REPLACE_EXISTING
+                    )
+                }.recoverCatching {
+                    Files.move(
+                        staging.toPath(),
+                        destination.toPath(),
+                        StandardCopyOption.REPLACE_EXISTING
+                    )
+                }.getOrThrow()
+            } else {
+                check(staging.renameTo(destination)) { "프로젝트 미디어를 확정하지 못했습니다: $source" }
+            }
         } finally {
             if (staging.exists()) staging.delete()
         }

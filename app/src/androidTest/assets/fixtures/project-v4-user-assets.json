@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 4,
+  "projectId": "user-assets-project",
+  "createdAtMillis": 1700000000000,
+  "savedAtMillis": 1700000001000,
+  "preset": "newMovie",
+  "defaultDurationSeconds": 2.0,
+  "defaultVideoSegmentMode": "Multiple",
+  "watermarkSettings": {
+    "isEnabled": true,
+    "logoEnabled": true,
+    "address": "사용자 저작권",
+    "platform": "custom",
+    "text": "가져온 글꼴 자막",
+    "fontName": "__IMPORTED_FONT_ID__",
+    "customCopyrightIconPath": "__CUSTOM_ICON_PATH__"
+  },
+  "clips": [
+    {
+      "id": "asset-photo",
+      "sourceUri": "sample://asset-photo.jpg",
+      "durationSeconds": 2.0,
+      "mediaKind": "Photo",
+      "sourceWidth": 1200,
+      "sourceHeight": 1600
+    }
+  ]
+}
