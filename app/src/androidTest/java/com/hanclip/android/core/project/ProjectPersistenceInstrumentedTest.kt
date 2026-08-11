@@ -13,6 +13,7 @@ import com.hanclip.android.core.model.VideoSegmentMode
 import com.hanclip.android.core.model.WatermarkSettings
 import com.hanclip.android.core.media.MediaImportReader
 import com.hanclip.android.core.media.CaptionTypefaceLoader
+import com.hanclip.android.feature.editor.EditorViewModel
 import com.hanclip.android.R
 import org.junit.After
 import org.junit.Before
@@ -37,6 +38,7 @@ class ProjectPersistenceInstrumentedTest {
         filesRoot = File(baseContext.cacheDir, preferencePrefix)
         check(filesRoot.mkdirs() || filesRoot.isDirectory)
         context = object : ContextWrapper(baseContext) {
+            override fun getApplicationContext(): Context = this
             override fun getFilesDir(): File = filesRoot
             override fun getSharedPreferences(name: String, mode: Int) =
                 baseContext.getSharedPreferences("$preferencePrefix-$name", mode)
@@ -157,6 +159,14 @@ class ProjectPersistenceInstrumentedTest {
             true,
             EditableProjectStore.list(context).single().displayByteCount >= projectIcon.length()
         )
+        val missingFontViewModel = EditorViewModel()
+        assertEquals(true, missingFontViewModel.openEditableProject(context, stored.projectId))
+        assertEquals(true, missingFontViewModel.uiState.value.alertMessage?.contains("가져온 글꼴") == true)
+
+        projectIcon.delete()
+        val missingAssetsViewModel = EditorViewModel()
+        assertEquals(true, missingAssetsViewModel.openEditableProject(context, stored.projectId))
+        assertEquals(true, missingAssetsViewModel.uiState.value.alertMessage?.contains("사용자 아이콘") == true)
     }
 
     @Test

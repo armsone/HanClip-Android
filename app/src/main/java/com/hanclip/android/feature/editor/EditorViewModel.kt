@@ -20,6 +20,7 @@ import com.hanclip.android.core.model.OutputAspectRatio
 import com.hanclip.android.core.model.OutputQualityPreset
 import com.hanclip.android.core.model.WatermarkFontSize
 import com.hanclip.android.core.model.WatermarkLineSpacing
+import com.hanclip.android.core.model.WatermarkPlatform
 import com.hanclip.android.core.model.WatermarkPosition
 import com.hanclip.android.core.model.WatermarkSettings
 import com.hanclip.android.core.model.VideoSegmentMode
@@ -30,6 +31,7 @@ import com.hanclip.android.core.project.EditableProjectStore
 import com.hanclip.android.core.project.ExportHistoryStore
 import com.hanclip.android.core.project.MovieCollectionStore
 import com.hanclip.android.core.project.BackgroundMusicStore
+import com.hanclip.android.core.project.ImportedFontStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -932,7 +934,9 @@ class EditorViewModel : ViewModel() {
     }
 
     fun openDraft(context: Context): Boolean {
-        val draft = DraftProjectStore.load(context.applicationContext) ?: return false
+        val appContext = context.applicationContext
+        val draft = DraftProjectStore.load(appContext) ?: return false
+        val recoveryMessage = projectAssetRecoveryMessage(appContext, draft)
         editingSessionBaseline = draft
         _uiState.update {
             it.copy(
@@ -955,16 +959,18 @@ class EditorViewModel : ViewModel() {
                 backgroundMusicFadeInEnabled = draft.backgroundMusicFadeInEnabled,
                 backgroundMusicFadeOutEnabled = draft.backgroundMusicFadeOutEnabled,
                 importedMediaCount = draft.clips.count { clip -> clip.isRenderableClip },
-                alertMessage = null
+                alertMessage = recoveryMessage
             )
         }
         return true
     }
 
     fun openEditableProject(context: Context, projectId: String): Boolean {
-        val project = EditableProjectStore.load(context.applicationContext, projectId) ?: return false
+        val appContext = context.applicationContext
+        val project = EditableProjectStore.load(appContext, projectId) ?: return false
+        val recoveryMessage = projectAssetRecoveryMessage(appContext, project)
         editingSessionBaseline = project
-        DraftProjectStore.save(context.applicationContext, project)
+        DraftProjectStore.save(appContext, project)
         _uiState.update {
             it.copy(
                 activeProjectId = project.projectId,
@@ -986,11 +992,33 @@ class EditorViewModel : ViewModel() {
                 backgroundMusicFadeInEnabled = project.backgroundMusicFadeInEnabled,
                 backgroundMusicFadeOutEnabled = project.backgroundMusicFadeOutEnabled,
                 importedMediaCount = project.clips.count { clip -> clip.isRenderableClip },
-                alertMessage = null,
+                alertMessage = recoveryMessage,
                 undoDeleteMessage = null
             )
         }
         return true
+    }
+
+    private fun projectAssetRecoveryMessage(context: Context, project: DraftProject): String? {
+        val missingAssets = buildList {
+            val fontName = project.watermarkSettings.fontName
+            if (
+                ImportedFontStore.isImportedFont(fontName) &&
+                ImportedFontStore.typeface(context, fontName) == null
+            ) {
+                add("가져온 글꼴")
+            }
+            val watermark = project.watermarkSettings
+            if (
+                watermark.platform == WatermarkPlatform.Custom &&
+                (watermark.customCopyrightIconPath.isBlank() ||
+                    !File(watermark.customCopyrightIconPath).isFile)
+            ) {
+                add("사용자 아이콘")
+            }
+        }
+        if (missingAssets.isEmpty()) return null
+        return "${missingAssets.joinToString("과 ")} 파일을 찾지 못해 기본 자산으로 표시합니다. 설정에서 다시 선택할 수 있습니다."
     }
 
     private fun EditorUiState.toDraftProject(): DraftProject = DraftProject(
