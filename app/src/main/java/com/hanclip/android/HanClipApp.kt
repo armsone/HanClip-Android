@@ -47,6 +47,7 @@ fun HanClipApp(
     sharedBrowserFavorites: List<String> = emptyList(),
     sharedBrowserFavoritesImportAttempted: Boolean = false,
     quickAction: HanClipQuickAction? = null,
+    onSharedMediaHandled: () -> Unit = {},
     onSharedBrowserFavoritesHandled: () -> Unit = {},
     onQuickActionHandled: () -> Unit = {},
     onKeepScreenOnChanged: (Boolean) -> Unit = {}
@@ -94,6 +95,10 @@ fun HanClipApp(
 
     LaunchedEffect(sharedMediaUris) {
         val signature = sharedMediaUris.joinToString("|")
+        if (sharedMediaUris.isEmpty()) {
+            handledSharedSignature = ""
+            return@LaunchedEffect
+        }
         if (sharedMediaUris.isNotEmpty() && signature != handledSharedSignature) {
             handledSharedSignature = signature
             pendingSharedCount = sharedMediaUris.size
@@ -115,6 +120,7 @@ fun HanClipApp(
                 ).show()
             }
             pendingSharedCount = 0
+            onSharedMediaHandled()
         }
     }
 

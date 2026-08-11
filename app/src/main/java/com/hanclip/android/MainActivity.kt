@@ -40,6 +40,9 @@ class MainActivity : ComponentActivity() {
                     sharedBrowserFavorites = sharedBrowserFavorites,
                     sharedBrowserFavoritesImportAttempted = sharedBrowserFavoritesImportAttempted,
                     quickAction = quickAction,
+                    onSharedMediaHandled = {
+                        sharedMediaUris = emptyList()
+                    },
                     onSharedBrowserFavoritesHandled = {
                         sharedBrowserFavorites = emptyList()
                         sharedBrowserFavoritesImportAttempted = false
