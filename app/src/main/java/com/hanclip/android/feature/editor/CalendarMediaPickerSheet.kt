@@ -1937,6 +1937,14 @@ private fun List<CalendarMediaItem>.sortedBySortOrder(sortOrder: MediaSortOrder)
     return if (sortOrder.ascending) sortedBy(timestamp) else sortedByDescending(timestamp)
 }
 
+internal fun resolveAddedMillis(
+    dateModifiedSeconds: Long,
+    dateAddedSeconds: Long,
+    takenMillis: Long
+): Long = dateModifiedSeconds.takeIf { it > 0L }?.times(1000)
+    ?: dateAddedSeconds.takeIf { it > 0L }?.times(1000)
+    ?: takenMillis
+
 private fun List<CalendarMediaItem>.filterByVideoDuration(
     durationFilter: VideoDurationFilter?
 ): List<CalendarMediaItem> {
@@ -2164,9 +2172,11 @@ private object CalendarMediaRepository {
                                 ?: cursor.getLong(addedColumn).takeIf { it > 0L }?.times(1000)
                                 ?: cursor.getLong(modifiedColumn).takeIf { it > 0L }?.times(1000)
                                 ?: continue
-                            val addedMillis = cursor.getLong(addedColumn).takeIf { it > 0L }?.times(1000)
-                                ?: cursor.getLong(modifiedColumn).takeIf { it > 0L }?.times(1000)
-                                ?: takenMillis
+                            val addedMillis = resolveAddedMillis(
+                                dateModifiedSeconds = cursor.getLong(modifiedColumn),
+                                dateAddedSeconds = cursor.getLong(addedColumn),
+                                takenMillis = takenMillis
+                            )
                             if (takenMillis !in startMillis until endMillis) continue
                             val date = Instant.ofEpochMilli(takenMillis)
                                 .atZone(ZoneId.systemDefault())

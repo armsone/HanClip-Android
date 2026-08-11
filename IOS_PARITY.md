@@ -386,3 +386,4 @@ Android 작업이 다음 날까지 이어지면 그날 첫 소스 변경 전에 
 - 첫 컬렉션 영화의 import 도중 종료돼 index가 아직 없는 경우에도 앱 전용 `.import-*` staging은 다음 목록 로드에서 정리한다. 압축 staging은 기존처럼 정상 primary/backup index가 확인된 경우에만 정리해 손상 index 주변의 일반 파일을 추정 삭제하지 않는다.
 - 컬렉션 index JSON을 fsync·decode 검증한 뒤 최종 rename 전에 프로세스가 종료돼 유효한 `collection.json.tmp`만 남은 경우, 다음 목록 로드에서 primary가 유효하면 temp를 폐기하고 primary가 없거나 손상됐으면 temp를 primary로 승격한다. 손상 temp는 폐기하며 기존 유효 primary를 덮지 않는다.
 - 컬렉션 포스터도 최종 `<id>.jpg`에 직접 쓰지 않고 `.import-<id>.poster.tmp.jpg`에 만든 뒤 영상과 함께 확정한다. 생성 실패·취소에서는 임시 포스터를 지우고 프로세스 중단으로 남은 전용 staging은 다음 목록 로드에서 정리해 완료되지 않은 가져오기의 포스터가 확정 자산처럼 남지 않는다.
+- 사진 선택기의 `추가순`은 고정 iOS 소스의 `PHAsset.modificationDate ?? creationDate`에 대응하도록 Android `DATE_MODIFIED → DATE_ADDED → 촬영시각` 순으로 정렬 시각을 해석한다. 촬영순과 달력 월 필터는 기존 촬영시각 기준을 유지하며 단위시험으로 우선순위와 두 fallback을 고정했다.
