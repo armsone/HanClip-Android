@@ -29,6 +29,7 @@ import com.hanclip.android.core.project.DraftProjectStore
 import com.hanclip.android.core.project.EditorPreferenceStore
 import com.hanclip.android.core.project.EditableProjectStore
 import com.hanclip.android.core.project.ExportHistoryStore
+import com.hanclip.android.core.project.ExportRecoveryStore
 import com.hanclip.android.core.project.MovieCollectionStore
 import com.hanclip.android.core.project.BackgroundMusicStore
 import com.hanclip.android.core.project.ImportedFontStore
@@ -399,6 +400,11 @@ class EditorViewModel : ViewModel() {
             }
             exportApplicationContext = context.applicationContext
             foregroundExportToken = exportToken
+            ExportRecoveryStore.markStarted(
+                context = context.applicationContext,
+                projectId = state.activeProjectId,
+                token = exportToken
+            )
             runCatching {
                 ExportForegroundService.start(
                     context = context.applicationContext,
@@ -625,6 +631,7 @@ class EditorViewModel : ViewModel() {
         exportApplicationContext = null
         foregroundExportToken = null
         if (appContext != null && token != null) {
+            ExportRecoveryStore.clear(appContext, token)
             runCatching { ExportForegroundService.stop(appContext, token) }
                 .onFailure { error ->
                     Log.w("HanClipExport", "Unable to stop foreground export notification", error)
@@ -936,7 +943,7 @@ class EditorViewModel : ViewModel() {
     fun openDraft(context: Context): Boolean {
         val appContext = context.applicationContext
         val draft = DraftProjectStore.load(appContext) ?: return false
-        val recoveryMessage = projectAssetRecoveryMessage(appContext, draft)
+        val recoveryMessage = combinedProjectRecoveryMessage(appContext, draft)
         editingSessionBaseline = draft
         _uiState.update {
             it.copy(
@@ -968,7 +975,7 @@ class EditorViewModel : ViewModel() {
     fun openEditableProject(context: Context, projectId: String): Boolean {
         val appContext = context.applicationContext
         val project = EditableProjectStore.load(appContext, projectId) ?: return false
-        val recoveryMessage = projectAssetRecoveryMessage(appContext, project)
+        val recoveryMessage = combinedProjectRecoveryMessage(appContext, project)
         editingSessionBaseline = project
         DraftProjectStore.save(appContext, project)
         _uiState.update {
@@ -1019,6 +1026,20 @@ class EditorViewModel : ViewModel() {
         }
         if (missingAssets.isEmpty()) return null
         return "${missingAssets.joinToString("과 ")} 파일을 찾지 못해 기본 자산으로 표시합니다. 설정에서 다시 선택할 수 있습니다."
+    }
+
+    private fun combinedProjectRecoveryMessage(context: Context, project: DraftProject): String? {
+        val interruptedExportMessage = if (
+            ExportRecoveryStore.consumeInterrupted(context, project.projectId)
+        ) {
+            "이전 완성본 만들기가 중단됐습니다. 클립과 설정은 그대로이며 완성본 만들기를 다시 누를 수 있습니다."
+        } else {
+            null
+        }
+        return listOfNotNull(
+            interruptedExportMessage,
+            projectAssetRecoveryMessage(context, project)
+        ).takeIf(List<String>::isNotEmpty)?.joinToString("\n\n")
     }
 
     private fun EditorUiState.toDraftProject(): DraftProject = DraftProject(

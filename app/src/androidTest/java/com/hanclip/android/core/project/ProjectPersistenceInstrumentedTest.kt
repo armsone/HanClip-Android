@@ -50,7 +50,11 @@ class ProjectPersistenceInstrumentedTest {
         if (::context.isInitialized) DraftProjectStore.clear(context)
         if (::filesRoot.isInitialized) filesRoot.deleteRecursively()
         if (::preferencePrefix.isInitialized) {
-            listOf("hanclip_draft_project", "hanclip_editable_projects").forEach { name ->
+            listOf(
+                "hanclip_draft_project",
+                "hanclip_editable_projects",
+                "hanclip_export_recovery"
+            ).forEach { name ->
                 baseContext.getSharedPreferences("$preferencePrefix-$name", Context.MODE_PRIVATE)
                     .edit()
                     .clear()
@@ -211,6 +215,34 @@ class ProjectPersistenceInstrumentedTest {
             File(context.filesDir, "editable-projects").listFiles().orEmpty()
                 .count { it.isDirectory && it.name.startsWith("known-project-") }
         )
+    }
+
+    @Test
+    fun interruptedExportMarkerIsReportedOnceAndNormalCompletionClearsIt() {
+        val project = EditableProjectStore.upsert(
+            context,
+            sampleProject("interrupted-export-project", defaultDurationSeconds = 2.0)
+        )
+        ExportRecoveryStore.markStarted(context, project.projectId, token = 42L)
+        ExportRecoveryStore.clear(context, token = 41L)
+
+        val recoveredViewModel = EditorViewModel()
+        assertEquals(true, recoveredViewModel.openEditableProject(context, project.projectId))
+        assertEquals(
+            true,
+            recoveredViewModel.uiState.value.alertMessage?.contains("이전 완성본 만들기가 중단") == true
+        )
+        assertEquals(listOf("clip-1"), recoveredViewModel.uiState.value.clips.map(ClipItem::id))
+
+        val consumedViewModel = EditorViewModel()
+        assertEquals(true, consumedViewModel.openEditableProject(context, project.projectId))
+        assertEquals(false, consumedViewModel.uiState.value.alertMessage?.contains("중단") == true)
+
+        ExportRecoveryStore.markStarted(context, project.projectId, token = 43L)
+        ExportRecoveryStore.clear(context, token = 43L)
+        val completedViewModel = EditorViewModel()
+        assertEquals(true, completedViewModel.openEditableProject(context, project.projectId))
+        assertEquals(false, completedViewModel.uiState.value.alertMessage?.contains("중단") == true)
     }
 
     @Test
