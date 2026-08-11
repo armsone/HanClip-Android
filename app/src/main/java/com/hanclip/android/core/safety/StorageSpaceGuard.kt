@@ -34,10 +34,14 @@ internal object StorageSpaceGuard {
     fun requireAvailable(directory: File, requiredBytes: Long) {
         directory.mkdirs()
         val availableBytes = directory.usableSpace
-        require(availableBytes >= requiredBytes) {
+        if (availableBytes < requiredBytes) {
             val requiredMiB = ceil(requiredBytes / (1024.0 * 1024.0)).toLong()
             val availableMiB = availableBytes / (1024L * 1024L)
-            "저장 공간이 부족합니다. 약 ${requiredMiB}MB가 필요하고 ${availableMiB}MB를 사용할 수 있습니다. 공간을 확보한 뒤 다시 시도해 주세요."
+            throw InsufficientStorageException(
+                "저장 공간이 부족합니다. 약 ${requiredMiB}MB가 필요하고 ${availableMiB}MB를 사용할 수 있습니다. 공간을 확보한 뒤 다시 시도해 주세요."
+            )
         }
     }
 }
+
+internal class InsufficientStorageException(message: String) : IllegalStateException(message)

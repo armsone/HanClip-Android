@@ -151,6 +151,7 @@ import com.hanclip.android.core.project.CollectedMovie
 import com.hanclip.android.core.project.CollectionVideoSizeOption
 import com.hanclip.android.core.project.MovieCollectionStore
 import com.hanclip.android.core.project.hanClipCompletionTitle
+import com.hanclip.android.core.safety.InsufficientStorageException
 import com.hanclip.android.core.settings.SleepPreventionMode
 import com.hanclip.android.core.theme.HanClipPalette
 import com.hanclip.android.core.theme.HanClipThemeMode
@@ -311,6 +312,8 @@ fun HomeRoute(
                             originalBytes += result.originalBytes
                             compressedBytes += result.compressedBytes
                             onCollectionChanged()
+                        } catch (storageError: InsufficientStorageException) {
+                            throw storageError
                         } catch (cancelled: CancellationException) {
                             throw cancelled
                         } catch (_: Throwable) {
@@ -327,6 +330,8 @@ fun HomeRoute(
                         append("\n${collectionFileSize(originalBytes)} → ${collectionFileSize(compressedBytes)}")
                     }
                 }
+            } catch (storageError: InsufficientStorageException) {
+                collectionError = storageError.message
             } catch (_: CancellationException) {
                 collectionError = "컬렉션 일괄 변환을 취소했습니다. 완료된 영상은 그대로 유지됩니다."
             } finally {
@@ -363,6 +368,8 @@ fun HomeRoute(
                             importedCount += 1
                             onCollectionChanged()
                         }
+                    } catch (storageError: InsufficientStorageException) {
+                        throw storageError
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (_: Throwable) {
@@ -377,6 +384,8 @@ fun HomeRoute(
                         if (failedCount > 0) add("동영상이 아니거나 읽을 수 없는 ${failedCount}개는 제외했습니다.")
                     }.joinToString(" ")
                 }
+            } catch (storageError: InsufficientStorageException) {
+                collectionError = storageError.message
             } catch (cancelled: CancellationException) {
                 collectionError = buildList {
                     add("컬렉션 가져오기를 취소했습니다.")
