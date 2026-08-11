@@ -174,6 +174,36 @@ class ProjectPersistenceInstrumentedTest {
     }
 
     @Test
+    fun missingProjectMediaIsReportedWithoutDiscardingEditState() {
+        val clipSource = File(context.filesDir, "fixture-photo.jpg").apply {
+            writeBytes(byteArrayOf(1, 2, 3, 4))
+        }
+        val musicSource = File(context.filesDir, "fixture-music.mp3").apply {
+            writeBytes(byteArrayOf(5, 6, 7, 8))
+        }
+        val projectId = "test-${UUID.randomUUID()}"
+        val stored = EditableProjectStore.upsert(
+            context,
+            sampleProject(projectId, defaultDurationSeconds = 5.0).copy(
+                clips = listOf(ClipItem(id = "clip-1", sourceUri = Uri.fromFile(clipSource))),
+                backgroundMusicUri = Uri.fromFile(musicSource),
+                backgroundMusicTitle = "사용자 음악"
+            )
+        )
+        File(requireNotNull(stored.clips.single().sourceUri.path)).delete()
+        File(requireNotNull(stored.backgroundMusicUri?.path)).delete()
+
+        val viewModel = EditorViewModel()
+        assertEquals(true, viewModel.openEditableProject(context, projectId))
+
+        val opened = viewModel.uiState.value
+        assertEquals(listOf("clip-1"), opened.clips.map(ClipItem::id))
+        assertEquals("사용자 음악", opened.backgroundMusicTitle)
+        assertEquals(true, opened.alertMessage?.contains("클립 원본 1개") == true)
+        assertEquals(true, opened.alertMessage?.contains("배경음악") == true)
+    }
+
+    @Test
     fun corruptPrimaryMetadataFallsBackToPreviousVerifiedBackup() {
         val projectId = "test-${UUID.randomUUID()}"
         val first = sampleProject(projectId, defaultDurationSeconds = 3.0)

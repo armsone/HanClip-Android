@@ -1028,6 +1028,25 @@ class EditorViewModel : ViewModel() {
         return "${missingAssets.joinToString("과 ")} 파일을 찾지 못해 기본 자산으로 표시합니다. 설정에서 다시 선택할 수 있습니다."
     }
 
+    private fun projectMediaRecoveryMessage(project: DraftProject): String? {
+        val missingClipCount = project.clips.count { clip ->
+            clip.sourceUri.isMissingLocalFile()
+        }
+        val missingBackgroundMusic = project.backgroundMusicSampleId == null &&
+            project.backgroundMusicUri?.isMissingLocalFile() == true
+        if (missingClipCount == 0 && !missingBackgroundMusic) return null
+
+        val missingMedia = buildList {
+            if (missingClipCount > 0) add("클립 원본 ${missingClipCount}개")
+            if (missingBackgroundMusic) add("배경음악")
+        }
+        return "${missingMedia.joinToString("과 ")} 파일을 찾지 못했습니다. 편집 내용은 유지되며 해당 미디어를 다시 추가하거나 선택해 주세요."
+    }
+
+    private fun Uri.isMissingLocalFile(): Boolean {
+        return scheme == "file" && (path.isNullOrBlank() || !File(path.orEmpty()).isFile)
+    }
+
     private fun combinedProjectRecoveryMessage(context: Context, project: DraftProject): String? {
         val interruptedExportMessage = if (
             ExportRecoveryStore.consumeInterrupted(context, project.projectId)
@@ -1038,7 +1057,8 @@ class EditorViewModel : ViewModel() {
         }
         return listOfNotNull(
             interruptedExportMessage,
-            projectAssetRecoveryMessage(context, project)
+            projectAssetRecoveryMessage(context, project),
+            projectMediaRecoveryMessage(project)
         ).takeIf(List<String>::isNotEmpty)?.joinToString("\n\n")
     }
 
