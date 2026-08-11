@@ -253,6 +253,7 @@ fun AiShotRoute(
     var recordingStartedAtMillis by remember { mutableLongStateOf(0L) }
     var recordingDurationNanos by remember { mutableLongStateOf(0L) }
     var recordingDurationObservedAtMillis by remember { mutableLongStateOf(0L) }
+    var hasCleanedAbandonedSessionFiles by remember { mutableStateOf(false) }
     var isRollingRecordingActive by remember { mutableStateOf(false) }
     var triggerTimeSeconds by remember { mutableStateOf<Double?>(null) }
     var activeCaptureSequence by remember { mutableStateOf<Long?>(null) }
@@ -316,7 +317,10 @@ fun AiShotRoute(
         if (!hasPermissions || recording != null) return
         val capture = videoCapture ?: return
         val outputDirectory = context.cacheDir.resolve("aishot").apply { mkdirs() }
-        AiShotVideoTrimmer.pruneAbandonedBuffers(outputDirectory)
+        if (!hasCleanedAbandonedSessionFiles) {
+            AiShotVideoTrimmer.cleanupAbandonedSessionFiles(outputDirectory)
+            hasCleanedAbandonedSessionFiles = true
+        }
         val outputFile = File(
             outputDirectory,
             "aishot-buffer-${System.currentTimeMillis()}.mp4"

@@ -21,13 +21,14 @@ import kotlin.coroutines.resumeWithException
 
 @OptIn(UnstableApi::class)
 internal object AiShotVideoTrimmer {
-    fun pruneAbandonedBuffers(directory: File) {
-        val abandonedBefore = System.currentTimeMillis() - 60_000L
+    private val bufferFilename = Regex("aishot-buffer-\\d+\\.mp4")
+    private val capturedFilename = Regex("aishot-\\d+-\\d+\\.mp4")
+
+    fun cleanupAbandonedSessionFiles(directory: File) {
         directory.listFiles()
             ?.filter {
                 it.isFile &&
-                    it.name.startsWith("aishot-buffer-") &&
-                    it.lastModified() < abandonedBefore
+                    (bufferFilename.matches(it.name) || capturedFilename.matches(it.name))
             }
             ?.forEach { runCatching { it.delete() } }
     }
