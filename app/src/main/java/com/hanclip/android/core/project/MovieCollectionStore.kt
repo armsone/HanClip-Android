@@ -160,6 +160,7 @@ object MovieCollectionStore {
     private const val IndexFilename = "collection.json"
     private const val CompressionStagingPrefix = ".compression-"
     private const val CompressionStagingSuffix = ".tmp.mp4"
+    private const val ImportStagingPrefix = ".import-"
     private const val MigrationPreferences = "hanclip_movie_collection_migration"
     private const val LegacyMigrationCompletedKey = "export_history_v1_completed"
     private const val MigratedLegacyUrisKey = "export_history_v1_imported_uris"
@@ -546,6 +547,10 @@ object MovieCollectionStore {
             val videoFilename = "$id.$extension"
             val posterFilename = "$id.jpg"
             val destination = File(collectionDirectory(appContext), videoFilename)
+            val stagingDestination = File(
+                collectionDirectory(appContext),
+                "$ImportStagingPrefix$id.tmp.$extension"
+            )
             val poster = File(collectionDirectory(appContext), posterFilename)
             val existing = list(appContext)
             check(existing.size < MaximumMovieCount) {
@@ -559,19 +564,24 @@ object MovieCollectionStore {
             )
 
             try {
-                val sourceHash = copySource(appContext, sourceUri, destination, cancellationContext)
+                val sourceHash = copySource(
+                    appContext,
+                    sourceUri,
+                    stagingDestination,
+                    cancellationContext
+                )
                 val existingWithHashes = existing.map { movie ->
                     movie.takeIf { it.contentSha256 != null }
                         ?: movie.copy(contentSha256 = sha256(videoFile(appContext, movie)))
                 }
                 existingWithHashes.firstOrNull { it.contentSha256 == sourceHash }?.let { duplicate ->
-                    destination.delete()
+                    stagingDestination.delete()
                     if (existingWithHashes != existing) save(appContext, existingWithHashes)
                     return@synchronized CollectionImportOutcome(duplicate, wasDuplicate = true)
                 }
 
-                val metadata = readMetadata(appContext, destination)
-                writePoster(destination, poster, metadata.durationSeconds)
+                val metadata = readMetadata(appContext, stagingDestination)
+                writePoster(stagingDestination, poster, metadata.durationSeconds)
                 val resolvedMadeAt = madeAtMillis ?: metadata.creationDateMillis
                     ?: sourceLastModified(appContext, sourceUri)
                 val resolvedStartAt = shootingStartAtMillis
@@ -599,9 +609,13 @@ object MovieCollectionStore {
                     isPinned = false,
                     posterSelectionVersion = CurrentPosterSelectionVersion
                 )
+                check(stagingDestination.renameTo(destination)) {
+                    "가져온 컬렉션 영화를 안전하게 확정하지 못했습니다."
+                }
                 save(appContext, existingWithHashes + movie)
                 CollectionImportOutcome(movie, wasDuplicate = false)
             } catch (error: Throwable) {
+                stagingDestination.delete()
                 destination.delete()
                 poster.delete()
                 throw error
@@ -769,9 +783,11 @@ object MovieCollectionStore {
             val directoryKey = directory.absolutePath
             if (directoryKey in recoveredCollectionDirectories) return
             val stagingFiles = directory.listFiles().orEmpty().filter { file ->
-                file.isFile &&
-                    file.name.startsWith(CompressionStagingPrefix) &&
-                    file.name.endsWith(CompressionStagingSuffix)
+                file.isFile && (
+                    file.name.startsWith(ImportStagingPrefix) ||
+                        (file.name.startsWith(CompressionStagingPrefix) &&
+                            file.name.endsWith(CompressionStagingSuffix))
+                    )
             }
             if (stagingFiles.all { file -> !file.exists() || file.delete() }) {
                 recoveredCollectionDirectories += directoryKey
