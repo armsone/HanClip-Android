@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.hanclip.android.core.navigation.HanClipQuickAction
 import com.hanclip.android.core.safety.ImportFileTransaction
+import com.hanclip.android.core.safety.UserAssetFileTransaction
 import com.hanclip.android.core.theme.HanClipTheme
 import com.hanclip.android.feature.browser.BrowserFavoritesStore
 import java.io.File
@@ -26,6 +27,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         ImportFileTransaction.cleanupInterrupted(File(filesDir, "working-media"))
+        UserAssetFileTransaction.cleanupInterrupted(filesDir)
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.WHITE
         WindowCompat.getInsetsController(window, window.decorView).apply {
