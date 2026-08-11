@@ -385,3 +385,4 @@ Android 작업이 다음 날까지 이어지면 그날 첫 소스 변경 전에 
 - 컬렉션 원본 import도 최종 `<id>.<ext>`에 직접 쓰지 않고 `.import-<id>.tmp.<ext>`에서 복사·hash·메타데이터·poster 준비를 마친 뒤 최종 이름으로 승격하고 index를 저장한다. 정상 index를 읽은 시작에서는 중단 import staging만 압축 staging과 함께 정리하며 index 밖의 일반 파일은 orphan으로 추정해 삭제하지 않는다.
 - 첫 컬렉션 영화의 import 도중 종료돼 index가 아직 없는 경우에도 앱 전용 `.import-*` staging은 다음 목록 로드에서 정리한다. 압축 staging은 기존처럼 정상 primary/backup index가 확인된 경우에만 정리해 손상 index 주변의 일반 파일을 추정 삭제하지 않는다.
 - 컬렉션 index JSON을 fsync·decode 검증한 뒤 최종 rename 전에 프로세스가 종료돼 유효한 `collection.json.tmp`만 남은 경우, 다음 목록 로드에서 primary가 유효하면 temp를 폐기하고 primary가 없거나 손상됐으면 temp를 primary로 승격한다. 손상 temp는 폐기하며 기존 유효 primary를 덮지 않는다.
+- 컬렉션 포스터도 최종 `<id>.jpg`에 직접 쓰지 않고 `.import-<id>.poster.tmp.jpg`에 만든 뒤 영상과 함께 확정한다. 생성 실패·취소에서는 임시 포스터를 지우고 프로세스 중단으로 남은 전용 staging은 다음 목록 로드에서 정리해 완료되지 않은 가져오기의 포스터가 확정 자산처럼 남지 않는다.

@@ -555,6 +555,10 @@ object MovieCollectionStore {
                 "$ImportStagingPrefix$id.tmp.$extension"
             )
             val poster = File(collectionDirectory(appContext), posterFilename)
+            val stagingPoster = File(
+                collectionDirectory(appContext),
+                "$ImportStagingPrefix$id.poster.tmp.jpg"
+            )
             val existing = list(appContext)
             check(existing.size < MaximumMovieCount) {
                 "컬렉션에는 영화를 최대 ${MaximumMovieCount}개까지 보관할 수 있습니다."
@@ -584,7 +588,7 @@ object MovieCollectionStore {
                 }
 
                 val metadata = readMetadata(appContext, stagingDestination)
-                writePoster(stagingDestination, poster, metadata.durationSeconds)
+                writePoster(stagingDestination, stagingPoster, metadata.durationSeconds)
                 val resolvedMadeAt = madeAtMillis ?: metadata.creationDateMillis
                     ?: sourceLastModified(appContext, sourceUri)
                 val resolvedStartAt = shootingStartAtMillis
@@ -615,10 +619,14 @@ object MovieCollectionStore {
                 check(stagingDestination.renameTo(destination)) {
                     "가져온 컬렉션 영화를 안전하게 확정하지 못했습니다."
                 }
+                check(stagingPoster.renameTo(poster)) {
+                    "가져온 컬렉션 영화의 포스터를 안전하게 확정하지 못했습니다."
+                }
                 save(appContext, existingWithHashes + movie)
                 CollectionImportOutcome(movie, wasDuplicate = false)
             } catch (error: Throwable) {
                 stagingDestination.delete()
+                stagingPoster.delete()
                 destination.delete()
                 poster.delete()
                 throw error

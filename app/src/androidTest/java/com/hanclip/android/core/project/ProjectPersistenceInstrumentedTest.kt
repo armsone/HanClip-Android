@@ -516,8 +516,11 @@ class ProjectPersistenceInstrumentedTest {
             .apply { writeBytes("partial-compression".toByteArray()) }
         val importStaging = directory.resolve(".import-interrupted-movie.tmp.mp4")
             .apply { writeBytes("partial-import".toByteArray()) }
+        val posterImportStaging = directory.resolve(".import-interrupted-movie.poster.tmp.jpg")
+            .apply { writeBytes("partial-poster".toByteArray()) }
         assertEquals(emptyList<CollectedMovie>(), MovieCollectionStore.list(context))
         assertEquals(false, importStaging.exists())
+        assertEquals(false, posterImportStaging.exists())
         assertEquals(true, staging.isFile)
         val fixture = InstrumentationRegistry.getInstrumentation().context.assets
             .open("fixtures/collection-v4-interrupted-compression.json")
