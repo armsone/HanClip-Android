@@ -24,6 +24,7 @@ import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.Transformer
 import androidx.media3.transformer.VideoEncoderSettings
 import com.hanclip.android.core.safety.isDurationWithinTolerance
+import com.hanclip.android.core.safety.StorageSpaceGuard
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -233,6 +234,10 @@ object MovieCollectionStore {
         require(originalBytes > 0L) { "컬렉션 영상을 읽을 수 없습니다." }
         val sourceInfo = compressionInfo(appContext, currentMovie)
             ?: error("컬렉션 영상 정보를 읽을 수 없습니다.")
+        StorageSpaceGuard.requireAvailable(
+            directory = collectionDirectory(appContext),
+            requiredBytes = StorageSpaceGuard.requiredImportBytes(sourceInfo.estimatedBytes(option))
+        )
         // Presentation can upscale a smaller source. iOS export presets keep smaller
         // originals at their native size, so cap the requested short side as well.
         val targetShortSide = min(
@@ -546,6 +551,12 @@ object MovieCollectionStore {
             check(existing.size < MaximumMovieCount) {
                 "컬렉션에는 영화를 최대 ${MaximumMovieCount}개까지 보관할 수 있습니다."
             }
+            StorageSpaceGuard.requireAvailable(
+                directory = collectionDirectory(appContext),
+                requiredBytes = StorageSpaceGuard.requiredImportBytes(
+                    sourceSizeBytes(appContext, sourceUri)
+                )
+            )
 
             try {
                 val sourceHash = copySource(appContext, sourceUri, destination, cancellationContext)
@@ -816,6 +827,17 @@ object MovieCollectionStore {
         }
         require(destination.length() > 0L) { "빈 동영상 파일은 추가할 수 없습니다." }
         return digest.digest().toHexString()
+    }
+
+    private fun sourceSizeBytes(context: Context, sourceUri: Uri): Long? {
+        if (sourceUri.scheme == "file") {
+            return sourceUri.path?.let(::File)?.length()?.takeIf { it > 0L }
+        }
+        return runCatching {
+            context.contentResolver.openAssetFileDescriptor(sourceUri, "r")?.use { descriptor ->
+                descriptor.length.takeIf { it >= 0L }
+            }
+        }.getOrNull()
     }
 
     private fun sha256(file: File): String {

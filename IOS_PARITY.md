@@ -380,3 +380,4 @@ Android 작업이 다음 날까지 이어지면 그날 첫 소스 변경 전에 
 - 미디어 원본·Motion Photo 추출은 기존처럼 `.tmp` staging을 확정 파일로 바꾼다. 프로세스가 복사 중 종료되면 다음 앱 cold start에서 `working-media` 바로 아래의 `.tmp`만 정리하고, 확정된 원본과 프로젝트별 복사본은 건드리지 않는다. 실행 중 import에서는 정리하지 않아 취소 직후 새 import와 경합하지 않는다.
 - 가져온 글꼴·외부 배경음악·사용자 아이콘도 프로세스 종료로 숨김 staging이 남으면 다음 cold start에서 각 저장소의 정확한 staging 접두사만 정리한다. 확정된 `.ttf/.otf`, `hanclip-music-*`, `custom-icon`과 프로젝트 내부 자산은 보존한다.
 - 편집 프로젝트 저장 중 프로세스가 종료돼 남은 `project.json.tmp`와 프로젝트 `media`의 `*.tmp-*`도 cold start에서 정리한다. `project.json`, 검증된 `.bak`, 확정 원본·썸네일·배경음악·사용자 아이콘은 그대로 보존해 backup 복구와 실제 프로젝트 용량 계산을 방해하지 않게 한다.
+- 컬렉션 원본 가져오기는 알려진 원본 크기+안전 여유를, 단건·일괄 압축은 기존 해상도·bitrate·길이 기반 예상 결과 크기+안전 여유를 실제 쓰기 전에 확인한다. 부족하면 destination이나 compression staging을 만들기 전에 중단하므로 기존 index·원본·poster·title·pin을 그대로 유지한다.
