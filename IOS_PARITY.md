@@ -391,3 +391,4 @@ Android 작업이 다음 날까지 이어지면 그날 첫 소스 변경 전에 
 - 구형 초안에 `projectId`가 없으면 UUID를 한 번 생성해 즉시 초안 JSON에 기록하고, 파일 저장 프로젝트에서 누락됐으면 기존 디렉터리명을 안정 ID로 채워 원자 저장한다. 반복 로드에서도 같은 ID와 pin·memo가 유지되는 계측 시험으로 프로젝트 식별자가 세션마다 바뀌지 않음을 확인한다.
 - AiShot 새 세션의 첫 녹화 전에는 이전 프로세스·세션에서 남은 정확한 `aishot-buffer-<시각>.mp4`와 `aishot-<순번>-<시각>.mp4` cache 파일만 정리한다. 현재 세션 파일 생성 전에 한 번만 실행하며 비슷한 이름이나 일반 cache 영상은 보존하는 단위시험을 추가했다. trigger 전후 계산은 계속 monotonic `elapsedRealtime`을 사용한다.
 - 컬렉션 index의 `movies`가 없거나 배열이 아닌 경우 유효한 빈 컬렉션으로 오인하지 않고 손상 primary로 판정해 정상 backup을 읽는다. 배열 안의 개별 손상 항목만 격리하는 기존 정책은 유지하며, 의미상 손상된 primary와 정상 v1 backup fixture로 silent reset 방지를 확인했다.
+- 저장 프로젝트 metadata도 문법상 JSON이라는 이유만으로 primary를 채택하지 않고 `project` 객체 구조까지 확인한다. `project`가 문자열로 손상된 primary가 정상 `.bak`을 가리지 않는 기존 backup 회귀 시험으로 프로젝트가 홈에서 조용히 사라지는 경계를 막았다.

@@ -249,13 +249,13 @@ class ProjectPersistenceInstrumentedTest {
     }
 
     @Test
-    fun corruptPrimaryMetadataFallsBackToPreviousVerifiedBackup() {
+    fun malformedPrimaryMetadataFallsBackToPreviousVerifiedBackup() {
         val projectId = "test-${UUID.randomUUID()}"
         val first = sampleProject(projectId, defaultDurationSeconds = 3.0)
         EditableProjectStore.upsert(context, first)
         EditableProjectStore.upsert(context, first.copy(defaultDurationSeconds = 4.0))
         val directory = File(context.filesDir, "editable-projects/$projectId")
-        directory.resolve("project.json").writeText("corrupt")
+        directory.resolve("project.json").writeText("""{"project":"corrupt"}""")
 
         val recovered = EditableProjectStore.load(context, projectId)
 

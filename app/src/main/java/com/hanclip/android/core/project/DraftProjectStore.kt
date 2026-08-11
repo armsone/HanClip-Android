@@ -584,7 +584,9 @@ object EditableProjectStore {
     private fun loadProjectMetadata(directory: File): JSONObject? {
         val destination = File(directory, ProjectMetadataFilename)
         val backup = File(directory, ProjectMetadataBackupFilename)
-        return loadPrimaryOrBackup(destination, backup, ::JSONObject)
+        return loadPrimaryOrBackup(destination, backup) { raw ->
+            JSONObject(raw).also { metadata -> metadata.getJSONObject("project") }
+        }
     }
 
     private fun writeVerifiedJsonAtomically(
