@@ -490,6 +490,23 @@ class ProjectPersistenceInstrumentedTest {
     }
 
     @Test
+    fun validInterruptedCollectionIndexIsRecoveredWhenPrimaryIsMissing() {
+        val directory = File(context.filesDir, "movie-collection").apply { mkdirs() }
+        directory.resolve("collection-test.mp4").writeText("video")
+        val fixture = InstrumentationRegistry.getInstrumentation().context.assets
+            .open("fixtures/collection-v1.json")
+            .bufferedReader()
+            .use { it.readText() }
+        val staging = directory.resolve("collection.json.tmp").apply { writeText(fixture) }
+
+        val recovered = MovieCollectionStore.list(context)
+
+        assertEquals(listOf("legacy-movie"), recovered.map(CollectedMovie::id))
+        assertEquals(false, staging.exists())
+        assertEquals(true, directory.resolve("collection.json").isFile)
+    }
+
+    @Test
     fun interruptedCompressionFixtureDeletesOnlyStagingAndKeepsOriginalAcrossRewrite() {
         val directory = File(context.filesDir, "movie-collection").apply { mkdirs() }
         val original = directory.resolve("interrupted-original.mp4")

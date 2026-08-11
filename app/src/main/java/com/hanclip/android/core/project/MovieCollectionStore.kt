@@ -172,6 +172,7 @@ object MovieCollectionStore {
     fun list(context: Context): List<CollectedMovie> {
         val directory = collectionDirectory(context)
         cleanupInterruptedImport(directory)
+        recoverInterruptedIndex(directory)
         val index = indexFile(context)
         val backup = File(directory, "$IndexFilename.bak")
         val loaded = sequenceOf(index, backup)
@@ -776,6 +777,24 @@ object MovieCollectionStore {
     private fun isValidCollectionIndex(file: File): Boolean = runCatching {
         JSONObject(file.readText()).optJSONArray("movies") ?: JSONArray()
     }.isSuccess
+
+    private fun recoverInterruptedIndex(directory: File) {
+        synchronized(collectionWriteLock) {
+            val primary = File(directory, IndexFilename)
+            val temporary = File(directory, "$IndexFilename.tmp")
+            if (!temporary.isFile) return
+            if (isValidCollectionIndex(primary)) {
+                temporary.delete()
+                return
+            }
+            if (!isValidCollectionIndex(temporary)) {
+                temporary.delete()
+                return
+            }
+            if (primary.exists() && !primary.delete()) return
+            temporary.renameTo(primary)
+        }
+    }
 
     private fun collectionDirectory(context: Context): File =
         File(context.filesDir, DirectoryName).apply { mkdirs() }

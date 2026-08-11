@@ -384,3 +384,4 @@ Android 작업이 다음 날까지 이어지면 그날 첫 소스 변경 전에 
 - 저장 공간 부족은 일반적인 읽기 실패 개수에 섞지 않는다. 컬렉션 다중 import와 일괄 압축도 첫 용량 부족에서 남은 작업을 중단하고 필요한/가용 MB를 그대로 안내하며, 앞에서 완료된 항목과 기존 컬렉션은 유지한다.
 - 컬렉션 원본 import도 최종 `<id>.<ext>`에 직접 쓰지 않고 `.import-<id>.tmp.<ext>`에서 복사·hash·메타데이터·poster 준비를 마친 뒤 최종 이름으로 승격하고 index를 저장한다. 정상 index를 읽은 시작에서는 중단 import staging만 압축 staging과 함께 정리하며 index 밖의 일반 파일은 orphan으로 추정해 삭제하지 않는다.
 - 첫 컬렉션 영화의 import 도중 종료돼 index가 아직 없는 경우에도 앱 전용 `.import-*` staging은 다음 목록 로드에서 정리한다. 압축 staging은 기존처럼 정상 primary/backup index가 확인된 경우에만 정리해 손상 index 주변의 일반 파일을 추정 삭제하지 않는다.
+- 컬렉션 index JSON을 fsync·decode 검증한 뒤 최종 rename 전에 프로세스가 종료돼 유효한 `collection.json.tmp`만 남은 경우, 다음 목록 로드에서 primary가 유효하면 temp를 폐기하고 primary가 없거나 손상됐으면 temp를 primary로 승격한다. 손상 temp는 폐기하며 기존 유효 primary를 덮지 않는다.
