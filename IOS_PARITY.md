@@ -383,3 +383,4 @@ Android 작업이 다음 날까지 이어지면 그날 첫 소스 변경 전에 
 - 컬렉션 원본 가져오기는 알려진 원본 크기+안전 여유를, 단건·일괄 압축은 기존 해상도·bitrate·길이 기반 예상 결과 크기+안전 여유를 실제 쓰기 전에 확인한다. 부족하면 destination이나 compression staging을 만들기 전에 중단하므로 기존 index·원본·poster·title·pin을 그대로 유지한다.
 - 저장 공간 부족은 일반적인 읽기 실패 개수에 섞지 않는다. 컬렉션 다중 import와 일괄 압축도 첫 용량 부족에서 남은 작업을 중단하고 필요한/가용 MB를 그대로 안내하며, 앞에서 완료된 항목과 기존 컬렉션은 유지한다.
 - 컬렉션 원본 import도 최종 `<id>.<ext>`에 직접 쓰지 않고 `.import-<id>.tmp.<ext>`에서 복사·hash·메타데이터·poster 준비를 마친 뒤 최종 이름으로 승격하고 index를 저장한다. 정상 index를 읽은 시작에서는 중단 import staging만 압축 staging과 함께 정리하며 index 밖의 일반 파일은 orphan으로 추정해 삭제하지 않는다.
+- 첫 컬렉션 영화의 import 도중 종료돼 index가 아직 없는 경우에도 앱 전용 `.import-*` staging은 다음 목록 로드에서 정리한다. 압축 staging은 기존처럼 정상 primary/backup index가 확인된 경우에만 정리해 손상 index 주변의 일반 파일을 추정 삭제하지 않는다.

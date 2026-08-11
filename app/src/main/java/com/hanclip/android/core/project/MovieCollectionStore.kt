@@ -170,14 +170,16 @@ object MovieCollectionStore {
     private val recoveredCollectionDirectories = mutableSetOf<String>()
 
     fun list(context: Context): List<CollectedMovie> {
+        val directory = collectionDirectory(context)
+        cleanupInterruptedImport(directory)
         val index = indexFile(context)
-        val backup = File(collectionDirectory(context), "$IndexFilename.bak")
+        val backup = File(directory, "$IndexFilename.bak")
         val loaded = sequenceOf(index, backup)
             .filter(File::isFile)
             .mapNotNull { source -> parseIndex(context, source) }
             .firstOrNull()
         if (loaded != null) {
-            cleanupInterruptedCompression(collectionDirectory(context))
+            cleanupInterruptedCompression(directory)
         }
         return loaded.orEmpty()
     }
@@ -783,16 +785,20 @@ object MovieCollectionStore {
             val directoryKey = directory.absolutePath
             if (directoryKey in recoveredCollectionDirectories) return
             val stagingFiles = directory.listFiles().orEmpty().filter { file ->
-                file.isFile && (
-                    file.name.startsWith(ImportStagingPrefix) ||
-                        (file.name.startsWith(CompressionStagingPrefix) &&
-                            file.name.endsWith(CompressionStagingSuffix))
-                    )
+                file.isFile &&
+                    file.name.startsWith(CompressionStagingPrefix) &&
+                    file.name.endsWith(CompressionStagingSuffix)
             }
             if (stagingFiles.all { file -> !file.exists() || file.delete() }) {
                 recoveredCollectionDirectories += directoryKey
             }
         }
+    }
+
+    private fun cleanupInterruptedImport(directory: File) {
+        directory.listFiles().orEmpty()
+            .filter { file -> file.isFile && file.name.startsWith(ImportStagingPrefix) }
+            .forEach { file -> runCatching { file.delete() } }
     }
 
     private fun indexFile(context: Context): File =

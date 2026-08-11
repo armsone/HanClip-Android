@@ -499,6 +499,9 @@ class ProjectPersistenceInstrumentedTest {
             .apply { writeBytes("partial-compression".toByteArray()) }
         val importStaging = directory.resolve(".import-interrupted-movie.tmp.mp4")
             .apply { writeBytes("partial-import".toByteArray()) }
+        assertEquals(emptyList<CollectedMovie>(), MovieCollectionStore.list(context))
+        assertEquals(false, importStaging.exists())
+        assertEquals(true, staging.isFile)
         val fixture = InstrumentationRegistry.getInstrumentation().context.assets
             .open("fixtures/collection-v4-interrupted-compression.json")
             .bufferedReader()
@@ -511,7 +514,6 @@ class ProjectPersistenceInstrumentedTest {
 
         assertEquals("interrupted-original.mp4", loaded.single().videoFilename)
         assertEquals(false, staging.exists())
-        assertEquals(false, importStaging.exists())
         assertEquals(true, original.isFile)
         assertEquals(originalBytes, original.readBytes().toList())
         assertEquals("복구 후 사용자 제목", reloaded.title)
