@@ -153,6 +153,10 @@ class ProjectPersistenceInstrumentedTest {
         assertEquals(importedFont.id, reloaded.watermarkSettings.fontName)
         assertEquals(projectIcon.absolutePath, reloaded.watermarkSettings.customCopyrightIconPath)
         assertNotNull(CaptionTypefaceLoader.load(context, reloaded.watermarkSettings.fontName))
+        assertEquals(
+            true,
+            EditableProjectStore.list(context).single().displayByteCount >= projectIcon.length()
+        )
     }
 
     @Test

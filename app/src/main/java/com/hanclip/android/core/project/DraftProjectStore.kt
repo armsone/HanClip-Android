@@ -604,9 +604,7 @@ object EditableProjectStore {
     private fun projectDisplayByteCount(context: Context, projectId: String): Long {
         return projectDirectory(context, projectId)
             .walkTopDown()
-            .filter { file ->
-                file.isFile && (file.name == ProjectMetadataFilename || file.name.startsWith("thumbnail-"))
-            }
+            .filter(File::isFile)
             .sumOf(File::length)
     }
 
