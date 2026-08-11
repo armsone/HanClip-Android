@@ -3,7 +3,7 @@
 ## 역할/경로
 
 - EDITOR/QUICK 만들기 → generation overlay → `VideoPreviewView`; 시사회에서 편집/공유/개봉.
-- 소스 `EditorView.swift` progress overlay 약 `7400-7950`, presentation `917-1050`, `VideoPreviewView:16355-16893`, fullscreen `16894-17782`; ViewModel export/save methods.
+- 소스 `EditorView.swift` progress/preview presentation, `HanClipFullscreenVideoPlayer.swift` 공통 전체화면 player, ViewModel export/save methods.
 
 ## 제작 진행 UI
 
@@ -24,8 +24,8 @@
 
 ## 전체화면 시사회
 
-- black background, system overlays hidden. controls initially hidden; tap shows temporarily. loop=true, aspectFill=true, playing=true.
-- orientation observer가 display size를 다시 계산. close/share/title은 safe-area 아래에 둬 Dynamic Island와 겹치지 않는다.
+- black background, system overlays hidden. autoplay/loop, fit·fill 구성, tap controls, 좌/우 double tap ±10초, scrub, pinch zoom/pan, 아래 swipe close를 공통 player가 처리한다.
+- phone은 orientation observer와 방향 정책을 사용하고 종료 시 portrait 정책을 복원한다. iPad/large window는 현재 window orientation을 존중한다. close/share/title은 safe-area 아래에 둔다.
 
 ## 개봉 UI
 

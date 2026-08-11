@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
@@ -154,6 +155,7 @@ import com.hanclip.android.core.settings.SleepPreventionMode
 import com.hanclip.android.core.theme.HanClipPalette
 import com.hanclip.android.core.theme.HanClipThemeMode
 import com.hanclip.android.core.theme.HanClipThemeStore
+import com.hanclip.android.core.theme.currentPalette
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -203,7 +205,7 @@ fun HomeRoute(
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
     val screenWidthDp = LocalConfiguration.current.screenWidthDp
-    val presetColumnCount = if (screenWidthDp >= 600) 6 else 3
+    val presetColumnCount = 3
     val standardProjectColumnCount = if (screenWidthDp >= 600) 2 else 1
     val collectionColumnCount = if (screenWidthDp >= 600) 3 else 2
     val coroutineScope = rememberCoroutineScope()
@@ -215,7 +217,7 @@ fun HomeRoute(
     }
     var showThemeSelection by remember { mutableStateOf(false) }
     var showSettingsInfo by remember { mutableStateOf(false) }
-    val palette = themeMode.palette
+    val palette = themeMode.currentPalette
     var removalCandidate by remember { mutableStateOf<ExportedMovieSummary?>(null) }
     var memoCandidate by remember { mutableStateOf<ExportedMovieSummary?>(null) }
     var editableRemovalCandidate by remember { mutableStateOf<DraftProjectSummary?>(null) }
@@ -407,6 +409,8 @@ fun HomeRoute(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
+                .widthIn(max = 920.dp)
+                .align(Alignment.TopCenter)
                 .statusBarsPadding()
                 .navigationBarsPadding()
                 .padding(horizontal = 14.dp),
@@ -916,7 +920,7 @@ private fun ThemeSelectionDialog(
     onMoveCustomTheme: (HanClipThemeMode, Int) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val selectedPalette = selectedMode.palette
+    val selectedPalette = selectedMode.currentPalette
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -926,7 +930,7 @@ private fun ThemeSelectionDialog(
             contentAlignment = Alignment.TopCenter
         ) {
         Surface(
-            modifier = Modifier.fillMaxWidth(0.92f),
+            modifier = Modifier.fillMaxWidth(0.92f).widthIn(max = 620.dp),
             shape = RoundedCornerShape(24.dp),
             color = selectedPalette.solidPanel,
             border = BorderStroke(1.dp, selectedPalette.border),
@@ -973,7 +977,7 @@ private fun ThemeSelectionDialog(
 
 @Composable
 private fun ThemePaletteSummary(mode: HanClipThemeMode) {
-    val palette = mode.palette
+    val palette = mode.currentPalette
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -1056,7 +1060,7 @@ private fun ThemeSelectionRow(
     canReorder: Boolean,
     onMove: (Int) -> Unit
 ) {
-    val palette = mode.palette
+    val palette = mode.currentPalette
     val hapticFeedback = LocalHapticFeedback.current
     val dragThreshold = with(LocalDensity.current) { 28.dp.toPx() }
     Row(

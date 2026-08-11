@@ -1,6 +1,6 @@
 # HanClip 실제 화면·상태·전환 지도
 
-기준일 2026-08-10. `EditorView.presentationConfiguredView`와 각 ViewModel의 open/close 메서드에서 실제 연결된 경로만 “호출됨”으로 분류했다. 스크린샷 촬영은 중단했으며 이 문서는 최신 소스 호출 관계가 기준이다.
+기준일 2026-08-12, iOS commit `31e60ec5`. `EditorView.presentationConfiguredView`와 각 ViewModel의 open/close 메서드에서 실제 연결된 경로만 “호출됨”으로 분류했다. 스크린샷 촬영은 중단했으며 이 문서는 최신 소스 호출 관계가 기준이다.
 
 ## A. 루트 상태 머신
 
@@ -101,8 +101,9 @@ EDITOR 만들기
 
 ## G. 화면 방향/반응형
 
-- 루트 홈·편집은 portrait 중심이고 강제 orientation 코드는 확인되지 않았다. 가로/iPad에서 full width로 늘어난다.
-- 전체화면 시사회와 컬렉션 플레이어는 orientation observer를 갖고 portrait/landscape display size와 gesture 축을 다시 계산한다 (`EditorView.swift:16894-18288`).
+- iPhone 루트 홈·편집은 portrait 정책이며 전체화면 플레이어 진입/종료 때 방향 정책을 전환·복원한다. iPad는 모든 방향을 지원한다.
+- regular horizontal size class에서 루트, 헤더, 하단 핵심 콘텐츠는 최대 920pt다. 테마 패널 620pt, 확인 패널 760pt, 공유 inbox 720pt 상한이다.
+- 시사회와 컬렉션은 최신 공통 `HanClipFullscreenVideoPlayer`를 사용한다. iPhone은 센서 방향과 gesture 축을 보정하고 iPad는 현재 window 방향을 사용해 수동 이중 회전을 피한다.
 - 사진 선택은 UIKit collection view 열 수가 pinch로 1/3/5/8로 바뀐다. 날짜 separator는 가운데 정렬. 상하 edge auto-scroll 속도는 edge 접근량에 비례한다.
 - Android는 landscape에서 닫기 swipe가 물리 화면의 아래 방향이 되도록 orientation 변환 후 gesture translation을 해석한다. iOS 축을 그대로 복사하지 않는다.
 
@@ -116,7 +117,7 @@ EDITOR 만들기
 - 전역 색상 `golfPrimary/golfSecondary`는 현재 `HanClipTheme.primaryUIColor/secondaryUIColor` 선택 switch에서 참조되지 않는다. 골프 프리셋 accent는 Main/Sub 토큰을 사용한다.
 - `HanClipQuickAction.calendar/files/search` 케이스는 라우터에 존재하고 처리되지만 현재 앱 아이콘 quick action 노출 구성은 Info.plist/등록 코드 별도 확인 필요. Android shortcut 노출은 제품 요구와 맞춰 다시 확인한다.
 - 소스에 존재하는 helper View라도 `presentationConfiguredView`, `activeRootContent`, 설정 화면 body 또는 context menu에서 역참조되지 않으면 Android 구현 범위에서 제외한다. 개별 문서에 “호출 근거”가 없는 helper는 미사용으로 간주한다.
-- iPad 전용 breakpoint/max-width는 명시되어 있지 않아 정확 동일 값은 확인 필요. Android tablet 제안값은 DESIGN_SYSTEM에만 제안으로 적었다.
+- iPad regular-width 루트/헤더/하단 최대 920pt와 주요 패널 상한은 확정됐다. 화면별 열 수처럼 별도 분기가 없는 영역은 iOS가 가용 폭 안에서 기존 grid/layout을 확장하므로 Android 고유 600/840dp 분기는 실제 기기 검증 후 `IOS_PARITY.md`에 기록한다.
 
 ## J. 상세 문서 연결
 

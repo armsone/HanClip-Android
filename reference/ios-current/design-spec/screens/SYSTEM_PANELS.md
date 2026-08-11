@@ -43,7 +43,7 @@
 
 ## 반응형
 
-- theme width92%, copyright full-width scroll. landscape에서 header safe area; iPad max content width 없음(확인 필요).
+- theme width92%이면서 최대 620pt, reset/exit 확인은 최대 760pt. copyright는 safe-area scroll이며 regular-width 루트 최대 920pt 안에서 읽기 폭을 유지한다.
 
 ## 컨트롤 기본값/수명
 

@@ -1,6 +1,10 @@
 package com.hanclip.android.feature.preview
 
 import android.Manifest
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -32,6 +36,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -62,6 +67,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -88,6 +94,7 @@ import com.hanclip.android.core.project.ExportedMovieSummary
 import com.hanclip.android.core.project.hanClipCompletionTitle
 import com.hanclip.android.core.theme.HanClipPalette
 import com.hanclip.android.core.theme.HanClipThemeStore
+import com.hanclip.android.core.theme.currentPalette
 import com.hanclip.android.feature.home.HanClipBrandCapsule
 import com.hanclip.android.feature.editor.FullScreenDialogSystemBars
 import androidx.core.content.ContextCompat
@@ -149,7 +156,7 @@ fun PreviewRoute(
     onSavedMovie: (Uri) -> Unit
 ) {
     val context = LocalContext.current
-    val palette = remember { HanClipThemeStore.load(context).palette }
+    val palette = HanClipThemeStore.load(context).currentPalette
     var message by remember { mutableStateOf<String?>(null) }
     var showSaveOptions by remember { mutableStateOf(false) }
     var showFullscreenPreview by remember { mutableStateOf(false) }
@@ -171,6 +178,8 @@ fun PreviewRoute(
     if (collectionPlaybackOnly && exportedVideoUri != null) {
         FullscreenPreviewDialog(
             uri = exportedVideoUri,
+            title = movieSummary.presetTitle,
+            onShare = { runCatching { VideoSaveShare.shareVideo(context, exportedVideoUri) } },
             onClose = onDone
         )
         return
@@ -388,6 +397,12 @@ fun PreviewRoute(
     if (showFullscreenPreview && exportedVideoUri != null) {
         FullscreenPreviewDialog(
             uri = exportedVideoUri,
+            title = movieSummary.presetTitle,
+            onShare = {
+                val shareUri = preferredShareUri ?: exportedVideoUri
+                runCatching { VideoSaveShare.shareVideo(context, shareUri) }
+                    .onFailure { message = "공유 화면을 열지 못했습니다." }
+            },
             onClose = { showFullscreenPreview = false }
         )
     }
@@ -1021,8 +1036,18 @@ private fun SaveDestinationCard(
 @Composable
 private fun FullscreenPreviewDialog(
     uri: Uri,
+    title: String? = null,
+    onShare: (() -> Unit)? = null,
     onClose: () -> Unit
 ) {
+    val context = LocalContext.current
+    val player = remember(uri) {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(uri))
+            playWhenReady = true
+            prepare()
+        }
+    }
     var isLooping by remember { mutableStateOf(true) }
     var isFillMode by remember { mutableStateOf(false) }
     var verticalDragPx by remember { mutableFloatStateOf(0f) }
@@ -1030,6 +1055,25 @@ private fun FullscreenPreviewDialog(
     var zoomOffset by remember { mutableStateOf(Offset.Zero) }
     var areControlsVisible by remember { mutableStateOf(true) }
     val dismissThresholdPx = with(LocalDensity.current) { 120.dp.toPx() }
+    DisposableEffect(player) {
+        onDispose { player.release() }
+    }
+    DisposableEffect(context) {
+        val activity = context.findActivity()
+        val previousOrientation = activity?.requestedOrientation
+        val isPhone = context.resources.configuration.smallestScreenWidthDp < 600
+        if (activity != null && isPhone) {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+        }
+        onDispose {
+            if (activity != null && isPhone && previousOrientation != null) {
+                activity.requestedOrientation = previousOrientation
+            }
+        }
+    }
+    SideEffect {
+        player.repeatMode = if (isLooping) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+    }
     LaunchedEffect(areControlsVisible, zoomScale) {
         if (areControlsVisible && zoomScale <= 1.01f) {
             delay(2_600)
@@ -1115,10 +1159,16 @@ private fun FullscreenPreviewDialog(
                         .transformable(state = transformableState)
                         .pointerInput(zoomScale) {
                             detectTapGestures(
-                                onDoubleTap = {
+                                onDoubleTap = { position ->
                                     if (zoomScale > 1.01f) {
                                         zoomScale = 1f
                                         zoomOffset = Offset.Zero
+                                    } else {
+                                        val direction = if (position.x < size.width / 2f) -1L else 1L
+                                        player.seekTo(
+                                            (player.currentPosition + direction * 10_000L)
+                                                .coerceIn(0L, player.duration.coerceAtLeast(0L))
+                                        )
                                     }
                                     areControlsVisible = true
                                 },
@@ -1126,9 +1176,8 @@ private fun FullscreenPreviewDialog(
                             )
                         }
                 ) {
-                    ExportedVideoPlayer(
-                        uri = uri,
-                        repeatMode = if (isLooping) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF,
+                    ExportedVideoPlayerView(
+                        player = player,
                         resizeMode = if (isFillMode) {
                             AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                         } else {
@@ -1136,12 +1185,33 @@ private fun FullscreenPreviewDialog(
                         }
                     )
                 }
-                if (areControlsVisible) Row(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(18.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                if (areControlsVisible) {
+                    title?.takeIf(String::isNotBlank)?.let { safeTitle ->
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(18.dp)
+                                .widthIn(max = 220.dp),
+                            shape = RoundedCornerShape(50),
+                            color = Color.Black.copy(alpha = 0.52f),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.22f))
+                        ) {
+                            Text(
+                                text = safeTitle,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(18.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                     FullscreenCircleButton(
                         onClick = {
                             isLooping = !isLooping
@@ -1167,11 +1237,18 @@ private fun FullscreenPreviewDialog(
                         )
                     }
                     FullscreenCircleButton(
+                        onClick = { onShare?.invoke() },
+                        contentDescription = "공유"
+                    ) {
+                        Icon(Icons.Outlined.IosShare, contentDescription = null, tint = Color.White)
+                    }
+                    FullscreenCircleButton(
                         onClick = onClose,
                         contentDescription = "닫기"
                     ) {
                         Icon(Icons.Outlined.Close, contentDescription = null, tint = Color.White)
                     }
+                }
                 }
             }
         }
@@ -1274,6 +1351,15 @@ private fun ExportedVideoPlayer(
     DisposableEffect(player) {
         onDispose { player.release() }
     }
+    ExportedVideoPlayerView(player = player, resizeMode = resizeMode)
+}
+
+@OptIn(UnstableApi::class)
+@Composable
+private fun ExportedVideoPlayerView(
+    player: Player,
+    resizeMode: Int
+) {
     AndroidView(
         factory = { viewContext ->
             PlayerView(viewContext).apply {
@@ -1293,4 +1379,10 @@ private fun ExportedVideoPlayer(
         },
         modifier = Modifier.fillMaxSize()
     )
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }

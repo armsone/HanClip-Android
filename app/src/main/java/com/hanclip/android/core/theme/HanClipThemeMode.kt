@@ -1,6 +1,8 @@
 package com.hanclip.android.core.theme
 
 import android.content.Context
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
@@ -130,6 +132,13 @@ data class HanClipPalette(
     val chip: Color,
     val border: Color
 )
+
+val HanClipThemeMode.currentPalette: HanClipPalette
+    @Composable get() = if (this == HanClipThemeMode.Automatic && isSystemInDarkTheme()) {
+        HanClipThemeMode.Dark.palette
+    } else {
+        palette
+    }
 
 object HanClipThemeStore {
     private const val PreferencesName = "hanclip_home_theme_preferences"

@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
@@ -38,6 +39,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -141,6 +143,7 @@ import com.hanclip.android.core.model.VideoSegmentMode
 import com.hanclip.android.core.settings.SleepPreventionMode
 import com.hanclip.android.core.theme.HanClipPalette
 import com.hanclip.android.core.theme.HanClipThemeStore
+import com.hanclip.android.core.theme.currentPalette
 import com.hanclip.android.feature.home.HanClipBrandCapsule
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.text.SimpleDateFormat
@@ -165,7 +168,7 @@ fun EditorRoute(
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val editorColumnCount = if (LocalConfiguration.current.screenWidthDp >= 600) 2 else 1
-    val palette = remember { HanClipThemeStore.load(context).palette }
+    val palette = HanClipThemeStore.load(context).currentPalette
     var trimmingClipID by remember { mutableStateOf<String?>(null) }
     var photoDurationClipID by remember { mutableStateOf<String?>(null) }
     var previewClipID by remember { mutableStateOf<String?>(null) }
@@ -183,6 +186,7 @@ fun EditorRoute(
     var isQuickDurationVisible by remember { mutableStateOf(false) }
     var reopenQuickAfterPicker by remember { mutableStateOf(false) }
     var reopenQuickAfterSettings by remember { mutableStateOf(false) }
+    var showPermissionSettingsAction by remember { mutableStateOf(false) }
     var quickDurationShownProjectId by remember { mutableStateOf<String?>(null) }
     var quickTargetDurationSeconds by remember { mutableStateOf(1.0) }
     val trimmingClip = state.clips.firstOrNull { it.id == trimmingClipID }
@@ -224,12 +228,15 @@ fun EditorRoute(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { grants ->
         if (context.hasFullGalleryAccess()) {
+            showPermissionSettingsAction = false
             isCalendarPickerVisible = true
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
             grants[Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED] == true
         ) {
+            showPermissionSettingsAction = true
             viewModel.showAlert("선택한 사진/영상만 허용되어 날짜별 기본 사진첩을 열 수 없습니다. Android 설정 > HanClip 권한에서 사진 및 동영상을 모두 허용하거나, 파일 선택으로 직접 가져와 주세요.")
         } else {
+            showPermissionSettingsAction = true
             viewModel.showAlert("Android 기본 사진첩을 보려면 사진 및 동영상 권한이 필요합니다. Android 설정 > HanClip 권한에서 허용하거나, 파일 선택으로 직접 가져와 주세요.")
         }
         if (reopenQuickAfterPicker && !context.hasFullGalleryAccess()) {
@@ -335,6 +342,8 @@ fun EditorRoute(
             columns = GridCells.Fixed(editorColumnCount),
             modifier = Modifier
                 .fillMaxSize()
+                .widthIn(max = 920.dp)
+                .align(Alignment.TopCenter)
                 .statusBarsPadding()
                 .padding(horizontal = 16.dp),
             contentPadding = PaddingValues(bottom = 104.dp),
@@ -533,7 +542,7 @@ fun EditorRoute(
         }
         if (!isReorderMode) {
             if (state.renderableClips.isNotEmpty()) BottomMakeBar(
-                modifier = Modifier.align(Alignment.BottomCenter),
+                modifier = Modifier.align(Alignment.BottomCenter).widthIn(max = 920.dp),
                 palette = palette,
                 isExporting = state.isExporting,
                 clipCount = state.renderableClips.size,
@@ -549,7 +558,7 @@ fun EditorRoute(
                 onClose = ::requestBackHome,
                 onMakeMovie = { viewModel.exportMovie(context, onPreview) }
             ) else BottomEmptyEditorBar(
-                modifier = Modifier.align(Alignment.BottomCenter),
+                modifier = Modifier.align(Alignment.BottomCenter).widthIn(max = 920.dp),
                 palette = palette,
                 onAdd = { isImportMenuVisible = true },
                 onClose = ::requestBackHome
@@ -599,7 +608,24 @@ fun EditorRoute(
         state.alertMessage?.let { message ->
             AlertDialog(
                 onDismissRequest = viewModel::clearAlert,
-                dismissButton = if (state.undoDeleteMessage != null) {
+                dismissButton = if (showPermissionSettingsAction) {
+                    {
+                        OutlinedButton(
+                            onClick = {
+                                showPermissionSettingsAction = false
+                                viewModel.clearAlert()
+                                context.startActivity(
+                                    Intent(
+                                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                        Uri.parse("package:${context.packageName}")
+                                    )
+                                )
+                            }
+                        ) {
+                            Text("앱 설정 열기")
+                        }
+                    }
+                } else if (state.undoDeleteMessage != null) {
                     {
                         OutlinedButton(
                             onClick = viewModel::undoLastEditorAction,
@@ -617,7 +643,10 @@ fun EditorRoute(
                 },
                 confirmButton = {
                     Button(
-                        onClick = viewModel::clearAlert,
+                        onClick = {
+                            showPermissionSettingsAction = false
+                            viewModel.clearAlert()
+                        },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = palette.primary,
                             contentColor = Color.White

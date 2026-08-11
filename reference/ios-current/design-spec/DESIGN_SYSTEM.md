@@ -1,6 +1,6 @@
 # HanClip iOS 디자인 시스템 → Android 구현 명세
 
-기준 소스: `HanClip/App/HanClipApp.swift`, `HanClip/Views/EditorView.swift`, `HanClip/Views/ClipRow.swift`, `HanClip/Services/PhotoPicker.swift`, `HanClip/Views/VideoTrimEditor.swift`, `HanClip/Services/AiShotCamera.swift` (2026-08-10 작업 트리). 이 문서는 화면 캡처가 아닌 실제 호출 소스를 기준으로 한다. iOS 소스는 이 조사에서 수정하지 않았다.
+기준 소스: `HanClip/App/HanClipApp.swift`, `HanClip/Views/EditorView.swift`, `HanClip/Views/HanClipFullscreenVideoPlayer.swift`, `HanClip/Views/ClipRow.swift`, `HanClip/Services/PhotoPicker.swift`, `HanClip/Views/VideoTrimEditor.swift`, `HanClip/Services/AiShotCamera.swift` (commit `31e60ec5`, 2026-08-12). 이 문서는 화면 캡처가 아닌 실제 호출 소스를 기준으로 한다. iOS 소스는 이 조사에서 수정하지 않았다.
 
 ## 1. 단위와 플랫폼 대응
 
@@ -48,7 +48,8 @@
 - `HanClipHeaderActionCluster`: 내부 HStack spacing 14, symbol 25 semibold, 높이 58, horizontal 16, 같은 capsule/material/stroke/shadow.
 - 작은 제목줄 `HanClipTitleLine`: 우측 정렬 HStack spacing 7, 기본 좌우 18, 아이콘 10 black을 18×18 안에 배치, radius 5, Sub 10% 배경; 텍스트 12 black, primaryText 76%.
 - 홈 본문은 세로 ScrollView, indicator 숨김. 주요 horizontal inset는 14 또는 18. 섹션 간격 8~12. 하단 안전 공간과 i 플로팅 버튼을 위해 24 pt 이상 둔다.
-- 화면 최대 너비: 홈/편집에는 명시적 max-width가 없어 safe area 전체 폭을 사용한다. 팝업 테마 패널은 화면 폭 92%. 사진 선택 UIKit 그리드는 기기 폭에 따라 열 수를 바꾼다. iPad 전용 최대 너비는 소스에서 확인되지 않음—Android tablet은 720 dp 이상에서 콘텐츠 max-width 680 dp를 제안하되 iOS와 픽셀 동일 여부는 확인 필요.
+- 화면 최대 너비: compact는 safe area 전체 폭. regular horizontal size class에서 홈/편집 루트·헤더·하단 핵심 콘텐츠 최대 920pt. 테마 패널은 화면 92%이면서 최대 620pt, reset/exit 확인은 최대 760pt, 공유 inbox는 최대 720pt. 사진 선택 그리드는 기기 폭과 열 수에 따라 확장한다.
+- Android는 폭 600dp 이상에서 넓은 화면 구성을 시작하되 단순 확대하지 않는다. phone 일반 영화/컬렉션/편집 클립 1/2/1열, 600dp 이상 2/3/2열을 기준으로 하고 핵심 읽기 폭은 920dp를 넘기지 않는다.
 
 ## 5. 패널·카드·버튼
 
@@ -120,5 +121,5 @@ SF Symbol이 Material과 시각적으로 다르면 의미보다 HanClip 실루�
 - 홈/프리셋/목록/컬렉션: `EditorView.swift:3015-4010`.
 - 공용 사진 선택 UIKit: `HanClip/Services/PhotoPicker.swift:100-330, 341-3200`.
 - 편집 행: `HanClip/Views/ClipRow.swift` 전체.
-- 화면 방향 및 플레이어: `EditorView.swift:16355-18288`.
+- 화면 방향 및 플레이어: `HanClip/Views/HanClipFullscreenVideoPlayer.swift` 전체, 호출 구성은 `EditorView.swift`.
 - 코드에 선언만 있고 실제 presentation 경로에 연결되지 않은 값은 SCREEN_MAP에서 “미사용/확인 필요”로 분리한다.

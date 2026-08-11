@@ -559,6 +559,16 @@ private fun CollectionMovieCard(
         }
     }
     val shape = RoundedCornerShape(12.dp)
+    val fileSizeBytes = MovieCollectionStore.fileSizeInBytes(context, movie)
+    val accessibilityLabel = buildList {
+        add(movie.title)
+        movie.locationName?.takeIf(String::isNotBlank)?.let(::add)
+        movie.madeAtMillis?.let { add("제작 ${collectionDateTime(it)}") }
+        shootingPeriod(movie)?.let(::add)
+        fileSizeBytes?.let { add(collectionFileSize(it)) }
+        add(collectionDuration(movie.durationSeconds))
+        add(if (movie.isPinned) "핀 고정됨" else "핀 고정 안 됨")
+    }.joinToString(", ")
 
     Box(
         modifier = modifier
@@ -573,6 +583,7 @@ private fun CollectionMovieCard(
         Box(
             modifier = Modifier
                 .matchParentSize()
+                .semantics { contentDescription = accessibilityLabel }
                 .combinedClickable(
                     onClick = onOpen,
                     onLongClick = { showActions = true },
@@ -582,7 +593,7 @@ private fun CollectionMovieCard(
         poster?.let { posterBitmap ->
             androidx.compose.foundation.Image(
                 bitmap = posterBitmap.asImageBitmap(),
-                contentDescription = movie.title,
+                contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
             )
@@ -628,7 +639,7 @@ private fun CollectionMovieCard(
                 shootingPeriod(movie)?.let {
                     PosterMetadata(Icons.Outlined.CalendarMonth, it)
                 }
-                MovieCollectionStore.fileSizeInBytes(context, movie)?.let { bytes ->
+                fileSizeBytes?.let { bytes ->
                     PosterMetadata(Icons.Outlined.FolderOpen, collectionFileSize(bytes))
                 }
                 PosterMetadata(Icons.Outlined.PlayArrow, collectionDuration(movie.durationSeconds))

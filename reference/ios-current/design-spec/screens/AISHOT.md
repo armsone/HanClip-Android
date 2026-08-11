@@ -4,7 +4,7 @@
 
 - 홈 preset, media menu, quick action에서 full-screen. impact를 감지해 trigger 전후 ring buffer 영상을 저장하고 project에 clip 추가.
 - dismiss 시 empty AiShot project 삭제; app interruption 후 조건을 만족하면 120ms 뒤 camera cover 재시작.
-- 소스 `EditorView.swift:802-817,3315-3420`; `AiShotCamera.swift:1-2600`.
+- 소스 `EditorView.swift` AiShot presentation; `AiShotCamera.swift` 전체(commit `31e60ec5`).
 
 ## UI 계층/배치
 
@@ -43,7 +43,8 @@
 
 ## 반응형
 
-- portrait camera 4:3 center. side controls는 max/min x로 작은 폭에서 66pt 이상 확보. landscape/iPad 전용 레이아웃은 확인 필요.
+- preview는 4:3 중심. control Y는 preview 아래 여백 42%를 우선하되 safe-area bottom+12와 조작 높이 44를 침범하지 않게 clamp한다. zoom은 previewBottom-34와 주 control-84 중 작은 값으로 배치한다.
+- preview layer와 capture connection에 horizon-level rotation을 별도 적용한다. 렌즈 전환과 녹화 시작 때 capture angle을 다시 반영한다. Android도 preview가 바로 보여도 저장 MP4 회전 metadata/프레임을 별도 검증한다.
 
 ## 컨트롤 기본값/수명
 

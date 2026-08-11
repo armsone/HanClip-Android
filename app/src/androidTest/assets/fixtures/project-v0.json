@@ -1,0 +1,13 @@
+{
+  "projectId": "legacy-project",
+  "preset": "newMovie",
+  "defaultDurationSeconds": 3.0,
+  "clips": [
+    {
+      "id": "legacy-photo",
+      "sourceUri": "sample://legacy-photo.jpg",
+      "durationSeconds": 3.0,
+      "mediaKind": "Photo"
+    }
+  ]
+}

@@ -51,7 +51,7 @@
 
 ## 반응형
 
-- 모든 iPhone에서 preset 3열, collection 2열. 좁은 폭은 minimumScaleFactor. iPad breakpoint는 없음(확인 필요).
+- iPhone preset 3열, collection 2열. 좁은 폭은 minimumScaleFactor. iPad regular-width는 루트 최대 920pt 안에서 표시된다. Android는 600dp 이상에서 일반 영화 2열·컬렉션 3열을 사용한다.
 
 ## 컨트롤 기본값과 상태 수명
 

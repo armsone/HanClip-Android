@@ -3,6 +3,7 @@ package com.hanclip.android.feature.aishot
 import android.annotation.SuppressLint
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -11,7 +12,10 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.net.Uri
 import android.os.SystemClock
+import android.provider.Settings
 import android.util.Log
+import android.view.OrientationEventListener
+import android.view.Surface
 import android.view.TextureView
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -85,6 +89,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.hanclip.android.R
+import com.hanclip.android.core.safety.orderedCaptureValues
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -107,6 +112,8 @@ private enum class ShotSensitivity(val title: String) {
     Normal("일반"),
     Loud("시끄러움")
 }
+
+private data class CapturedShot(val sequence: Long, val uri: Uri)
 
 private enum class ShotLength(
     val title: String,
@@ -227,6 +234,7 @@ fun AiShotRoute(
     }
 
     var previewView by remember { mutableStateOf<PreviewView?>(null) }
+    var cameraPreview by remember { mutableStateOf<Preview?>(null) }
     var camera by remember { mutableStateOf<Camera?>(null) }
     var videoCapture by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
     var recording by remember { mutableStateOf<Recording?>(null) }
@@ -235,6 +243,8 @@ fun AiShotRoute(
     var recordingDurationObservedAtMillis by remember { mutableLongStateOf(0L) }
     var isRollingRecordingActive by remember { mutableStateOf(false) }
     var triggerTimeSeconds by remember { mutableStateOf<Double?>(null) }
+    var activeCaptureSequence by remember { mutableStateOf<Long?>(null) }
+    var nextCaptureSequence by remember { mutableLongStateOf(0L) }
     var activeShotLength by remember { mutableStateOf<ShotLength?>(null) }
     var discardCurrentRecording by remember { mutableStateOf(false) }
     var pendingSaveCount by remember { mutableIntStateOf(0) }
@@ -250,7 +260,8 @@ fun AiShotRoute(
     var level by remember { mutableDoubleStateOf(0.0) }
     var statusText by remember { mutableStateOf("스윙 감지 대기") }
     var savedCount by remember { mutableIntStateOf(0) }
-    var capturedUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    var capturedShots by remember { mutableStateOf<List<CapturedShot>>(emptyList()) }
+    val capturedUris = orderedCaptureValues(capturedShots.map { it.sequence to it.uri })
     var didHandOffCapturedUris by remember { mutableStateOf(false) }
     var recordingRemainingSeconds by remember { mutableStateOf(0L) }
     var activeRecordingSeconds by remember { mutableStateOf(shotLength.recordingSeconds) }
@@ -268,7 +279,10 @@ fun AiShotRoute(
             return
         }
         val timing = shotLength
+        val sequence = nextCaptureSequence
+        nextCaptureSequence += 1L
         triggerTimeSeconds = elapsedSeconds
+        activeCaptureSequence = sequence
         activeShotLength = timing
         statusText = reason
         activeRecordingSeconds = timing.recordingSeconds
@@ -317,14 +331,18 @@ fun AiShotRoute(
             if (event is VideoRecordEvent.Finalize) {
                 val finalizedTrigger = triggerTimeSeconds
                 val finalizedTiming = activeShotLength
+                val finalizedSequence = activeCaptureSequence
                 val shouldDiscard = discardCurrentRecording
                 recording = null
                 isRollingRecordingActive = false
                 triggerTimeSeconds = null
+                activeCaptureSequence = null
                 activeShotLength = null
                 recordingRemainingSeconds = 0L
                 activeRecordingSeconds = shotLength.recordingSeconds
-                if (event.hasError() || shouldDiscard || finalizedTrigger == null || finalizedTiming == null) {
+                if (event.hasError() || shouldDiscard || finalizedTrigger == null ||
+                    finalizedTiming == null || finalizedSequence == null
+                ) {
                     outputFile.delete()
                     if (event.hasError() && !shouldDiscard) statusText = "클립 저장 실패"
                     return@start
@@ -334,7 +352,7 @@ fun AiShotRoute(
                 scope.launch {
                     val destination = File(
                         outputFile.parentFile,
-                        "aishot-${System.currentTimeMillis()}.mp4"
+                        "aishot-$finalizedSequence-${System.currentTimeMillis()}.mp4"
                     )
                     val result = runCatching {
                         AiShotVideoTrimmer.trimAroundTrigger(
@@ -349,8 +367,9 @@ fun AiShotRoute(
                     outputFile.delete()
                     pendingSaveCount = (pendingSaveCount - 1).coerceAtLeast(0)
                     result.onSuccess { uri ->
-                        capturedUris = capturedUris + uri
-                        savedCount = capturedUris.size
+                        capturedShots = (capturedShots + CapturedShot(finalizedSequence, uri))
+                            .sortedBy(CapturedShot::sequence)
+                        savedCount = capturedShots.size
                         statusText = "클립 저장 완료"
                     }.onFailure {
                         destination.delete()
@@ -432,13 +451,14 @@ fun AiShotRoute(
         if (!hasPermissions) return@LaunchedEffect
         discardAndStopRollingRecording()
         val cameraProvider = context.awaitCameraProvider()
-        val preview = Preview.Builder().build().also {
+        val rotation = view.display?.rotation ?: Surface.ROTATION_0
+        val preview = Preview.Builder().setTargetRotation(rotation).build().also {
             it.setSurfaceProvider(view.surfaceProvider)
         }
         val recorder = Recorder.Builder()
             .setQualitySelector(QualitySelector.from(Quality.HD))
             .build()
-        val capture = VideoCapture.withOutput(recorder)
+        val capture = VideoCapture.withOutput(recorder).also { it.targetRotation = rotation }
         val selector = CameraSelector.Builder()
             .requireLensFacing(lensFacing)
             .build()
@@ -446,10 +466,32 @@ fun AiShotRoute(
             cameraProvider.unbindAll()
             visualAnalyzer.reset()
             camera = cameraProvider.bindToLifecycle(lifecycleOwner, selector, preview, capture)
+            cameraPreview = preview
             videoCapture = capture
         }.onFailure {
             statusText = "카메라 준비 실패"
         }
+    }
+
+    DisposableEffect(cameraPreview, videoCapture) {
+        val preview = cameraPreview
+        val capture = videoCapture
+        val listener = object : OrientationEventListener(context) {
+            override fun onOrientationChanged(orientation: Int) {
+                if (orientation == ORIENTATION_UNKNOWN) return
+                val rotation = when (orientation) {
+                    in 45 until 135 -> Surface.ROTATION_270
+                    in 135 until 225 -> Surface.ROTATION_180
+                    in 225 until 315 -> Surface.ROTATION_90
+                    else -> Surface.ROTATION_0
+                }
+                if (preview?.targetRotation == rotation && capture?.targetRotation == rotation) return
+                preview?.targetRotation = rotation
+                capture?.targetRotation = rotation
+            }
+        }
+        if (listener.canDetectOrientation()) listener.enable()
+        onDispose { listener.disable() }
     }
 
     LaunchedEffect(videoCapture, recording) {
@@ -571,6 +613,14 @@ fun AiShotRoute(
                     onRequest = {
                         permissionLauncher.launch(
                             arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
+                        )
+                    },
+                    onOpenSettings = {
+                        context.startActivity(
+                            Intent(
+                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.parse("package:${context.packageName}")
+                            )
                         )
                     }
                 )
@@ -1148,7 +1198,7 @@ private fun DarkFilterChip(
 }
 
 @Composable
-private fun PermissionPanel(onRequest: () -> Unit) {
+private fun PermissionPanel(onRequest: () -> Unit, onOpenSettings: () -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Surface(
             modifier = Modifier.padding(24.dp),
@@ -1170,6 +1220,12 @@ private fun PermissionPanel(onRequest: () -> Unit) {
                 )
                 Button(onClick = onRequest) {
                     Text("권한 허용")
+                }
+                Button(
+                    onClick = onOpenSettings,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4B5A57))
+                ) {
+                    Text("앱 설정 열기")
                 }
             }
         }

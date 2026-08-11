@@ -53,6 +53,7 @@ import kotlin.math.sqrt
 
 data class EditorUiState(
     val activeProjectId: String = UUID.randomUUID().toString(),
+    val projectCreatedAtMillis: Long = System.currentTimeMillis(),
     val clips: List<ClipItem> = emptyList(),
     val preset: MoviePreset = MoviePreset.NewMovie,
     val defaultDurationSeconds: Double = 3.0,
@@ -165,8 +166,9 @@ class EditorViewModel : ViewModel() {
 
         importJob?.cancel()
         importJob = viewModelScope.launch {
-            try {
             val appContext = context.applicationContext
+            val imported = mutableListOf<ClipItem>()
+            try {
             _uiState.update {
                 it.copy(
                     isImportingMedia = true,
@@ -179,7 +181,6 @@ class EditorViewModel : ViewModel() {
             }
 
             val state = _uiState.value
-            val imported = mutableListOf<ClipItem>()
             val failedMedia = mutableListOf<String>()
             uniqueUris.forEachIndexed { index, uri ->
                 currentCoroutineContext().ensureActive()
@@ -191,16 +192,16 @@ class EditorViewModel : ViewModel() {
                         workTotal = uniqueUris.size
                     )
                 }
-                runCatching {
-                    MediaImportReader.makeClip(
+                try {
+                    imported += MediaImportReader.makeClip(
                         context = appContext,
                         uri = uri,
                         defaultDurationSeconds = state.defaultDurationSeconds,
                         defaultVideoSegmentMode = state.defaultVideoSegmentMode
                     )
-                }.onSuccess { clip ->
-                    imported += clip
-                }.onFailure { error ->
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Throwable) {
                     failedMedia += (error.message ?: error::class.java.simpleName)
                     Log.e("HanClipImport", "Failed to import media ${index + 1}/${uniqueUris.size}", error)
                 }
@@ -266,6 +267,9 @@ class EditorViewModel : ViewModel() {
                 }
             }
             } catch (cancelled: CancellationException) {
+                imported.forEach { clip ->
+                    MediaImportReader.discardUncommittedClipFiles(appContext, clip)
+                }
                 _uiState.update {
                     it.copy(
                         isImportingMedia = false,
@@ -848,6 +852,7 @@ class EditorViewModel : ViewModel() {
             it.copy(
                 clips = draft.clips,
                 activeProjectId = draft.projectId,
+                projectCreatedAtMillis = draft.createdAtMillis,
                 preset = draft.preset,
                 defaultDurationSeconds = draft.defaultDurationSeconds,
                 defaultVideoSegmentMode = draft.defaultVideoSegmentMode,
@@ -859,6 +864,7 @@ class EditorViewModel : ViewModel() {
                 backgroundMusicSampleId = draft.backgroundMusicSampleId,
                 backgroundMusicVolume = draft.backgroundMusicVolume,
                 originalAudioVolume = draft.originalAudioVolume,
+                similarPhotoRepresentativeInterval = draft.similarPhotoRepresentativeInterval,
                 backgroundMusicLoopsToFillVideo = draft.backgroundMusicLoopsToFillVideo,
                 backgroundMusicFadeInEnabled = draft.backgroundMusicFadeInEnabled,
                 backgroundMusicFadeOutEnabled = draft.backgroundMusicFadeOutEnabled,
@@ -876,6 +882,7 @@ class EditorViewModel : ViewModel() {
         _uiState.update {
             it.copy(
                 activeProjectId = project.projectId,
+                projectCreatedAtMillis = project.createdAtMillis,
                 clips = project.clips,
                 preset = project.preset,
                 defaultDurationSeconds = project.defaultDurationSeconds,
@@ -888,6 +895,7 @@ class EditorViewModel : ViewModel() {
                 backgroundMusicSampleId = project.backgroundMusicSampleId,
                 backgroundMusicVolume = project.backgroundMusicVolume,
                 originalAudioVolume = project.originalAudioVolume,
+                similarPhotoRepresentativeInterval = project.similarPhotoRepresentativeInterval,
                 backgroundMusicLoopsToFillVideo = project.backgroundMusicLoopsToFillVideo,
                 backgroundMusicFadeInEnabled = project.backgroundMusicFadeInEnabled,
                 backgroundMusicFadeOutEnabled = project.backgroundMusicFadeOutEnabled,
@@ -913,9 +921,11 @@ class EditorViewModel : ViewModel() {
         backgroundMusicSampleId = backgroundMusicSampleId,
         backgroundMusicVolume = backgroundMusicVolume,
         originalAudioVolume = originalAudioVolume,
+        similarPhotoRepresentativeInterval = similarPhotoRepresentativeInterval,
         backgroundMusicLoopsToFillVideo = backgroundMusicLoopsToFillVideo,
         backgroundMusicFadeInEnabled = backgroundMusicFadeInEnabled,
-        backgroundMusicFadeOutEnabled = backgroundMusicFadeOutEnabled
+        backgroundMusicFadeOutEnabled = backgroundMusicFadeOutEnabled,
+        createdAtMillis = projectCreatedAtMillis
     )
 
     fun clearAlert() {

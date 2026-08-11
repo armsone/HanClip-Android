@@ -19,13 +19,16 @@ import com.hanclip.android.core.model.WatermarkLineSpacing
 import com.hanclip.android.core.model.WatermarkPlatform
 import com.hanclip.android.core.model.WatermarkPosition
 import com.hanclip.android.core.model.WatermarkSettings
+import com.hanclip.android.core.safety.loadPrimaryOrBackup
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.FileOutputStream
 import java.nio.file.Files
 import java.util.UUID
 
 data class DraftProject(
+    val schemaVersion: Int = DraftProjectSchemaVersion,
     val projectId: String = UUID.randomUUID().toString(),
     val clips: List<ClipItem>,
     val preset: MoviePreset,
@@ -39,11 +42,15 @@ data class DraftProject(
     val backgroundMusicSampleId: String? = null,
     val backgroundMusicVolume: Double = 0.35,
     val originalAudioVolume: Double = 1.0,
+    val similarPhotoRepresentativeInterval: Int = 6,
     val backgroundMusicLoopsToFillVideo: Boolean = true,
     val backgroundMusicFadeInEnabled: Boolean = true,
     val backgroundMusicFadeOutEnabled: Boolean = true,
+    val createdAtMillis: Long = System.currentTimeMillis(),
     val savedAtMillis: Long = System.currentTimeMillis()
 )
+
+private const val DraftProjectSchemaVersion = 1
 
 object DraftProjectStore {
     private const val PreferencesName = "hanclip_draft_project"
@@ -81,6 +88,7 @@ object DraftProjectStore {
 
 private fun DraftProject.toJson(): JSONObject {
     return JSONObject()
+        .put("schemaVersion", schemaVersion)
         .put("projectId", projectId)
         .put("preset", preset.routeValue)
         .put("defaultDurationSeconds", defaultDurationSeconds)
@@ -92,9 +100,11 @@ private fun DraftProject.toJson(): JSONObject {
         .put("backgroundMusicSampleId", backgroundMusicSampleId)
         .put("backgroundMusicVolume", backgroundMusicVolume)
         .put("originalAudioVolume", originalAudioVolume)
+        .put("similarPhotoRepresentativeInterval", similarPhotoRepresentativeInterval)
         .put("backgroundMusicLoopsToFillVideo", backgroundMusicLoopsToFillVideo)
         .put("backgroundMusicFadeInEnabled", backgroundMusicFadeInEnabled)
         .put("backgroundMusicFadeOutEnabled", backgroundMusicFadeOutEnabled)
+        .put("createdAtMillis", createdAtMillis)
         .put("savedAtMillis", savedAtMillis)
         .put("watermarkSettings", watermarkSettings.toJson())
         .put("clips", JSONArray().also { array ->
@@ -104,17 +114,24 @@ private fun DraftProject.toJson(): JSONObject {
 
 private fun JSONObject.toDraftProject(): DraftProject {
     val clipsArray = optJSONArray("clips") ?: JSONArray()
+    val clips = buildList {
+        repeat(clipsArray.length()) { index ->
+            runCatching { clipsArray.getJSONObject(index).toClipItem() }
+                .getOrNull()
+                ?.let(::add)
+        }
+    }
+    val savedAtMillis = optLong("savedAtMillis", System.currentTimeMillis())
     return DraftProject(
+        schemaVersion = maxOf(optInt("schemaVersion", DraftProjectSchemaVersion), DraftProjectSchemaVersion),
         projectId = optString("projectId").takeIf { it.isNotBlank() }
             ?: UUID.randomUUID().toString(),
-        clips = List(clipsArray.length()) { index ->
-            clipsArray.getJSONObject(index).toClipItem()
-        },
+        clips = clips,
         preset = MoviePreset.fromRouteValue(optString("preset", MoviePreset.NewMovie.routeValue)),
-        defaultDurationSeconds = optDouble("defaultDurationSeconds", 2.0),
+        defaultDurationSeconds = optDouble("defaultDurationSeconds", 3.0).coerceIn(0.1, 30.0),
         defaultVideoSegmentMode = enumValueOrDefault(
             optString("defaultVideoSegmentMode"),
-            VideoSegmentMode.Single
+            VideoSegmentMode.Multiple
         ),
         outputAspectRatio = optString("outputAspectRatio")
             .takeIf { it.isNotBlank() && it != "null" }
@@ -132,12 +149,15 @@ private fun JSONObject.toDraftProject(): DraftProject {
             .takeIf { it.isNotBlank() && it != "null" },
         backgroundMusicSampleId = optString("backgroundMusicSampleId")
             .takeIf { it.isNotBlank() && it != "null" },
-        backgroundMusicVolume = optDouble("backgroundMusicVolume", 0.35),
-        originalAudioVolume = optDouble("originalAudioVolume", 1.0),
+        backgroundMusicVolume = optDouble("backgroundMusicVolume", 0.35).coerceIn(0.0, 1.0),
+        originalAudioVolume = optDouble("originalAudioVolume", 1.0).coerceIn(0.0, 1.0),
+        similarPhotoRepresentativeInterval = optInt("similarPhotoRepresentativeInterval", 6)
+            .coerceIn(2, 12),
         backgroundMusicLoopsToFillVideo = optBoolean("backgroundMusicLoopsToFillVideo", true),
         backgroundMusicFadeInEnabled = optBoolean("backgroundMusicFadeInEnabled", true),
         backgroundMusicFadeOutEnabled = optBoolean("backgroundMusicFadeOutEnabled", true),
-        savedAtMillis = optLong("savedAtMillis", System.currentTimeMillis())
+        createdAtMillis = optLong("createdAtMillis", savedAtMillis).coerceAtMost(savedAtMillis),
+        savedAtMillis = savedAtMillis
     )
 }
 
@@ -167,6 +187,7 @@ object EditableProjectStore {
     private const val ProjectsKey = "projects"
     private const val ProjectsDirectoryName = "editable-projects"
     private const val ProjectMetadataFilename = "project.json"
+    private const val ProjectMetadataBackupFilename = "project.json.bak"
     private const val MediaDirectoryName = "media"
     const val MaximumProjectCount = 10
     const val MaximumAiShotProjectCount = 2
@@ -300,7 +321,7 @@ object EditableProjectStore {
             ?.filter { it.isDirectory }
             ?.mapNotNull { directory ->
                 runCatching {
-                    val json = JSONObject(File(directory, ProjectMetadataFilename).readText())
+                    val json = loadProjectMetadata(directory) ?: error("프로젝트 메타데이터가 없습니다.")
                     EditableProjectRecord(
                         project = json.getJSONObject("project").toDraftProject(),
                         isPinned = json.optBoolean("isPinned", false),
@@ -330,9 +351,6 @@ object EditableProjectStore {
     private fun saveRecords(context: Context, records: List<EditableProjectRecord>) {
         val root = projectsRoot(context)
         val keptDirectoryNames = records.map { safeProjectDirectoryName(it.project.projectId) }.toSet()
-        root.listFiles()
-            ?.filter { it.isDirectory && it.name !in keptDirectoryNames }
-            ?.forEach { directory -> runCatching { directory.deleteRecursively() } }
 
         records.forEach { originalRecord ->
             val record = originalRecord.copy(
@@ -345,12 +363,12 @@ object EditableProjectStore {
                 .put("memo", record.memo)
             val destination = File(directory, ProjectMetadataFilename)
             val staging = File(directory, "$ProjectMetadataFilename.tmp")
-            staging.writeText(metadata.toString())
-            if (!staging.renameTo(destination)) {
-                staging.copyTo(destination, overwrite = true)
-                staging.delete()
-            }
+            val backup = File(directory, ProjectMetadataBackupFilename)
+            writeVerifiedJsonAtomically(metadata, staging, destination, backup)
         }
+        root.listFiles()
+            ?.filter { it.isDirectory && it.name !in keptDirectoryNames }
+            ?.forEach { directory -> runCatching { directory.deleteRecursively() } }
         context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
             .edit()
             .remove(ProjectsKey)
@@ -460,16 +478,64 @@ object EditableProjectStore {
         if (sourceFile?.canonicalPath == destination.canonicalPath) return Uri.fromFile(destination)
         if (destination.isFile && destination.length() > 0L) return Uri.fromFile(destination)
         destination.parentFile?.mkdirs()
-        if (sourceFile?.isFile == true) {
-            runCatching { Files.createLink(destination.toPath(), sourceFile.toPath()) }
-                .recoverCatching { sourceFile.copyTo(destination, overwrite = true) }
-                .getOrThrow()
-        } else {
-            context.contentResolver.openInputStream(source)?.use { input ->
-                destination.outputStream().use(input::copyTo)
-            } ?: error("프로젝트 미디어를 열 수 없습니다: $source")
+        val staging = File(destination.parentFile, "${destination.name}.tmp-${UUID.randomUUID()}")
+        try {
+            if (sourceFile?.isFile == true) {
+                runCatching { Files.createLink(staging.toPath(), sourceFile.toPath()) }
+                    .recoverCatching { sourceFile.copyTo(staging, overwrite = true) }
+                    .getOrThrow()
+            } else {
+                context.contentResolver.openInputStream(source)?.use { input ->
+                    FileOutputStream(staging).use { output ->
+                        input.copyTo(output)
+                        output.fd.sync()
+                    }
+                } ?: error("프로젝트 미디어를 열 수 없습니다: $source")
+            }
+            check(staging.isFile && staging.length() > 0L) { "프로젝트 미디어 복사본이 비어 있습니다: $source" }
+            check(staging.renameTo(destination)) { "프로젝트 미디어를 확정하지 못했습니다: $source" }
+        } finally {
+            if (staging.exists()) staging.delete()
         }
         return Uri.fromFile(destination)
+    }
+
+    private fun loadProjectMetadata(directory: File): JSONObject? {
+        val destination = File(directory, ProjectMetadataFilename)
+        val backup = File(directory, ProjectMetadataBackupFilename)
+        return loadPrimaryOrBackup(destination, backup, ::JSONObject)
+    }
+
+    private fun writeVerifiedJsonAtomically(
+        metadata: JSONObject,
+        staging: File,
+        destination: File,
+        backup: File
+    ) {
+        val parent = staging.parentFile ?: error("프로젝트 메타데이터 디렉터리가 없습니다.")
+        check(parent.mkdirs() || parent.isDirectory) { "프로젝트 메타데이터 디렉터리를 준비하지 못했습니다." }
+        if (staging.exists()) staging.delete()
+        FileOutputStream(staging).use { output ->
+            output.write(metadata.toString().toByteArray(Charsets.UTF_8))
+            output.fd.sync()
+        }
+        JSONObject(staging.readText()).getJSONObject("project")
+
+        var movedExisting = false
+        try {
+            if (destination.exists()) {
+                if (backup.exists()) backup.delete()
+                check(destination.renameTo(backup)) { "기존 프로젝트 메타데이터를 백업하지 못했습니다." }
+                movedExisting = true
+            }
+            check(staging.renameTo(destination)) { "새 프로젝트 메타데이터를 확정하지 못했습니다." }
+            JSONObject(destination.readText()).getJSONObject("project")
+        } catch (error: Throwable) {
+            if (!destination.exists() && movedExisting) backup.renameTo(destination)
+            throw error
+        } finally {
+            if (staging.exists()) staging.delete()
+        }
     }
 
     private fun projectsRoot(context: Context): File {

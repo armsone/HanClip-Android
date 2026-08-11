@@ -43,7 +43,7 @@
 
 ## 반응형·접근성
 
-- orientation 변화 시 grid 재계산. landscape에서도 물리 상/하 edge auto-scroll. iPad 규칙은 확인 필요.
+- orientation/window 변화 시 grid를 재계산하고 선택 순서를 보존한다. landscape에서도 물리 상/하 edge auto-scroll. Android 600/840dp 열 수 차이는 플랫폼 대응값으로 실기기 검증한다.
 - cell label은 종류/날짜/duration/selection 순번. filter는 selected state. preview control과 dismiss target 분리.
 
 ## 컨트롤 기본값과 상태 수명

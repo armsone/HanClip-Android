@@ -39,6 +39,7 @@ import com.hanclip.android.core.model.LivePhotoMode
 import com.hanclip.android.core.model.WatermarkSettings
 import com.hanclip.android.core.model.CopyrightIconColorMode
 import com.hanclip.android.core.model.drawableResId
+import com.hanclip.android.core.safety.isDurationWithinTolerance
 import androidx.media3.effect.OverlayEffect
 import androidx.media3.effect.BitmapOverlay
 import androidx.media3.effect.Presentation
@@ -135,7 +136,12 @@ class Media3TransformerExportService(
             ?.takeIf { it.mediaKind == ClipMediaKind.Video }
             ?.takeIf { canUseMuxerFastPath(it, request) }
             ?.let { clip ->
-                return trimSingleVideoClip(clip, outputFile, onProgress)
+                val uri = trimSingleVideoClip(clip, outputFile, onProgress)
+                if (!isPlayableVideoWithExpectedDuration(outputFile, clip.durationSeconds)) {
+                    outputFile.delete()
+                    error("완성된 영상의 재생 시간이나 영상 트랙을 확인하지 못했습니다.")
+                }
+                return uri
             }
 
         val effects = effectsForRequest(request)
@@ -179,13 +185,15 @@ class Media3TransformerExportService(
                     ) {
                         progressJob?.cancel()
                         runCatching { endingInfoFile?.delete() }
-                        onProgress(1.0)
                         if (continuation.isActive) {
-                            if (outputFile.length() > 0L) {
+                            val expectedDuration = effectiveClips.sumOf(ClipItem::durationSeconds)
+                            if (isPlayableVideoWithExpectedDuration(outputFile, expectedDuration)) {
+                                onProgress(1.0)
                                 continuation.resume(Uri.fromFile(outputFile))
                             } else {
+                                outputFile.delete()
                                 continuation.resumeWithException(
-                                    IllegalStateException("완성된 영상 파일이 비어 있습니다.")
+                                    IllegalStateException("완성된 영상의 재생 시간이나 영상 트랙을 확인하지 못했습니다.")
                                 )
                             }
                         }
@@ -210,11 +218,31 @@ class Media3TransformerExportService(
                 progressJob?.cancel()
                 transformer.cancel()
                 runCatching { endingInfoFile?.delete() }
+                runCatching { outputFile.delete() }
             }
             onProgress(0.05)
             transformer.start(composition, outputFile.absolutePath)
             progressJob = pollTransformerProgress(transformer, onProgress)
         }
+    }
+
+    private fun isPlayableVideoWithExpectedDuration(file: File, expectedSeconds: Double): Boolean {
+        if (!file.isFile || file.length() <= 0L) return false
+        return runCatching {
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(file.absolutePath)
+                val hasVideo = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO) == "yes"
+                val actualSeconds = retriever
+                    .extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                    ?.toLongOrNull()
+                    ?.div(1_000.0)
+                    ?: return@runCatching false
+                hasVideo && isDurationWithinTolerance(expectedSeconds, actualSeconds)
+            } finally {
+                retriever.release()
+            }
+        }.getOrDefault(false)
     }
 
     private fun hanClipMuxerFactory(request: VideoExportRequest): InAppMp4Muxer.Factory {

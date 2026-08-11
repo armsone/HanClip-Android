@@ -4,7 +4,7 @@
 
 - 홈의 비디오가게 선반. 완성 영상을 사진(공용 사진/달력 UI, videoOnly) 또는 파일(.movie multi)에서 가져온다.
 - poster tap→full-screen player; long press→context menu; compress sheet/AI 후보 full-screen.
-- 소스 `EditorView.swift:3465-4720, 715-751, 8190-8324, 17783-18288`; `MovieCollectionStore.swift`.
+- 소스 `EditorView.swift` collection presentation/context/progress; `MovieCollectionStore.swift`; 공통 player `HanClipFullscreenVideoPlayer.swift`.
 
 ## 목록/포스터
 
@@ -34,9 +34,9 @@
 
 ## 플레이어
 
-- full-screen black. safe title/close/share, video center, auto-hide controls. portrait/landscape 모두 지원.
-- horizontal one-finger swipe=scrub time; downward short swipe=close. orientation별 축을 물리 화면 기준으로 변환.
-- pinch zoom portrait/landscape; zoom>1에서 one-finger pan; double tap=100%(scale1). 확대 중 pan이 scrub/close보다 우선.
+- full-screen black. safe title/close/share, video center, 약 3초 auto-hide controls. portrait/landscape 모두 지원.
+- 최신 공통 player는 좌/우 double tap ±10초 seek, progress scrub, 아래 swipe close를 제공한다. orientation별 축을 물리 화면 기준으로 변환한다.
+- pinch zoom portrait/landscape; zoom>1에서 one-finger pan. 확대 중 pan이 scrub/close보다 우선한다.
 - controls는 일정 시간 후 숨김; tap 재표시. system overlays hidden.
 
 ## 상태
@@ -51,7 +51,7 @@
 ## 접근성/반응형
 
 - poster label에 title/location/date/duration/size/pin. context actions destructive 표시. zoom scale와 player time 읽기.
-- phone 2열 고정; iPad breakpoint 없음(확인 필요). player는 모든 orientation.
+- phone 2열, 600dp 이상 Android tablet/폴드 펼침은 3열 고정. player는 모든 orientation. iPad/large window는 현재 window orientation을 사용하고 phone만 센서 방향 정책을 전환한다.
 
 ## 컨트롤 기본값/수명
 

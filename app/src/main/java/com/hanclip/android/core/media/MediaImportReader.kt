@@ -18,6 +18,8 @@ import com.hanclip.android.core.model.ClipMediaKind
 import com.hanclip.android.core.model.LivePhotoMode
 import com.hanclip.android.core.model.VideoSegmentMode
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
@@ -69,20 +71,19 @@ object MediaImportReader {
         val sourceLocation = metadata?.location ?: readImageLocation(context, uri)
         val sourceLocationName = sourceLocation?.let { resolvePlaceName(context, it) }
         val localSourceUri = persistWorkingMedia(context, uri, mimeType)
-        val motionPhoto = if (isImage) {
-            extractMotionPhoto(localSourceUri)
-        } else {
-            null
-        }
-        val photoFingerprint = if (isImage) {
-            makePhotoSimilarityFingerprint(context, localSourceUri)
-        } else {
-            emptyList()
-        }
-        val selectedDuration = min(defaultDurationSeconds, sourceDuration ?: defaultDurationSeconds)
-        val peak = analysis?.peakTimeSeconds ?: ((sourceDuration ?: selectedDuration) / 2.0)
+        var motionPhoto: MotionPhotoInfo? = null
+        try {
+            currentCoroutineContext().ensureActive()
+            motionPhoto = if (isImage) extractMotionPhoto(localSourceUri) else null
+            val photoFingerprint = if (isImage) {
+                makePhotoSimilarityFingerprint(context, localSourceUri)
+            } else {
+                emptyList()
+            }
+            val selectedDuration = min(defaultDurationSeconds, sourceDuration ?: defaultDurationSeconds)
+            val peak = analysis?.peakTimeSeconds ?: ((sourceDuration ?: selectedDuration) / 2.0)
 
-        ClipItem(
+            ClipItem(
             id = UUID.randomUUID().toString(),
             sourceUri = motionPhoto?.videoUri ?: localSourceUri,
             thumbnailUri = localSourceUri,
@@ -115,23 +116,53 @@ object MediaImportReader {
             sourceLocationName = sourceLocationName,
             sourceWidth = metadata?.width ?: imageSize?.first ?: 1,
             sourceHeight = metadata?.height ?: imageSize?.second ?: 1
-        )
+            )
+        } catch (error: Throwable) {
+            workingMediaFile(localSourceUri)?.delete()
+            workingMediaFile(motionPhoto?.videoUri)?.delete()
+            throw error
+        }
     }
 
-    private fun extractMotionPhoto(imageUri: Uri): MotionPhotoInfo? {
+    fun discardUncommittedClipFiles(context: Context, clip: ClipItem) {
+        val workingRoot = File(context.filesDir, "working-media").canonicalFile
+        listOfNotNull(clip.sourceUri, clip.thumbnailUri, clip.livePhotoStillUri)
+            .distinctBy(Uri::toString)
+            .forEach { uri ->
+                val file = workingMediaFile(uri) ?: return@forEach
+                val canonical = runCatching { file.canonicalFile }.getOrNull() ?: return@forEach
+                if (canonical.parentFile == workingRoot) runCatching { canonical.delete() }
+            }
+    }
+
+    private suspend fun extractMotionPhoto(imageUri: Uri): MotionPhotoInfo? {
         val imageFile = imageUri.takeIf { it.scheme == "file" }?.path?.let(::File) ?: return null
         if (!imageFile.isFile || imageFile.length() < 16L) return null
         val mp4Start = findMotionVideoOffset(imageFile) ?: return null
         val videoFile = File(imageFile.parentFile, "motion-${imageFile.nameWithoutExtension}.mp4")
-        runCatching {
-            val input = FileInputStream(imageFile)
-            videoFile.outputStream().use { output ->
-                input.use { source ->
+        val staging = File(videoFile.parentFile, "${videoFile.name}.tmp")
+        try {
+            FileInputStream(imageFile).use { source ->
+                java.io.FileOutputStream(staging).use { output ->
                     source.channel.position(mp4Start)
-                    source.copyTo(output)
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    while (true) {
+                        currentCoroutineContext().ensureActive()
+                        val count = source.read(buffer)
+                        if (count < 0) break
+                        output.write(buffer, 0, count)
+                    }
+                    output.fd.sync()
                 }
             }
-        }.getOrElse { return null }
+            check(staging.length() > 0L && staging.renameTo(videoFile))
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
+        } catch (_: Throwable) {
+            return null
+        } finally {
+            staging.delete()
+        }
         val durationSeconds = runCatching {
             MediaMetadataRetriever().let { retriever ->
                 try {
@@ -274,7 +305,7 @@ object MediaImportReader {
         }.getOrNull()
     }
 
-    private fun persistWorkingMedia(context: Context, uri: Uri, mimeType: String): Uri {
+    private suspend fun persistWorkingMedia(context: Context, uri: Uri, mimeType: String): Uri {
         val extension = MimeTypeMap.getSingleton()
             .getExtensionFromMimeType(mimeType)
             ?.takeIf { it.isNotBlank() }
@@ -287,13 +318,35 @@ object MediaImportReader {
         // importing a large selection leaves an existing ClipItem pointing at a missing source.
         // Project-aware cleanup must only remove files that no saved or active project references.
         val target = File(directory, "hanclip-${UUID.randomUUID()}.$extension")
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            target.outputStream().use { output ->
-                input.copyTo(output)
-            }
-        } ?: error("미디어 원본을 열 수 없습니다.")
-        return Uri.fromFile(target)
+        val staging = File(directory, "${target.name}.tmp")
+        try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                java.io.FileOutputStream(staging).use { output ->
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    while (true) {
+                        currentCoroutineContext().ensureActive()
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        output.write(buffer, 0, count)
+                    }
+                    output.fd.sync()
+                }
+            } ?: error("미디어 원본을 열 수 없습니다.")
+            check(staging.length() > 0L) { "가져온 미디어가 비어 있습니다." }
+            check(staging.renameTo(target)) { "가져온 미디어를 확정하지 못했습니다." }
+            return Uri.fromFile(target)
+        } catch (error: Throwable) {
+            target.delete()
+            throw error
+        } finally {
+            staging.delete()
+        }
     }
+
+    private fun workingMediaFile(uri: Uri?): File? = uri
+        ?.takeIf { it.scheme == "file" }
+        ?.path
+        ?.let(::File)
 
     private fun resolvedMimeType(context: Context, uri: Uri): String {
         val resolverType = context.contentResolver.getType(uri).orEmpty()

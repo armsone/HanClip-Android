@@ -52,7 +52,7 @@
 
 ## 반응형
 
-- phone full width with horizontal 14~18. landscape에서도 rows 유지. reorder grid columns는 소스 GeometryReader 결과를 따른다. iPad max width는 확인 필요.
+- phone full width with horizontal 14~18. regular-width 핵심 콘텐츠는 최대 920pt. landscape에서도 의미적 rows와 선택을 유지한다. Android는 600dp 이상에서 clip 2열, header/전역 설정은 전체 읽기 폭을 유지한다.
 
 ## 컨트롤 기본값/상태 수명
 

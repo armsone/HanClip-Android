@@ -23,6 +23,7 @@ import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.Transformer
 import androidx.media3.transformer.VideoEncoderSettings
+import com.hanclip.android.core.safety.isDurationWithinTolerance
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -299,6 +300,10 @@ object MovieCollectionStore {
             outputFile.delete()
             error("변환 결과가 원본보다 작지 않아 원본 파일을 유지했습니다.")
         }
+        if (!isPlayableVideoWithExpectedDuration(outputFile, currentMovie.durationSeconds)) {
+            outputFile.delete()
+            error("변환 결과의 재생 시간이나 영상 트랙을 확인하지 못해 원본 파일을 유지했습니다.")
+        }
         withContext(Dispatchers.IO) {
             synchronized(collectionWriteLock) {
                 val movies = list(appContext)
@@ -324,6 +329,25 @@ object MovieCollectionStore {
         }
         onProgress(1.0)
         CollectionVideoCompressionResult(originalBytes, compressedBytes)
+    }
+
+    private fun isPlayableVideoWithExpectedDuration(file: File, expectedSeconds: Double): Boolean {
+        if (!file.isFile || file.length() <= 0L) return false
+        return runCatching {
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(file.absolutePath)
+                val hasVideo = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO) == "yes"
+                val actualSeconds = retriever
+                    .extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                    ?.toLongOrNull()
+                    ?.div(1_000.0)
+                    ?: return@runCatching false
+                hasVideo && isDurationWithinTolerance(expectedSeconds, actualSeconds)
+            } finally {
+                retriever.release()
+            }
+        }.getOrDefault(false)
     }
 
     suspend fun posterCandidatesWithAI(
@@ -681,19 +705,33 @@ object MovieCollectionStore {
             output.write(root.toString().toByteArray(Charsets.UTF_8))
             output.fd.sync()
         }
-        val backup = File(directory, "$IndexFilename.bak")
-        backup.delete()
-        if (target.exists() && !target.renameTo(backup)) {
+        if (!isValidCollectionIndex(temporary)) {
             temporary.delete()
-            error("컬렉션 목록을 갱신하지 못했습니다.")
+            error("새 컬렉션 목록을 검증하지 못했습니다.")
+        }
+        val backup = File(directory, "$IndexFilename.bak")
+        if (target.exists()) {
+            if (isValidCollectionIndex(target)) {
+                backup.delete()
+                if (!target.renameTo(backup)) {
+                    temporary.delete()
+                    error("컬렉션 목록을 갱신하지 못했습니다.")
+                }
+            } else if (!target.delete()) {
+                temporary.delete()
+                error("손상된 컬렉션 목록을 격리하지 못했습니다.")
+            }
         }
         if (!temporary.renameTo(target)) {
             if (backup.exists()) backup.renameTo(target)
             temporary.delete()
             error("컬렉션 목록을 저장하지 못했습니다.")
         }
-        backup.delete()
     }
+
+    private fun isValidCollectionIndex(file: File): Boolean = runCatching {
+        JSONObject(file.readText()).optJSONArray("movies") ?: JSONArray()
+    }.isSuccess
 
     private fun collectionDirectory(context: Context): File =
         File(context.filesDir, DirectoryName).apply { mkdirs() }
@@ -707,7 +745,13 @@ object MovieCollectionStore {
     private fun parseIndex(context: Context, source: File): List<CollectedMovie>? = runCatching {
         val root = JSONObject(source.readText())
         val items = root.optJSONArray("movies") ?: JSONArray()
-        List(items.length()) { position -> items.getJSONObject(position).toCollectedMovie() }
+        buildList {
+            repeat(items.length()) { position ->
+                runCatching { items.getJSONObject(position).toCollectedMovie() }
+                    .getOrNull()
+                    ?.let(::add)
+            }
+        }
             .filter { movie ->
                 videoFile(context, movie).isFile && videoFile(context, movie).canRead()
             }

@@ -14,6 +14,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -65,8 +67,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -92,7 +96,9 @@ import androidx.media3.ui.PlayerView
 import com.hanclip.android.core.media.MediaImportReader
 import com.hanclip.android.core.model.ClipMediaKind
 import com.hanclip.android.core.theme.HanClipPalette
+import com.hanclip.android.core.safety.steppedMediaColumnCount
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
@@ -1320,6 +1326,14 @@ private fun CalendarMediaStrip(
     val currentOnToggle by rememberUpdatedState(onToggle)
     var dragSelects by remember { mutableStateOf(true) }
     var lastDraggedUri by remember { mutableStateOf<Uri?>(null) }
+    var edgeDragDirection by remember { mutableIntStateOf(0) }
+    var mediaColumnCount by rememberSaveable { mutableIntStateOf(5) }
+    LaunchedEffect(edgeDragDirection) {
+        while (edgeDragDirection != 0) {
+            gridState.scrollBy(edgeDragDirection * 20f)
+            delay(16L)
+        }
+    }
     LaunchedEffect(mode, items, sortOrder) {
         if (mode == MediaPickerSheetMode.Recent &&
             sortOrder.ascending &&
@@ -1328,13 +1342,6 @@ private fun CalendarMediaStrip(
             val lastGridIndex = items.size + items.map { it.date }.distinct().size - 1
             gridState.scrollToItem(lastGridIndex.coerceAtLeast(0))
         }
-    }
-    val screenWidthDp = LocalConfiguration.current.screenWidthDp
-    val mediaColumnCount = when {
-        screenWidthDp >= 1_200 -> 12
-        screenWidthDp >= 840 -> 10
-        screenWidthDp >= 600 -> 8
-        else -> 5
     }
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -1448,6 +1455,17 @@ private fun CalendarMediaStrip(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
+                    .pointerInput(items) {
+                        var accumulatedZoom = 1f
+                        detectTransformGestures { _, _, zoom, _ ->
+                            accumulatedZoom *= zoom
+                            val stepped = steppedMediaColumnCount(mediaColumnCount, accumulatedZoom)
+                            if (stepped != mediaColumnCount) {
+                                mediaColumnCount = stepped
+                                accumulatedZoom = 1f
+                            }
+                        }
+                    }
                     .then(
                         if (mode == MediaPickerSheetMode.Recent) {
                             Modifier.pointerInput(items) {
@@ -1469,10 +1487,22 @@ private fun CalendarMediaStrip(
                                             currentOnToggle(item.uri)
                                         }
                                     },
-                                    onDragEnd = { lastDraggedUri = null },
-                                    onDragCancel = { lastDraggedUri = null },
+                                    onDragEnd = {
+                                        lastDraggedUri = null
+                                        edgeDragDirection = 0
+                                    },
+                                    onDragCancel = {
+                                        lastDraggedUri = null
+                                        edgeDragDirection = 0
+                                    },
                                     onDrag = { change, _ ->
                                         change.consume()
+                                        val edgePx = 72.dp.toPx()
+                                        edgeDragDirection = when {
+                                            change.position.y < edgePx -> -1
+                                            change.position.y > size.height - edgePx -> 1
+                                            else -> 0
+                                        }
                                         mediaAt(change.position.x, change.position.y)?.let { item ->
                                             if (item.uri != lastDraggedUri) {
                                                 lastDraggedUri = item.uri

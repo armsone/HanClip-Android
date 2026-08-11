@@ -94,7 +94,7 @@
 | clip preview loop auto advance | off | EditorView 세션 | `isLoopingPreviewAutoAdvance=false` |
 | 시사회 | 나타날 때 seek zero + play | 화면 재진입마다; project 무관 | `VideoPreviewView.onAppear` |
 | fullscreen preview loop | on; aspectFill on; controls hidden | 화면 인스턴스 | `FullscreenVideoPreview` states |
-| collection player | play on appear; controls auto-hide; zoom=1 | 화면 인스턴스, 닫으면 reset | `CollectionMoviePlayerView:17783+` |
+| collection player | play on appear; controls auto-hide; zoom=1; configuration상 loop/fit-fill 제공 | 화면 인스턴스, 닫으면 reset | `HanClipFullscreenVideoPlayer` + collection 호출 configuration |
 
 ## AiShot
 
