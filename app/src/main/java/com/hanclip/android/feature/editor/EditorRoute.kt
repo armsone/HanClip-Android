@@ -16,6 +16,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
@@ -115,8 +116,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
@@ -3979,6 +3982,13 @@ private fun ClipPreviewDialog(
                                     )
                                 }
                             }
+                            if (
+                                clip.audioWaveform.isNotEmpty() ||
+                                clip.audioPeakTimesSeconds.isNotEmpty() ||
+                                clip.audioPeakTimeSeconds != null
+                            ) {
+                                ClipPreviewWaveform(clip = clip, palette = palette)
+                            }
                         }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -4132,6 +4142,66 @@ private fun clipPreviewPeakText(clip: ClipItem): String? {
     val peak = clip.audioPeakTimeSeconds ?: clip.audioPeakTimesSeconds.firstOrNull() ?: return null
     val count = clip.audioPeakTimesSeconds.size.coerceAtLeast(1)
     return "주요 타격점 ${formatClipSeconds(peak)} · 후보 ${count}개"
+}
+
+@Composable
+private fun ClipPreviewWaveform(
+    clip: ClipItem,
+    palette: HanClipPalette
+) {
+    val bars = clip.audioWaveform.ifEmpty { List(48) { 0.18 } }
+    val peaks = clip.audioPeakTimesSeconds.ifEmpty { listOfNotNull(clip.audioPeakTimeSeconds) }
+    val sourceDuration = (clip.sourceDurationSeconds ?: clip.durationSeconds).coerceAtLeast(0.1)
+    val selectedStart = if (clip.isVideoSegmentParent) 0.0 else clip.trimStartSeconds
+    val selectedDuration = if (clip.isVideoSegmentParent) sourceDuration else clip.durationSeconds
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp)
+    ) {
+        val selectedStartX = (selectedStart / sourceDuration).toFloat() * size.width
+        val selectedEndX = ((selectedStart + selectedDuration) / sourceDuration)
+            .coerceAtMost(1.0)
+            .toFloat() * size.width
+        drawRoundRect(
+            color = palette.primary.copy(alpha = 0.12f),
+            topLeft = Offset(selectedStartX, 0f),
+            size = androidx.compose.ui.geometry.Size(
+                width = (selectedEndX - selectedStartX).coerceAtLeast(2f),
+                height = size.height
+            )
+        )
+        val gap = size.width / bars.size.coerceAtLeast(1)
+        bars.forEachIndexed { index, value ->
+            val x = gap * index + gap / 2f
+            val normalized = value.coerceIn(0.04, 1.0).toFloat()
+            val barHeight = size.height * (0.18f + normalized * 0.72f)
+            drawLine(
+                color = if (x in selectedStartX..selectedEndX) {
+                    palette.primary
+                } else {
+                    palette.subText.copy(alpha = 0.34f)
+                },
+                start = Offset(x, (size.height - barHeight) / 2f),
+                end = Offset(x, (size.height + barHeight) / 2f),
+                strokeWidth = 3f,
+                cap = StrokeCap.Round
+            )
+        }
+        peaks
+            .filter { it.isFinite() && it in 0.0..sourceDuration }
+            .take(12)
+            .forEach { peak ->
+                val x = (peak / sourceDuration).toFloat() * size.width
+                drawLine(
+                    color = Color(0xFFE45D42),
+                    start = Offset(x, 2f),
+                    end = Offset(x, size.height - 2f),
+                    strokeWidth = 2.8f,
+                    cap = StrokeCap.Round
+                )
+            }
+    }
 }
 
 private fun clipPreviewSubtitle(clip: ClipItem, childSegmentCount: Int): String {
