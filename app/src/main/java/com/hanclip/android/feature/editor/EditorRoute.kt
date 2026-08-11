@@ -123,6 +123,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -172,6 +175,7 @@ fun EditorRoute(
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val editorColumnCount = if (LocalConfiguration.current.screenWidthDp >= 600) 2 else 1
     val palette = HanClipThemeStore.load(context).currentPalette
     var trimmingClipID by remember { mutableStateOf<String?>(null) }
@@ -195,6 +199,7 @@ fun EditorRoute(
     var reopenQuickAfterPicker by remember { mutableStateOf(false) }
     var reopenQuickAfterSettings by remember { mutableStateOf(false) }
     var showPermissionSettingsAction by remember { mutableStateOf(false) }
+    var resumeCalendarAfterSettings by rememberSaveable { mutableStateOf(false) }
     var quickDurationShownProjectId by remember { mutableStateOf<String?>(null) }
     var quickTargetDurationSeconds by remember { mutableStateOf(1.0) }
     var pendingExportAfterNotificationPermission by rememberSaveable { mutableStateOf(false) }
@@ -263,6 +268,21 @@ fun EditorRoute(
             reopenQuickAfterPicker = false
             isQuickDurationVisible = true
         }
+    }
+
+    DisposableEffect(lifecycleOwner, context) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event != Lifecycle.Event.ON_RESUME || !resumeCalendarAfterSettings) {
+                return@LifecycleEventObserver
+            }
+            resumeCalendarAfterSettings = false
+            if (context.hasFullGalleryAccess()) {
+                showPermissionSettingsAction = false
+                isCalendarPickerVisible = true
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     fun openCalendarPicker(title: String = "사진첩 날짜별") {
@@ -652,6 +672,7 @@ fun EditorRoute(
                     {
                         OutlinedButton(
                             onClick = {
+                                resumeCalendarAfterSettings = true
                                 showPermissionSettingsAction = false
                                 viewModel.clearAlert()
                                 context.startActivity(

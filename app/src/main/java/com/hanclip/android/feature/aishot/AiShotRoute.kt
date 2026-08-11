@@ -91,6 +91,8 @@ import androidx.core.content.ContextCompat
 import com.hanclip.android.R
 import com.hanclip.android.core.safety.orderedCaptureValues
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -231,6 +233,16 @@ fun AiShotRoute(
     ) { grants ->
         hasPermissions = grants[Manifest.permission.CAMERA] == true &&
             grants[Manifest.permission.RECORD_AUDIO] == true
+    }
+
+    DisposableEffect(lifecycleOwner, context) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                hasPermissions = context.hasAiShotPermissions()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     var previewView by remember { mutableStateOf<PreviewView?>(null) }
