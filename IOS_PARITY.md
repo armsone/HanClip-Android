@@ -379,3 +379,4 @@ Android 작업이 다음 날까지 이어지면 그날 첫 소스 변경 전에 
 - 공유 inbox의 사진·영상 URI 묶음은 편집기로 전달을 시작한 뒤 activity 입력 상태를 비우고 처리 signature를 재설정한다. 앱을 종료하지 않고 동일한 URI 묶음을 다시 공유해도 새 intent 이벤트로 다시 처리하며, 한 번의 선택 안에서 기존 중복 제외 규칙은 그대로 유지한다.
 - 미디어 원본·Motion Photo 추출은 기존처럼 `.tmp` staging을 확정 파일로 바꾼다. 프로세스가 복사 중 종료되면 다음 앱 cold start에서 `working-media` 바로 아래의 `.tmp`만 정리하고, 확정된 원본과 프로젝트별 복사본은 건드리지 않는다. 실행 중 import에서는 정리하지 않아 취소 직후 새 import와 경합하지 않는다.
 - 가져온 글꼴·외부 배경음악·사용자 아이콘도 프로세스 종료로 숨김 staging이 남으면 다음 cold start에서 각 저장소의 정확한 staging 접두사만 정리한다. 확정된 `.ttf/.otf`, `hanclip-music-*`, `custom-icon`과 프로젝트 내부 자산은 보존한다.
+- 편집 프로젝트 저장 중 프로세스가 종료돼 남은 `project.json.tmp`와 프로젝트 `media`의 `*.tmp-*`도 cold start에서 정리한다. `project.json`, 검증된 `.bak`, 확정 원본·썸네일·배경음악·사용자 아이콘은 그대로 보존해 backup 복구와 실제 프로젝트 용량 계산을 방해하지 않게 한다.
