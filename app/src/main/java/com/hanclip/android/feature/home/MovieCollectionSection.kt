@@ -468,6 +468,13 @@ private fun CollectionImportCard(
                 )
             )
             .border(1.dp, palette.secondary.copy(alpha = 0.40f), shape)
+            .semantics(mergeDescendants = true) {
+                contentDescription = if (isImporting) {
+                    "컬렉션 영화 가져오는 중"
+                } else {
+                    "컬렉션에 영화 추가"
+                }
+            }
             .clickable(enabled = !isImporting, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
