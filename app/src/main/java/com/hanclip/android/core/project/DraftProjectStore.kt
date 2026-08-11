@@ -207,7 +207,13 @@ object EditableProjectStore {
             memo = existing?.memo.orEmpty()
         )
         if (existingIndex >= 0) records[existingIndex] = record else records += record
-        saveRecords(context, enforceLimits(records))
+        val keptRecords = enforceLimits(records)
+        saveRecords(context, keptRecords)
+        deleteProjectDirectories(
+            context,
+            records.map { it.project.projectId }.toSet() -
+                keptRecords.map { it.project.projectId }.toSet()
+        )
         return load(context, project.projectId) ?: record.project
     }
 
@@ -242,6 +248,7 @@ object EditableProjectStore {
 
     fun remove(context: Context, projectId: String) {
         saveRecords(context, loadRecords(context).filterNot { it.project.projectId == projectId })
+        deleteProjectDirectories(context, setOf(projectId))
     }
 
     fun restoreWithoutUpdatingSavedAt(context: Context, project: DraftProject): DraftProject {
@@ -350,9 +357,6 @@ object EditableProjectStore {
     }
 
     private fun saveRecords(context: Context, records: List<EditableProjectRecord>) {
-        val root = projectsRoot(context)
-        val keptDirectoryNames = records.map { safeProjectDirectoryName(it.project.projectId) }.toSet()
-
         records.forEach { originalRecord ->
             val record = originalRecord.copy(
                 project = persistProjectMedia(context, originalRecord.project)
@@ -367,13 +371,16 @@ object EditableProjectStore {
             val backup = File(directory, ProjectMetadataBackupFilename)
             writeVerifiedJsonAtomically(metadata, staging, destination, backup)
         }
-        root.listFiles()
-            ?.filter { it.isDirectory && it.name !in keptDirectoryNames }
-            ?.forEach { directory -> runCatching { directory.deleteRecursively() } }
         context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
             .edit()
             .remove(ProjectsKey)
             .apply()
+    }
+
+    private fun deleteProjectDirectories(context: Context, projectIds: Set<String>) {
+        projectIds.forEach { projectId ->
+            runCatching { projectDirectory(context, projectId).deleteRecursively() }
+        }
     }
 
     private fun persistProjectMedia(context: Context, project: DraftProject): DraftProject {

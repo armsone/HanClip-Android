@@ -176,6 +176,34 @@ class ProjectPersistenceInstrumentedTest {
     }
 
     @Test
+    fun normalSavePreservesUnknownCorruptDirectoryAndPrunesOnlyKnownExcessProjects() {
+        val corruptDirectory = File(context.filesDir, "editable-projects/corrupt-project")
+            .apply { mkdirs() }
+        corruptDirectory.resolve("project.json").writeText("corrupt-primary")
+        corruptDirectory.resolve("project.json.bak").writeText("corrupt-backup")
+        val valuableMedia = corruptDirectory.resolve("media/only-copy.mp4").apply {
+            parentFile?.mkdirs()
+            writeText("irreplaceable-user-media")
+        }
+
+        (1..11).forEach { index ->
+            EditableProjectStore.upsert(
+                context,
+                sampleProject("known-project-$index", defaultDurationSeconds = 2.0)
+            )
+        }
+
+        assertEquals(true, valuableMedia.isFile)
+        assertEquals("irreplaceable-user-media", valuableMedia.readText())
+        assertEquals(EditableProjectStore.MaximumProjectCount, EditableProjectStore.list(context).size)
+        assertEquals(
+            EditableProjectStore.MaximumProjectCount,
+            File(context.filesDir, "editable-projects").listFiles().orEmpty()
+                .count { it.isDirectory && it.name.startsWith("known-project-") }
+        )
+    }
+
+    @Test
     fun representativeIntervalAndCreationTimeSurviveDraftRestart() {
         val createdAt = 1_700_000_000_000L
         val project = sampleProject("restart-project", 3.0).copy(
