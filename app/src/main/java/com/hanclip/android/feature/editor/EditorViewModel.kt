@@ -73,6 +73,7 @@ data class EditorUiState(
     val backgroundMusicFadeInEnabled: Boolean = true,
     val backgroundMusicFadeOutEnabled: Boolean = true,
     val isExporting: Boolean = false,
+    val isCancellingExport: Boolean = false,
     val exportedVideoUri: Uri? = null,
     val recentlySavedMovieUriString: String? = null,
     val progressMessage: String = "",
@@ -113,6 +114,7 @@ class EditorViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(EditorUiState())
     val uiState: StateFlow<EditorUiState> = _uiState.asStateFlow()
     private var exportJob: Job? = null
+    private val exportOperationGate = ExportOperationGate()
     private var importJob: Job? = null
     private var lastUndoSnapshot: EditorUndoSnapshot? = null
     private var editingSessionBaseline: DraftProject? = null
@@ -361,6 +363,7 @@ class EditorViewModel : ViewModel() {
 
     fun exportMovie(context: Context, onExported: () -> Unit) {
         if (exportJob?.isActive == true) return
+        val exportToken = exportOperationGate.begin()
         val state = _uiState.value
         val clips = state.renderableClips.filter { it.sourceUri.scheme != "sample" }
         if (clips.isEmpty()) {
@@ -381,6 +384,7 @@ class EditorViewModel : ViewModel() {
             _uiState.update {
                 it.copy(
                     isExporting = true,
+                    isCancellingExport = false,
                     progressMessage = "완성본을 만드는 중... 완료 후 시사회로 이동 · $exportLabel",
                     workProgress = 0f,
                     workCurrent = 0,
@@ -426,16 +430,27 @@ class EditorViewModel : ViewModel() {
                 suspend fun runExportAttempt(
                     request: VideoExportRequest,
                     quality: OutputQualityPreset
-                ): Uri = exportService.export(request) { progress ->
-                    val attemptLabel =
-                        "${clips.size}개 클립 · ${renderSize.first}x${renderSize.second} · ${quality.chipTitle} · ${OutputQualityPreset.GallerySaveDetail}"
-                    _uiState.update {
-                        it.copy(
-                            progressMessage = "완성본을 만드는 중... ${(progress * 100).toInt()}% · 완료 후 시사회로 이동 · $attemptLabel",
-                            workProgress = progress.toFloat().coerceIn(0f, 1f),
-                            workCurrent = (progress * 100).toInt().coerceIn(0, 100),
-                            workTotal = 100
-                        )
+                ): Uri {
+                    val attemptStartedAtNanos = System.nanoTime()
+                    return exportService.export(request) { progress ->
+                        if (!exportOperationGate.isCurrent(exportToken)) return@export
+                        val attemptLabel =
+                            "${clips.size}개 클립 · ${renderSize.first}x${renderSize.second} · ${quality.chipTitle} · ${OutputQualityPreset.GallerySaveDetail}"
+                        _uiState.update {
+                            val safeProgress = progress.toFloat().coerceIn(0f, 1f)
+                            val monotonicProgress = max(it.workProgress ?: 0f, safeProgress)
+                            val elapsedMillis = (System.nanoTime() - attemptStartedAtNanos) / 1_000_000
+                            it.copy(
+                                progressMessage = exportProgressMessage(
+                                    progress = monotonicProgress,
+                                    elapsedMillis = elapsedMillis,
+                                    attemptLabel = attemptLabel
+                                ),
+                                workProgress = monotonicProgress,
+                                workCurrent = (monotonicProgress * 100).toInt().coerceIn(0, 100),
+                                workTotal = 100
+                            )
+                        }
                     }
                 }
 
@@ -461,6 +476,7 @@ class EditorViewModel : ViewModel() {
                     )
                 }
             }.onSuccess { outputUri ->
+                if (!exportOperationGate.isCurrent(exportToken)) return@onSuccess
                 ExportHistoryStore.add(
                     context = context.applicationContext,
                     outputUri = outputUri,
@@ -493,6 +509,7 @@ class EditorViewModel : ViewModel() {
                 _uiState.update {
                     it.copy(
                         isExporting = false,
+                        isCancellingExport = false,
                         exportedVideoUri = outputUri,
                         recentlySavedMovieUriString = outputUri.toString(),
                         outputQualityPreset = actualOutputQualityPreset,
@@ -509,10 +526,12 @@ class EditorViewModel : ViewModel() {
                 }
                 onExported()
             }.onFailure { error ->
+                if (!exportOperationGate.isCurrent(exportToken)) return@onFailure
                 Log.e("HanClipExport", "Failed to export movie: $exportLabel", error)
                 _uiState.update {
                     it.copy(
                         isExporting = false,
+                        isCancellingExport = false,
                         progressMessage = "",
                         workProgress = null,
                         workCurrent = 0,
@@ -525,20 +544,34 @@ class EditorViewModel : ViewModel() {
     }
 
     fun cancelExport() {
-        exportJob?.cancel()
-        exportJob = null
+        val job = exportJob?.takeIf(Job::isActive) ?: return
+        val cancellationToken = exportOperationGate.invalidate()
         _uiState.update {
-            if (!it.isExporting) {
+            if (!it.isExporting || it.isCancellingExport) {
                 it
             } else {
                 it.copy(
-                    isExporting = false,
-                    progressMessage = "",
-                    workProgress = null,
-                    workCurrent = 0,
-                    workTotal = 0,
-                    alertMessage = "완성본 만들기를 취소했습니다. 클립과 설정은 그대로 유지됩니다."
+                    isCancellingExport = true,
+                    progressMessage = "완성본 만들기를 취소하는 중... 임시 결과를 정리하고 있습니다."
                 )
+            }
+        }
+        job.cancel()
+        job.invokeOnCompletion {
+            viewModelScope.launch {
+                if (!exportOperationGate.isCurrent(cancellationToken)) return@launch
+                if (exportJob === job) exportJob = null
+                _uiState.update {
+                    it.copy(
+                        isExporting = false,
+                        isCancellingExport = false,
+                        progressMessage = "",
+                        workProgress = null,
+                        workCurrent = 0,
+                        workTotal = 0,
+                        alertMessage = "완성본 만들기를 취소했습니다. 클립과 설정은 그대로 유지됩니다."
+                    )
+                }
             }
         }
     }
@@ -1317,6 +1350,7 @@ class EditorViewModel : ViewModel() {
             snapshot.state.copy(
                 isImportingMedia = false,
                 isExporting = false,
+                isCancellingExport = false,
                 progressMessage = "",
                 workProgress = null,
                 workCurrent = 0,

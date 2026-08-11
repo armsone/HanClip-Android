@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -192,6 +193,8 @@ fun EditorRoute(
     val trimmingClip = state.clips.firstOrNull { it.id == trimmingClipID }
     val photoDurationClip = state.clips.firstOrNull { it.id == photoDurationClipID }
     val previewClip = state.clips.firstOrNull { it.id == previewClipID }
+    val previewClips = state.renderableClips
+    val previewClipIndex = previewClips.indexOfFirst { it.id == previewClipID }
     val galleryPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -597,8 +600,16 @@ fun EditorRoute(
                 current = state.workCurrent,
                 total = state.workTotal,
                 previewClip = state.renderableClips.firstOrNull(),
+                previewAspectRatio = state.outputAspectRatio?.let { it.width.toFloat() / it.height }
+                    ?: state.renderableClips.firstOrNull()?.let {
+                        it.sourceWidth.toFloat() / it.sourceHeight.coerceAtLeast(1)
+                    }
+                    ?: 1f,
                 isExporting = state.isExporting,
-                onCancel = if (state.isExporting) {
+                isCancelling = state.isCancellingExport,
+                onCancel = if (state.isCancellingExport) {
+                    null
+                } else if (state.isExporting) {
                     viewModel::cancelExport
                 } else {
                     viewModel::cancelMediaImport
@@ -875,6 +886,31 @@ fun EditorRoute(
                 clip = clip,
                 palette = palette,
                 childSegmentCount = state.clips.count { it.videoSegmentParentId == clip.id },
+                position = previewClipIndex + 1,
+                total = previewClips.size,
+                onFirst = if (previewClipIndex > 0) {
+                    { previewClipID = previewClips.first().id }
+                } else null,
+                onPrevious = if (previewClipIndex > 0) {
+                    { previewClipID = previewClips[previewClipIndex - 1].id }
+                } else null,
+                onNext = if (previewClipIndex in 0 until previewClips.lastIndex) {
+                    { previewClipID = previewClips[previewClipIndex + 1].id }
+                } else null,
+                onEdit = {
+                    previewClipID = null
+                    if (clip.mediaKind == ClipMediaKind.Video) {
+                        trimmingClipID = clip.id
+                    } else {
+                        photoDurationClipID = clip.id
+                    }
+                },
+                onDelete = {
+                    val nextClipId = previewClips.getOrNull(previewClipIndex + 1)?.id
+                        ?: previewClips.getOrNull(previewClipIndex - 1)?.id
+                    viewModel.removeClip(clip.id)
+                    previewClipID = nextClipId
+                },
                 onDismiss = { previewClipID = null }
             )
         }
@@ -2604,11 +2640,14 @@ private fun WorkProgressOverlay(
     current: Int,
     total: Int,
     previewClip: ClipItem?,
+    previewAspectRatio: Float,
     isExporting: Boolean,
+    isCancelling: Boolean,
     onCancel: (() -> Unit)? = null
 ) {
     val title = progressTitle(message, isExporting)
     val detail = progressDetail(message, isExporting)
+    val safeProgress = progress?.coerceIn(0f, 1f)
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -2633,21 +2672,25 @@ private fun WorkProgressOverlay(
                 if (isExporting && previewClip != null) {
                     Surface(
                         modifier = Modifier
-                            .width(180.dp)
-                            .height(210.dp),
+                            .sizeIn(maxWidth = 260.dp, maxHeight = 260.dp)
+                            .width(220.dp)
+                            .aspectRatio(previewAspectRatio.coerceIn(0.56f, 1.78f)),
                         shape = RoundedCornerShape(22.dp),
                         color = palette.solidPanel,
                         border = BorderStroke(1.dp, palette.border)
                     ) {
                         Box(Modifier.fillMaxSize()) {
                             ClipThumbnail(previewClip, Modifier.matchParentSize())
-                            Box(
-                                Modifier
-                                    .align(Alignment.CenterEnd)
-                                    .fillMaxHeight()
-                                    .fillMaxWidth(0.28f)
-                                    .background(palette.solidPanel.copy(alpha = 0.55f))
-                            )
+                            if (safeProgress != null && safeProgress < 1f) {
+                                Box(
+                                    Modifier
+                                        .align(Alignment.CenterEnd)
+                                        .fillMaxHeight()
+                                        .fillMaxWidth(1f - safeProgress)
+                                        .clip(RoundedCornerShape(22.dp))
+                                        .background(Color.Black.copy(alpha = 0.5f))
+                                )
+                            }
                         }
                     }
                 }
@@ -2656,7 +2699,11 @@ private fun WorkProgressOverlay(
                     trackColor = palette.solidPanel
                 )
                 Text(
-                    text = if (isExporting) "개봉 준비 중" else "준비하고 있습니다",
+                    text = when {
+                        isCancelling -> "취소 중"
+                        isExporting -> "개봉 준비 중"
+                        else -> "준비하고 있습니다"
+                    },
                     color = palette.text,
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.headlineSmall
@@ -2668,7 +2715,6 @@ private fun WorkProgressOverlay(
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
-                val safeProgress = progress?.coerceIn(0f, 1f)
                 if (safeProgress != null) {
                     LinearProgressIndicator(
                         progress = { safeProgress },
@@ -3718,8 +3764,16 @@ private fun ClipPreviewDialog(
     clip: ClipItem,
     palette: HanClipPalette,
     childSegmentCount: Int,
+    position: Int,
+    total: Int,
+    onFirst: (() -> Unit)?,
+    onPrevious: (() -> Unit)?,
+    onNext: (() -> Unit)?,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    var isDeleteConfirmationVisible by remember(clip.id) { mutableStateOf(false) }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -3777,36 +3831,95 @@ private fun ClipPreviewDialog(
                     color = palette.solidPanel.copy(alpha = 0.98f),
                     border = BorderStroke(1.dp, palette.border.copy(alpha = 0.65f))
                 ) {
-                    Row(
+                    Column(
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(
-                                text = clipTitle(clip, null),
-                                color = palette.text,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = clipModeText(clip, childSegmentCount),
-                                color = palette.subText,
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        Button(
-                            onClick = onDismiss,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = palette.primary,
-                                contentColor = Color.White
-                            )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("확인")
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    text = clipTitle(clip, null),
+                                    color = palette.text,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = clipModeText(clip, childSegmentCount),
+                                    color = palette.subText,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            OutlinedButton(onClick = onEdit) {
+                                Text("편집")
+                            }
+                            OutlinedButton(onClick = { isDeleteConfirmationVisible = true }) {
+                                Text("삭제", color = Color(0xFFE45D42))
+                            }
+                            Button(
+                                onClick = onDismiss,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = palette.primary,
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Text("확인")
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedButton(onClick = { onFirst?.invoke() }, enabled = onFirst != null) {
+                                Text("처음")
+                            }
+                            OutlinedButton(onClick = { onPrevious?.invoke() }, enabled = onPrevious != null) {
+                                Text("이전")
+                            }
+                            Text(
+                                text = "$position/$total",
+                                modifier = Modifier.weight(1f),
+                                color = palette.subText,
+                                style = MaterialTheme.typography.labelLarge,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            OutlinedButton(onClick = { onNext?.invoke() }, enabled = onNext != null) {
+                                Text("다음")
+                            }
                         }
                     }
                 }
+            }
+            if (isDeleteConfirmationVisible) {
+                AlertDialog(
+                    onDismissRequest = { isDeleteConfirmationVisible = false },
+                    title = { Text("HanClip") },
+                    text = { Text("이 클립을 완성본에서 제외할까요? 원본 미디어는 삭제되지 않습니다.") },
+                    dismissButton = {
+                        OutlinedButton(onClick = { isDeleteConfirmationVisible = false }) {
+                            Text("취소")
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                isDeleteConfirmationVisible = false
+                                onDelete()
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFE45D42),
+                                contentColor = Color.White
+                            )
+                        ) {
+                            Text("제외")
+                        }
+                    }
+                )
             }
         }
     }

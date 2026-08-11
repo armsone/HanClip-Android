@@ -327,3 +327,11 @@ Android 작업이 다음 날까지 이어지면 그날 첫 소스 변경 전에 
 - AiShot은 탐지 순간의 monotonic sequence로 결과 순서를 고정하고 Preview/VideoCapture target rotation을 기기 방향에 맞춘다. 공통 전체화면 플레이어는 제목·공유·PlayerView scrub, 좌우 double tap ±10초, pinch/pan, 아래 swipe close, phone 센서 방향과 종료 시 정책 복원을 공유한다.
 - 홈·편집 핵심 폭 920dp, 테마 패널 620dp, 홈 프리셋 3열을 적용했다. Automatic 테마는 시스템 다크 모드를 따르고, 미디어 격자는 1/3/5/8열 pinch와 가장자리 drag autoscroll을 지원하며 열 상태를 회전 중 보존한다. 갤러리·카메라 권한 거부 화면에는 앱 설정 직접 진입을 제공한다.
 - JVM 단위 시험 4개와 `SM-F968N`의 격리 계측 시험 5개로 primary/backup 선택, AiShot 순서, grid step, duration tolerance, 구형 project fixture migration, 재시작 보존, import rollback 경계, project/collection backup 복구를 확인했다. 기기가 잠겨 있어 화면 제스처·회전의 사람 시각 검수는 미검증으로 남기며 `SM-T500`에는 명령을 보내지 않았다.
+
+## 2026-08-12 제작 진행·취소와 클립 미리보기 보강
+
+- 제작 작업마다 단조 증가 token을 발급하고 취소 시 즉시 무효화한다. 취소 전에 등록된 진행·성공·실패 callback은 더 이상 컬렉션 추가, 시사회 이동, 실패 alert로 취소 상태를 덮지 않는다. 취소 중에는 임시 결과 정리 상태를 표시하고 완료 뒤 클립과 설정을 보존했다는 안내로 닫는다.
+- 제작 진행 패널은 선택한 출력 화면비를 반영한 최대 260dp 미리보기, 좌→우 진행 mask, 퍼센트, 경과시간과 현재 속도 기준 예상 잔여시간을 `progressMessage` 하나에서 표시한다. 호환 30fps 재시도는 새 시도 기준으로 시간·진행률을 다시 계산한다.
+- 클립 미리보기는 기존 autoplay·loop·play/pause·scrub를 유지하면서 현재 위치와 `처음`·`이전`·`다음` 이동을 추가했다. `편집`은 기존 영상 trim/사진 길이 화면으로 연결하고, `삭제`는 원본을 지우지 않는다는 확인 뒤 기존 undo 가능 제외 경로만 사용한다. waveform/peak의 미리보기 내 직접 편집은 남아 있어 전체 항목은 계속 `부분`으로 분류한다.
+- JVM 시험으로 경과/예상시간 계산, 시간 범위 보정, 취소 token의 늦은 callback 차단을 확인했다. debug compile·단위 시험·APK·lint는 통과했다. `SM-F968N`은 모델을 읽어 대상 기기임을 확인했으나 `deviceLocked=1`이어서 설치·조작·사람 시각 검수는 수행하지 않았고 `SM-T500`에는 명령을 보내지 않았다.
+- 장시간 제작 foreground service+notification은 manifest·프로세스 수명·알림 권한에 영향을 주는 별도 작업이므로 이번 최소 변경에 포함하지 않았다. 따라서 제작 진행 UI 항목도 전체 기준에서는 `부분`을 유지한다.
