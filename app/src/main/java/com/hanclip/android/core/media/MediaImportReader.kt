@@ -17,6 +17,7 @@ import com.hanclip.android.core.model.ClipItem
 import com.hanclip.android.core.model.ClipMediaKind
 import com.hanclip.android.core.model.LivePhotoMode
 import com.hanclip.android.core.model.VideoSegmentMode
+import com.hanclip.android.core.safety.StorageSpaceGuard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -314,6 +315,15 @@ object MediaImportReader {
                 ?.takeIf { it.isNotBlank() && it.length <= 5 }
             ?: if (mimeType.startsWith("video/")) "mp4" else "jpg"
         val directory = File(context.filesDir, "working-media").apply { mkdirs() }
+        val sourceBytes = runCatching {
+            context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { descriptor ->
+                descriptor.length.takeIf { it >= 0L }
+            }
+        }.getOrNull()
+        StorageSpaceGuard.requireAvailable(
+            directory = directory,
+            requiredBytes = StorageSpaceGuard.requiredImportBytes(sourceBytes)
+        )
         // These files are project sources, not disposable thumbnails. Deleting an old file while
         // importing a large selection leaves an existing ClipItem pointing at a missing source.
         // Project-aware cleanup must only remove files that no saved or active project references.

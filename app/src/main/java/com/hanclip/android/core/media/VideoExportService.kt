@@ -40,6 +40,7 @@ import com.hanclip.android.core.model.WatermarkSettings
 import com.hanclip.android.core.model.CopyrightIconColorMode
 import com.hanclip.android.core.model.drawableResId
 import com.hanclip.android.core.safety.isDurationWithinTolerance
+import com.hanclip.android.core.safety.StorageSpaceGuard
 import androidx.media3.effect.OverlayEffect
 import androidx.media3.effect.BitmapOverlay
 import androidx.media3.effect.Presentation
@@ -108,6 +109,20 @@ class Media3TransformerExportService(
             mkdirs()
         }
         pruneExportCache(outputDirectory)
+        StorageSpaceGuard.requireAvailable(
+            directory = outputDirectory,
+            requiredBytes = StorageSpaceGuard.requiredExportBytes(
+                width = request.renderWidth,
+                height = request.renderHeight,
+                frameRate = request.frameRate,
+                durationSeconds = request.clips.sumOf(ClipItem::durationSeconds) +
+                    if (request.watermarkSettings.includesEndingInfoCard) {
+                        request.watermarkSettings.normalizedEndingInfoCardDuration
+                    } else {
+                        0.0
+                    }
+            )
+        )
         val outputFile = File(outputDirectory, "hanclip-preview-${System.currentTimeMillis()}.mp4")
         if (outputFile.exists()) outputFile.delete()
         val endingInfoFile = EndingInfoCardRenderer.renderToFile(
