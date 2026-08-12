@@ -178,9 +178,9 @@ fun EditorRoute(
     val lifecycleOwner = LocalLifecycleOwner.current
     val editorColumnCount = if (LocalConfiguration.current.screenWidthDp >= 600) 2 else 1
     val palette = HanClipThemeStore.load(context).currentPalette
-    var trimmingClipID by remember { mutableStateOf<String?>(null) }
-    var photoDurationClipID by remember { mutableStateOf<String?>(null) }
-    var previewClipID by remember { mutableStateOf<String?>(null) }
+    var trimmingClipID by rememberSaveable { mutableStateOf<String?>(null) }
+    var photoDurationClipID by rememberSaveable { mutableStateOf<String?>(null) }
+    var previewClipID by rememberSaveable { mutableStateOf<String?>(null) }
     var isTextOverlaySheetVisible by remember { mutableStateOf(false) }
     var isEndingInfoSettingsSheetVisible by remember { mutableStateOf(false) }
     var isMusicSettingsSheetVisible by remember { mutableStateOf(false) }

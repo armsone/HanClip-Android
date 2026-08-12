@@ -37,6 +37,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,7 +66,7 @@ fun PhotoDurationSheet(
     onApplyDuration: (Double) -> Unit
 ) {
     FullScreenDialogSystemBars(palette.solidPanel)
-    var duration by remember(clip.id) {
+    var duration by rememberSaveable(clip.id) {
         mutableFloatStateOf(clip.durationSeconds.toFloat().coerceIn(0.1f, 30f))
     }
 

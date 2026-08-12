@@ -42,6 +42,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -77,10 +78,10 @@ fun VideoTrimSheet(
 ) {
     FullScreenDialogSystemBars(palette.solidPanel)
     val sourceDuration = max(0.1, clip.sourceDurationSeconds ?: clip.durationSeconds)
-    var startSeconds by remember(clip.id) {
+    var startSeconds by rememberSaveable(clip.id) {
         mutableDoubleStateOf(clip.trimStartSeconds.coerceIn(0.0, sourceDuration))
     }
-    var durationSeconds by remember(clip.id) {
+    var durationSeconds by rememberSaveable(clip.id) {
         mutableDoubleStateOf(clip.durationSeconds.coerceIn(0.1, sourceDuration))
     }
 
