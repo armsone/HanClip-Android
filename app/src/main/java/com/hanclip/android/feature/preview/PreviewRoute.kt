@@ -839,11 +839,11 @@ private fun SaveOptionsSheet(
                     .fillMaxSize()
                     .statusBarsPadding()
                     .navigationBarsPadding()
-                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                    .padding(horizontal = 22.dp, vertical = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -869,7 +869,7 @@ private fun SaveOptionsSheet(
                     }
                 }
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1011,14 +1011,17 @@ private fun SaveOptionsSheet(
                             onClick = onDismiss,
                             modifier = Modifier.width(146.dp).height(48.dp),
                             shape = RoundedCornerShape(50),
-                            border = BorderStroke(1.dp, palette.border),
+                            border = BorderStroke(
+                                1.dp,
+                                palette.secondary.copy(alpha = 0.18f)
+                            ),
                             colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = palette.solidPanel,
-                                contentColor = palette.text
+                                containerColor = palette.secondary.copy(alpha = 0.10f),
+                                contentColor = palette.subText
                             )
                         ) {
                             Icon(Icons.Outlined.Close, contentDescription = null)
-                            Text("취소")
+                            Text("취소", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
