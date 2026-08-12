@@ -260,26 +260,15 @@ fun MusicSettingsSheet(
                         Text("음악 파일 불러오기")
                     }
                     if (currentTitle != null) {
-                        Row(
+                        Box(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
+                            contentAlignment = Alignment.CenterEnd
                         ) {
-                            OutlinedButton(
-                                onClick = { onMusicEnabledChange(true) },
-                                shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = if (musicEnabled) palette.primary else palette.chip,
-                                    contentColor = if (musicEnabled) Color.White else palette.text
-                                )
-                            ) { Text("사용") }
-                            OutlinedButton(
-                                onClick = { onMusicEnabledChange(false) },
-                                shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = if (!musicEnabled) palette.primary else palette.chip,
-                                    contentColor = if (!musicEnabled) Color.White else palette.text
-                                )
-                            ) { Text("안함") }
+                            MusicUsageSegmentedControl(
+                                enabled = musicEnabled,
+                                palette = palette,
+                                onChange = onMusicEnabledChange
+                            )
                         }
                     }
                 }
@@ -343,6 +332,51 @@ fun MusicSettingsSheet(
             }
 
             Spacer(Modifier.height(6.dp))
+        }
+    }
+}
+
+@Composable
+private fun MusicUsageSegmentedControl(
+    enabled: Boolean,
+    palette: HanClipPalette,
+    onChange: (Boolean) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .width(112.dp)
+            .height(48.dp)
+            .clickable { onChange(!enabled) },
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth().height(28.dp),
+            shape = RoundedCornerShape(50),
+            color = palette.secondary.copy(alpha = 0.13f)
+        ) {
+            Row(modifier = Modifier.padding(2.dp)) {
+                listOf(true to "사용", false to "안함").forEach { (value, title) ->
+                    val selected = enabled == value
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxSize()
+                            .semantics { this.selected = selected }
+                            .background(
+                                if (selected) palette.primary.copy(alpha = 0.92f) else Color.Transparent,
+                                RoundedCornerShape(50)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            title,
+                            color = if (selected) Color.White else palette.subText,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
         }
     }
 }
