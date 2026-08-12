@@ -736,8 +736,9 @@ fun AiShotRoute(
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 18.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(horizontal = 18.dp)
+                .padding(top = 2.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             AiShotTopBar(
                 statusText = statusText,
@@ -758,6 +759,9 @@ fun AiShotRoute(
                 sensitivity = sensitivity,
                 accentColor = palette.secondary,
                 accentForeground = Color.White,
+                isReadyForTrigger = isRollingRecordingActive &&
+                    triggerTimeSeconds == null &&
+                    recordingDurationNanos / 1_000_000_000.0 >= shotLength.beforeSeconds,
                 onSensitivityChange = { sensitivity = it },
                 capturePhase = capturePhase
             )
@@ -893,9 +897,15 @@ private fun AiShotBottomPanel(
     sensitivity: ShotSensitivity,
     accentColor: Color,
     accentForeground: Color,
+    isReadyForTrigger: Boolean,
     onSensitivityChange: (ShotSensitivity) -> Unit,
     capturePhase: AiShotCapturePhase
 ) {
+    val statusColor = when (capturePhase) {
+        AiShotCapturePhase.Detecting -> if (isReadyForTrigger) Color(0xFF4FD18A) else Color(0xFFF2B33D)
+        AiShotCapturePhase.Detected -> Color(0xFF4FD18A)
+        AiShotCapturePhase.Saving -> Color(0xFFE05257)
+    }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = Color.Black.copy(alpha = 0.66f),
@@ -906,34 +916,31 @@ private fun AiShotBottomPanel(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Box(
                     Modifier
-                        .size(7.dp)
-                        .background(Color(0xFFFFB432), CircleShape)
+                        .size(6.dp)
+                        .background(statusColor, CircleShape)
                 )
-                Spacer(Modifier.size(9.dp))
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(10.dp)
-                        .background(Color.White.copy(alpha = 0.16f), RoundedCornerShape(16.dp))
+                        .height(6.dp)
+                        .background(Color.White.copy(alpha = 0.18f), RoundedCornerShape(16.dp))
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth(level.coerceIn(0.02, 1.0).toFloat())
-                            .height(10.dp)
-                            .background(Color(0xFF1DBA7A), RoundedCornerShape(16.dp))
+                            .height(6.dp)
+                            .background(statusColor, RoundedCornerShape(16.dp))
                     )
                 }
-                Spacer(Modifier.size(10.dp))
                 Text(
                     capturePhase.title,
-                    color = if (capturePhase == AiShotCapturePhase.Detecting) {
-                        Color(0xFFFFB432)
-                    } else {
-                        Color(0xFF4FD18A)
-                    },
+                    color = statusColor,
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.labelMedium
                 )
