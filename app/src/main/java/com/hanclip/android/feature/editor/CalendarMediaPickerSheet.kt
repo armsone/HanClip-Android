@@ -745,7 +745,7 @@ private fun RecentPickerHeader(
         Row(
             modifier = Modifier
                 .height(48.dp)
-                .clickable(onClick = onShowCalendar),
+                .clickable(onClickLabel = "달력 열기", onClick = onShowCalendar),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("사진", color = palette.text, fontWeight = FontWeight.Black)

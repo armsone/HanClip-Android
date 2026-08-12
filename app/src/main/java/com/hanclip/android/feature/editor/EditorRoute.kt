@@ -1251,7 +1251,7 @@ private fun EditorHeader(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(modifier = Modifier.clickable(onClick = onBackHome)) {
+            Box(modifier = Modifier.clickable(onClickLabel = "홈으로", onClick = onBackHome)) {
                 HanClipBrandCapsule(palette)
             }
             Surface(

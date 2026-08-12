@@ -268,7 +268,7 @@ fun PreviewRoute(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(modifier = Modifier.clickable(onClick = onEdit)) {
+            Box(modifier = Modifier.clickable(onClickLabel = "다시 편집", onClick = onEdit)) {
                 HanClipBrandCapsule()
             }
             Surface(
@@ -778,7 +778,7 @@ private fun SaveOptionsSheet(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(modifier = Modifier.clickable(onClick = onDismiss)) {
+                    Box(modifier = Modifier.clickable(onClickLabel = "개봉 화면 닫기", onClick = onDismiss)) {
                         HanClipBrandCapsule()
                     }
                     Surface(

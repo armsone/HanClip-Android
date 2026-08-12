@@ -366,7 +366,10 @@ fun TextOverlaySheet(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
                     .size(48.dp)
-                    .clickable { showAdvancedFonts = !showAdvancedFonts },
+                    .clickable(
+                        onClickLabel = if (showAdvancedFonts) "전체 서체 접기" else "전체 서체 펼치기",
+                        onClick = { showAdvancedFonts = !showAdvancedFonts }
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Surface(
