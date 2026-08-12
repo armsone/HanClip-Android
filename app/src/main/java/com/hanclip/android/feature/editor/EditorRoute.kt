@@ -151,6 +151,7 @@ import com.hanclip.android.core.model.VideoSegmentMode
 import com.hanclip.android.core.settings.SleepPreventionMode
 import com.hanclip.android.core.theme.HanClipPalette
 import com.hanclip.android.core.theme.HanClipThemeStore
+import com.hanclip.android.core.theme.HanClipSystemBars
 import com.hanclip.android.core.theme.currentPalette
 import com.hanclip.android.feature.home.HanClipBrandCapsule
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -178,6 +179,7 @@ fun EditorRoute(
     val lifecycleOwner = LocalLifecycleOwner.current
     val editorColumnCount = if (LocalConfiguration.current.screenWidthDp >= 600) 2 else 1
     val palette = HanClipThemeStore.load(context).currentPalette
+    HanClipSystemBars(palette.solidPanel)
     var trimmingClipID by rememberSaveable { mutableStateOf<String?>(null) }
     var photoDurationClipID by rememberSaveable { mutableStateOf<String?>(null) }
     var previewClipID by rememberSaveable { mutableStateOf<String?>(null) }

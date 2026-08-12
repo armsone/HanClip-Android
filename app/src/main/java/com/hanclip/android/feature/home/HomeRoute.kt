@@ -156,6 +156,7 @@ import com.hanclip.android.core.settings.SleepPreventionMode
 import com.hanclip.android.core.theme.HanClipPalette
 import com.hanclip.android.core.theme.HanClipThemeMode
 import com.hanclip.android.core.theme.HanClipThemeStore
+import com.hanclip.android.core.theme.HanClipSystemBars
 import com.hanclip.android.core.theme.currentPalette
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
@@ -219,6 +220,7 @@ fun HomeRoute(
     var showThemeSelection by remember { mutableStateOf(false) }
     var showSettingsInfo by remember { mutableStateOf(false) }
     val palette = themeMode.currentPalette
+    HanClipSystemBars(palette.solidPanel)
     var removalCandidate by remember { mutableStateOf<ExportedMovieSummary?>(null) }
     var memoCandidate by remember { mutableStateOf<ExportedMovieSummary?>(null) }
     var editableRemovalCandidate by remember { mutableStateOf<DraftProjectSummary?>(null) }

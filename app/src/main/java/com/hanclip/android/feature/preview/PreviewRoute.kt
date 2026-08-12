@@ -96,6 +96,7 @@ import com.hanclip.android.core.project.ExportedMovieSummary
 import com.hanclip.android.core.project.hanClipCompletionTitle
 import com.hanclip.android.core.theme.HanClipPalette
 import com.hanclip.android.core.theme.HanClipThemeStore
+import com.hanclip.android.core.theme.HanClipSystemBars
 import com.hanclip.android.core.theme.currentPalette
 import com.hanclip.android.feature.home.HanClipBrandCapsule
 import com.hanclip.android.feature.editor.FullScreenDialogSystemBars
@@ -160,6 +161,7 @@ fun PreviewRoute(
 ) {
     val context = LocalContext.current
     val palette = HanClipThemeStore.load(context).currentPalette
+    HanClipSystemBars(palette.solidPanel)
     var message by remember { mutableStateOf<String?>(null) }
     var showSaveOptions by remember { mutableStateOf(false) }
     var showFullscreenPreview by remember { mutableStateOf(false) }

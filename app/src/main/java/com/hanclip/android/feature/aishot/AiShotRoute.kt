@@ -90,6 +90,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.hanclip.android.R
 import com.hanclip.android.core.safety.orderedCaptureValues
+import com.hanclip.android.core.theme.HanClipSystemBars
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -219,6 +220,7 @@ fun AiShotRoute(
     onClose: () -> Unit,
     onOpenEditor: (List<Uri>) -> Unit
 ) {
+    HanClipSystemBars(Color.Black)
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()

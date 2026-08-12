@@ -110,6 +110,7 @@ import androidx.core.content.FileProvider
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.hanclip.android.core.theme.HanClipThemeStore
+import com.hanclip.android.core.theme.HanClipSystemBars
 import com.hanclip.android.core.theme.currentPalette
 import org.json.JSONArray
 import org.json.JSONObject
@@ -134,6 +135,7 @@ fun OnlineMusicBrowserRoute(
     val composeView = LocalView.current
     val hapticFeedback = LocalHapticFeedback.current
     val palette = HanClipThemeStore.load(context).currentPalette
+    HanClipSystemBars(palette.solidPanel)
     var favorites by remember { mutableStateOf(BrowserFavoritesStore.load(context)) }
     var isFavoritePanelVisible by remember { mutableStateOf(false) }
     var isFavoriteManagerVisible by remember { mutableStateOf(false) }
