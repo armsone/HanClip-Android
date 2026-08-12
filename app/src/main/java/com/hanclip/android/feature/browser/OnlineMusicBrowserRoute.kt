@@ -54,6 +54,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.SmartDisplay
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Close
@@ -107,6 +108,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
 import androidx.core.content.FileProvider
@@ -937,16 +939,29 @@ private fun BrowserDetectedVideoPanel(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(Icons.Outlined.PlayCircle, contentDescription = null, tint = palette.text)
+            Icon(
+                Icons.Filled.SmartDisplay,
+                contentDescription = null,
+                tint = palette.text,
+                modifier = Modifier.size(12.dp)
+            )
             Spacer(Modifier.weight(1f))
-            Button(onClick = onDownload, shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)) {
-                Text("다운")
+            Button(
+                onClick = onDownload,
+                modifier = Modifier.semantics { contentDescription = "영상 다운로드" },
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+            ) {
+                Text("다운", fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
-            OutlinedButton(onClick = onPreview, shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)) {
-                Text("보기")
+            OutlinedButton(
+                onClick = onPreview,
+                modifier = Modifier.semantics { contentDescription = "감지된 영상 전체 화면 보기" },
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+            ) {
+                Text("보기", fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
             OutlinedButton(onClick = onDismiss, shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)) {
-                Text("닫기")
+                Text("닫기", fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
