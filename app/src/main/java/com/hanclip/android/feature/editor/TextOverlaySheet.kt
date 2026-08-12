@@ -231,7 +231,7 @@ fun TextOverlaySheet(
                     Surface(
                         modifier = Modifier
                             .weight(1f)
-                            .height(32.dp)
+                            .height(48.dp)
                             .clickable {
                                 draft = draft.copy(isEnabled = true, text = presetText)
                             },
@@ -1527,7 +1527,7 @@ private fun CaptionChoiceSegment(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(40.dp)
+            .height(48.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(palette.secondary.copy(alpha = 0.14f))
             .padding(3.dp)
@@ -1641,7 +1641,7 @@ private fun CaptionStylePicker(
                     Surface(
                         modifier = Modifier
                             .weight(1f)
-                            .height(40.dp)
+                            .height(48.dp)
                             .clickable { onSelect(preset, appearance) },
                         shape = RoundedCornerShape(10.dp),
                         color = if (selected) palette.secondary.copy(alpha = 0.20f) else palette.chip,

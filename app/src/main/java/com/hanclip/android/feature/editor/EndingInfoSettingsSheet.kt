@@ -212,7 +212,7 @@ private fun EndingThemePicker(
                 onClick = { onSelect(theme) }
             ) {
                 Column(
-                    modifier = Modifier.height(46.dp),
+                    modifier = Modifier.height(48.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
@@ -232,7 +232,7 @@ private fun EndingDurationControl(
     onIncrease: () -> Unit
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth().height(44.dp),
+        modifier = Modifier.fillMaxWidth().height(52.dp),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
         color = palette.chip,
         border = BorderStroke(1.dp, palette.border)
