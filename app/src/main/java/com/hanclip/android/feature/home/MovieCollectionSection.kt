@@ -281,7 +281,7 @@ private fun CollectionBulkCompressionControls(
             onClick = { expanded = !expanded }
         ) {
             Row(
-                modifier = Modifier.height(28.dp).padding(horizontal = 12.dp),
+                modifier = Modifier.height(48.dp).padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {

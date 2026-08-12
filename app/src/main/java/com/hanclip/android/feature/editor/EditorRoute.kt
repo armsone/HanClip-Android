@@ -2485,7 +2485,7 @@ private fun ReorderStrip(
                 )
                 Button(
                     onClick = onDone,
-                    modifier = Modifier.height(36.dp),
+                    modifier = Modifier.height(48.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = palette.primary,
                         contentColor = Color.White
