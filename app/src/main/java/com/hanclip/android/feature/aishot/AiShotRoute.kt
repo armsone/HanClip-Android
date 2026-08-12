@@ -129,6 +129,12 @@ private enum class ShotSensitivity(val title: String) {
     Loud("시끄러움")
 }
 
+private enum class AiShotCapturePhase(val title: String) {
+    Detecting("감지 중"),
+    Detected("감지 됨"),
+    Saving("저장 중")
+}
+
 private data class CapturedShot(val sequence: Long, val uri: Uri)
 
 private enum class ShotLength(
@@ -335,6 +341,7 @@ fun AiShotRoute(
     var recordingRemainingSeconds by remember { mutableStateOf(0L) }
     var activeRecordingSeconds by remember { mutableStateOf(shotLength.recordingSeconds) }
     var shotLengthNotice by remember { mutableStateOf<ShotLength?>(null) }
+    var capturePhase by remember { mutableStateOf(AiShotCapturePhase.Detecting) }
 
     @SuppressLint("MissingPermission")
     fun triggerClip(reason: String) {
@@ -354,10 +361,15 @@ fun AiShotRoute(
         activeCaptureSequence = sequence
         activeShotLength = timing
         statusText = reason
+        capturePhase = AiShotCapturePhase.Detected
         activeRecordingSeconds = timing.recordingSeconds
         recordingRemainingSeconds = ceil(timing.afterSeconds).toLong()
         scope.launch {
             val captureEndMillis = SystemClock.elapsedRealtime() + (timing.afterSeconds * 1000).toLong()
+            delay(600L)
+            if (activeCaptureSequence == sequence && triggerTimeSeconds != null) {
+                capturePhase = AiShotCapturePhase.Saving
+            }
             val stopAtMillis = captureEndMillis + 350L
             while (recording == activeRecording && SystemClock.elapsedRealtime() < stopAtMillis) {
                 delay(100L)
@@ -390,6 +402,7 @@ fun AiShotRoute(
         triggerTimeSeconds = null
         activeShotLength = null
         statusText = "준비 중"
+        capturePhase = AiShotCapturePhase.Detecting
         val pending = capture.output
             .prepareRecording(context, options)
             .withAudioEnabled()
@@ -674,7 +687,7 @@ fun AiShotRoute(
                 level = level,
                 sensitivity = sensitivity,
                 onSensitivityChange = { sensitivity = it },
-                isRecording = triggerTimeSeconds != null || pendingSaveCount > 0,
+                capturePhase = capturePhase,
                 recordingRemainingSeconds = recordingRemainingSeconds,
                 activeRecordingSeconds = activeRecordingSeconds
             )
@@ -824,7 +837,7 @@ private fun AiShotBottomPanel(
     level: Double,
     sensitivity: ShotSensitivity,
     onSensitivityChange: (ShotSensitivity) -> Unit,
-    isRecording: Boolean,
+    capturePhase: AiShotCapturePhase,
     recordingRemainingSeconds: Long,
     activeRecordingSeconds: Long
 ) {
@@ -860,8 +873,12 @@ private fun AiShotBottomPanel(
                 }
                 Spacer(Modifier.size(10.dp))
                 Text(
-                    if (isRecording) "저장 중" else "감지 중",
-                    color = Color(0xFFFFB432),
+                    capturePhase.title,
+                    color = if (capturePhase == AiShotCapturePhase.Detecting) {
+                        Color(0xFFFFB432)
+                    } else {
+                        Color(0xFF4FD18A)
+                    },
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.labelMedium
                 )
@@ -897,7 +914,7 @@ private fun AiShotBottomPanel(
                     )
                 }
             }
-            if (isRecording) {
+            if (capturePhase != AiShotCapturePhase.Detecting) {
                 RecordingProgress(
                     remainingSeconds = recordingRemainingSeconds,
                     totalSeconds = activeRecordingSeconds
