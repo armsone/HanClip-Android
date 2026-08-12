@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.selection.selectable
@@ -49,11 +50,13 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AddPhotoAlternate
@@ -119,6 +122,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -1027,6 +1031,7 @@ fun EditorRoute(
         previewClip?.let { clip ->
             ClipPreviewDialog(
                 clip = clip,
+                clips = previewClips,
                 palette = palette,
                 childSegmentCount = state.clips.count { it.videoSegmentParentId == clip.id },
                 position = previewClipIndex + 1,
@@ -1040,6 +1045,7 @@ fun EditorRoute(
                 onNext = if (previewClipIndex in 0 until previewClips.lastIndex) {
                     { previewClipID = previewClips[previewClipIndex + 1].id }
                 } else null,
+                onSelectClip = { selectedID -> previewClipID = selectedID },
                 onEdit = if (
                         clip.mediaKind == ClipMediaKind.Video ||
                         clip.livePhotoMode == com.hanclip.android.core.model.LivePhotoMode.Motion
@@ -3953,6 +3959,7 @@ private fun ClipRow(
 @Composable
 private fun ClipPreviewDialog(
     clip: ClipItem,
+    clips: List<ClipItem>,
     palette: HanClipPalette,
     childSegmentCount: Int,
     position: Int,
@@ -3960,12 +3967,14 @@ private fun ClipPreviewDialog(
     onFirst: (() -> Unit)?,
     onPrevious: (() -> Unit)?,
     onNext: (() -> Unit)?,
+    onSelectClip: (String) -> Unit,
     onEdit: (() -> Unit)?,
     onDelete: () -> Unit,
     onDismiss: () -> Unit
 ) {
     var isDeleteConfirmationVisible by remember(clip.id) { mutableStateOf(false) }
     var playbackMode by remember { mutableStateOf(DefaultClipPreviewPlaybackMode) }
+    val previewThumbnailState = rememberLazyListState()
     val hasPlayableMedia = clip.mediaKind == ClipMediaKind.Video ||
         clip.livePhotoMode == com.hanclip.android.core.model.LivePhotoMode.Motion
     LaunchedEffect(clip.id, playbackMode, hasPlayableMedia, position, total) {
@@ -3983,6 +3992,10 @@ private fun ClipPreviewDialog(
                 else -> onNext?.invoke()
             }
         }
+    }
+    LaunchedEffect(clip.id, clips) {
+        val selectedIndex = clips.indexOfFirst { it.id == clip.id }
+        if (selectedIndex >= 0) previewThumbnailState.animateScrollToItem(selectedIndex)
     }
     Dialog(
         onDismissRequest = onDismiss,
@@ -4052,6 +4065,45 @@ private fun ClipPreviewDialog(
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color.Black)
                 )
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    state = previewThumbnailState,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) {
+                    itemsIndexed(clips, key = { _, item -> item.id }) { index, item ->
+                        val selected = item.id == clip.id
+                        Box(
+                            modifier = Modifier
+                                .size(if (selected) 58.dp else 54.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .border(
+                                    width = if (selected) 3.dp else 1.dp,
+                                    color = if (selected) palette.primary else Color.White.copy(alpha = 0.42f),
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+                                .clickable { onSelectClip(item.id) }
+                                .semantics {
+                                    contentDescription = "${index + 1}번째 클립"
+                                    this.selected = selected
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            ClipThumbnail(item, Modifier.matchParentSize())
+                            Text(
+                                text = "${index + 1}",
+                                modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .padding(3.dp)
+                                    .background(palette.primary.copy(alpha = 0.82f), CircleShape)
+                                    .padding(horizontal = 5.dp, vertical = 2.dp),
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
