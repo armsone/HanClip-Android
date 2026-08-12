@@ -15,6 +15,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.scrollBy
@@ -79,6 +80,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -87,6 +89,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontWeight
@@ -991,6 +994,9 @@ private fun RecentDayActions(
             ) {
                 RecentMediaFilter.entries.forEach { filter ->
                     DropdownMenuItem(
+                        modifier = Modifier.semantics {
+                            selected = filter == currentFilter
+                        },
                         text = { Text(if (filter == currentFilter) "✓ ${filter.title}" else filter.title) },
                         onClick = {
                             showFilterMenu = false
@@ -1373,7 +1379,7 @@ private fun CalendarDayCell(
     Surface(
         modifier = Modifier
             .height(48.dp)
-            .clickable(onClick = onClick),
+            .selectable(selected = selected, role = Role.Checkbox, onClick = onClick),
         shape = RoundedCornerShape(0.dp),
         color = if (selected) palette.primary else palette.panel,
         border = BorderStroke(1.dp, if (selected) palette.primary else palette.border)
@@ -2179,6 +2185,10 @@ private fun CalendarMediaThumb(
             .aspectRatio(1f)
             .clip(RoundedCornerShape(16.dp))
             .background(palette.chip)
+            .semantics {
+                selected = selectedOrder != null
+                stateDescription = selectedOrder?.let { "선택 ${it}번째" } ?: "선택 안 됨"
+            }
             .then(
                 if (onLongClick == null) {
                     Modifier.clickable(onClick = onClick)
