@@ -644,7 +644,23 @@ class EditorViewModel : ViewModel() {
             val changedCount = state.renderableClips.size
             state.copy(
                 clips = state.clips.map { clip ->
-                    if (clip.mediaKind == ClipMediaKind.Video) {
+                    if (
+                        clip.mediaKind == ClipMediaKind.LivePhoto &&
+                        clip.livePhotoMode == LivePhotoMode.Motion
+                    ) {
+                        val sourceDuration = clip.sourceDurationSeconds
+                            ?: clip.livePhotoDurationSeconds
+                            ?: clip.durationSeconds
+                        val selectedDuration = min(state.defaultDurationSeconds, sourceDuration)
+                            .coerceAtLeast(0.1)
+                        clip.copy(
+                            durationSeconds = selectedDuration,
+                            photoDurationSeconds = selectedDuration,
+                            livePhotoDurationSeconds = sourceDuration,
+                            sourceDurationSeconds = sourceDuration,
+                            trimStartSeconds = max(0.0, (sourceDuration - selectedDuration) / 2.0)
+                        )
+                    } else if (clip.mediaKind == ClipMediaKind.Video) {
                         val sourceDuration = clip.sourceDurationSeconds ?: clip.durationSeconds
                         val selectedDuration = min(state.defaultDurationSeconds, sourceDuration)
                         val center = clip.trimStartSeconds + clip.durationSeconds / 2.0
