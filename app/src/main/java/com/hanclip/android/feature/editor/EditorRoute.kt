@@ -3293,8 +3293,8 @@ private fun ProjectControls(
                 }
                 SettingDivider(palette)
                 CompactSettingRow(Icons.Outlined.TextFields, "자막", palette, onOpenTextOverlay) {
-                    CompactChoice("사용", hasTextOverlay || hasLogoOverlay, palette, onOpenTextOverlay)
-                    CompactChoice("안함", !hasTextOverlay && !hasLogoOverlay, palette, onOpenTextOverlay)
+                    CompactChoice("사용", hasTextOverlay, palette, onOpenTextOverlay)
+                    CompactChoice("안함", !hasTextOverlay, palette, onOpenTextOverlay)
                 }
                 SettingDivider(palette)
                 CompactSettingRow(Icons.Outlined.LibraryMusic, "음악", palette, onOpenMusicSettings) {
