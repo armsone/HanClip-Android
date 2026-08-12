@@ -613,17 +613,36 @@ private enum class MediaPickerSheetMode {
     Calendar
 }
 
-private enum class RecentMediaFilter(val title: String) {
-    All("전체"),
-    Photo("사진"),
-    LivePhoto("모션포토"),
-    Video("영상");
+internal enum class RecentMediaFilter(
+    val title: String,
+    private val kinds: Set<ClipMediaKind>
+) {
+    All("전체", setOf(ClipMediaKind.Photo, ClipMediaKind.LivePhoto, ClipMediaKind.Video)),
+    Photo("사진", setOf(ClipMediaKind.Photo)),
+    LivePhoto("모션포토", setOf(ClipMediaKind.LivePhoto)),
+    Video("영상", setOf(ClipMediaKind.Video)),
+    PhotoAndLivePhoto("사진·모션포토", setOf(ClipMediaKind.Photo, ClipMediaKind.LivePhoto)),
+    PhotoAndVideo("사진·영상", setOf(ClipMediaKind.Photo, ClipMediaKind.Video)),
+    LivePhotoAndVideo("모션포토·영상", setOf(ClipMediaKind.LivePhoto, ClipMediaKind.Video));
 
-    fun accepts(item: CalendarMediaItem): Boolean = when (this) {
-        All -> true
-        Photo -> item.kind == ClipMediaKind.Photo
-        LivePhoto -> item.kind == ClipMediaKind.LivePhoto
-        Video -> item.kind == ClipMediaKind.Video
+    fun accepts(item: CalendarMediaItem): Boolean = item.kind in kinds
+
+    fun includes(filter: RecentMediaFilter): Boolean = when (filter) {
+        All -> this == All
+        Photo, LivePhoto, Video -> filter.kinds.single() in kinds
+        PhotoAndLivePhoto, PhotoAndVideo, LivePhotoAndVideo -> filter.kinds.all(kinds::contains)
+    }
+
+    fun toggled(filter: RecentMediaFilter): RecentMediaFilter {
+        if (filter == All) return All
+        val kind = filter.kinds.single()
+        val updatedKinds = if (kind in kinds) kinds - kind else kinds + kind
+        if (updatedKinds.isEmpty()) return this
+        return entries.first { it.kinds == updatedKinds }
+    }
+
+    companion object {
+        val MenuEntries = listOf(All, Photo, LivePhoto, Video)
     }
 }
 
@@ -997,15 +1016,15 @@ private fun RecentDayActions(
                 shape = RoundedCornerShape(16.dp),
                 containerColor = palette.solidPanel
             ) {
-                RecentMediaFilter.entries.forEach { filter ->
+                RecentMediaFilter.MenuEntries.forEach { filter ->
+                    val selected = currentFilter.includes(filter)
                     DropdownMenuItem(
                         modifier = Modifier.semantics {
-                            selected = filter == currentFilter
+                            this.selected = selected
                         },
-                        text = { Text(if (filter == currentFilter) "✓ ${filter.title}" else filter.title) },
+                        text = { Text(if (selected) "✓ ${filter.title}" else filter.title) },
                         onClick = {
-                            showFilterMenu = false
-                            onFilterChange(filter)
+                            onFilterChange(currentFilter.toggled(filter))
                         }
                     )
                 }
@@ -2102,6 +2121,9 @@ private fun mediaStripTitle(
                 RecentMediaFilter.LivePhoto -> "기본 사진첩에는 모션포토가 없습니다."
                 RecentMediaFilter.Video -> "${visibleMonth.monthValue}월 기본 사진첩에는 영상이 없습니다."
                 RecentMediaFilter.All -> "기본 사진첩에는 미디어가 없습니다."
+                RecentMediaFilter.PhotoAndLivePhoto,
+                RecentMediaFilter.PhotoAndVideo,
+                RecentMediaFilter.LivePhotoAndVideo -> "선택한 종류의 미디어가 없습니다."
             }
         } else {
             mediaCountText("이번 달", photoCount, videoCount)
