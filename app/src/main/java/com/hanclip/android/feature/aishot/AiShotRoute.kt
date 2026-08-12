@@ -342,6 +342,8 @@ fun AiShotRoute(
     var activeRecordingSeconds by remember { mutableStateOf(shotLength.recordingSeconds) }
     var shotLengthNotice by remember { mutableStateOf<ShotLength?>(null) }
     var capturePhase by remember { mutableStateOf(AiShotCapturePhase.Detecting) }
+    var hasShownIntroSwing by remember { mutableStateOf(false) }
+    var isShowingIntroSwing by remember { mutableStateOf(false) }
 
     @SuppressLint("MissingPermission")
     fun triggerClip(reason: String) {
@@ -536,6 +538,14 @@ fun AiShotRoute(
         if (shotLengthNotice == null) return@LaunchedEffect
         delay(1700L)
         shotLengthNotice = null
+    }
+
+    LaunchedEffect(isRollingRecordingActive) {
+        if (!isRollingRecordingActive || hasShownIntroSwing) return@LaunchedEffect
+        hasShownIntroSwing = true
+        isShowingIntroSwing = true
+        delay((shotLength.fullSeconds * 1_000.0).toLong())
+        isShowingIntroSwing = false
     }
 
     LaunchedEffect(previewView, lensFacing, hasPermissions) {
@@ -747,6 +757,7 @@ fun AiShotRoute(
                 onZoomRatioChange = { zoomRatio = it },
                 lensLabel = if (lensFacing == CameraSelector.LENS_FACING_FRONT) "전면" else "후면",
                 isRecording = triggerTimeSeconds != null,
+                isShowingIntroSwing = isShowingIntroSwing,
                 onManualRecord = {
                     if (triggerTimeSeconds == null) {
                         triggerClip("수동 클립 저장 중")
@@ -962,6 +973,7 @@ private fun AiShotFloatingControls(
     onZoomRatioChange: (Float) -> Unit,
     lensLabel: String,
     isRecording: Boolean,
+    isShowingIntroSwing: Boolean,
     onManualRecord: () -> Unit,
     onSwitchCamera: () -> Unit
 ) {
@@ -1132,7 +1144,7 @@ private fun AiShotFloatingControls(
                             )
                     )
                     GolfSwingSpriteIndicator(
-                        isAnimating = isRecording,
+                        isAnimating = isRecording || isShowingIntroSwing,
                         playbackDurationSeconds = shotLength.fullSeconds,
                         modifier = Modifier.size(62.dp)
                     )
