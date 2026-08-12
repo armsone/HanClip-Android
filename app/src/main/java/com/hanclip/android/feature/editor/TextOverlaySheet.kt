@@ -73,6 +73,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hanclip.android.R
@@ -126,6 +128,23 @@ fun TextOverlaySheet(
     }
     val mediaDateCaptionText = remember(mediaCreatedAtMillis) {
         mediaDateRangeCaptionText(mediaCreatedAtMillis)
+    }
+    var captionTextFieldValue by rememberSaveable(
+        settings,
+        stateSaver = TextFieldValue.Saver
+    ) {
+        mutableStateOf(TextFieldValue(settings.text, TextRange(settings.text.length)))
+    }
+    var hasUserEditedCaptionText by rememberSaveable(settings.text, mediaDateCaptionText) {
+        mutableStateOf(!isBasicCaptionDateText(settings.text, mediaDateCaptionText))
+    }
+    LaunchedEffect(draft.text) {
+        if (captionTextFieldValue.text != draft.text) {
+            captionTextFieldValue = TextFieldValue(
+                text = draft.text,
+                selection = TextRange(draft.text.length)
+            )
+        }
     }
     var importedFonts by remember { mutableStateOf(ImportedFontStore.list(context)) }
     val fontPicker = rememberLauncherForActivityResult(
@@ -184,7 +203,15 @@ fun TextOverlaySheet(
                     titleIcon = Icons.Outlined.TextFields,
                     resetDescription = "자막 설정 되돌리기",
                     palette = palette,
-                    onReset = { draft = settings },
+                    onReset = {
+                        draft = settings
+                        captionTextFieldValue = TextFieldValue(
+                            settings.text,
+                            TextRange(settings.text.length)
+                        )
+                        hasUserEditedCaptionText =
+                            !isBasicCaptionDateText(settings.text, mediaDateCaptionText)
+                    },
                     onResetLongPress = {
                         activeCaptionPreset = null
                         captionPresetAppearances = emptyMap()
@@ -244,7 +271,22 @@ fun TextOverlaySheet(
                             .selectable(
                                 selected = selected,
                                 role = Role.RadioButton,
-                                onClick = { draft = draft.copy(isEnabled = true, text = presetText) }
+                                onClick = {
+                                    val insertion = insertCaptionDateText(
+                                        currentText = captionTextFieldValue.text,
+                                        selectionStart = captionTextFieldValue.selection.start,
+                                        selectionEnd = captionTextFieldValue.selection.end,
+                                        dateText = presetText,
+                                        replaceBasicText = !hasUserEditedCaptionText &&
+                                            isBasicCaptionDateText(draft.text, mediaDateCaptionText)
+                                    )
+                                    captionTextFieldValue = TextFieldValue(
+                                        insertion.text,
+                                        TextRange(insertion.cursor)
+                                    )
+                                    draft = draft.copy(isEnabled = true, text = insertion.text)
+                                    hasUserEditedCaptionText = !insertion.replacedBasicText
+                                }
                             ),
                         shape = RoundedCornerShape(16.dp),
                         color = if (selected) palette.primary.copy(alpha = 0.13f) else palette.panel,
@@ -263,11 +305,13 @@ fun TextOverlaySheet(
             }
 
             OutlinedTextField(
-                value = draft.text,
-                onValueChange = {
+                value = captionTextFieldValue,
+                onValueChange = { value ->
+                    captionTextFieldValue = value
+                    hasUserEditedCaptionText = true
                     draft = draft.copy(
-                        isEnabled = it.isNotBlank(),
-                        text = it
+                        isEnabled = value.text.isNotBlank(),
+                        text = value.text
                     )
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -2113,6 +2157,34 @@ private fun saveCaptionPresetAppearances(
 
 private fun mediaDateRangeCaptionText(createdAtMillis: List<Long>): String {
     return CaptionDateFormatter.range(createdAtMillis)
+}
+
+internal data class CaptionDateInsertion(
+    val text: String,
+    val cursor: Int,
+    val replacedBasicText: Boolean
+)
+
+internal fun insertCaptionDateText(
+    currentText: String,
+    selectionStart: Int,
+    selectionEnd: Int,
+    dateText: String,
+    replaceBasicText: Boolean
+): CaptionDateInsertion {
+    if (replaceBasicText) {
+        return CaptionDateInsertion(dateText, dateText.length, true)
+    }
+    val lower = minOf(selectionStart, selectionEnd).coerceIn(0, currentText.length)
+    val upper = maxOf(selectionStart, selectionEnd).coerceIn(lower, currentText.length)
+    val result = currentText.replaceRange(lower, upper, dateText)
+    return CaptionDateInsertion(result, lower + dateText.length, false)
+}
+
+private fun isBasicCaptionDateText(text: String, mediaDateCaptionText: String): Boolean {
+    return text == CaptionTextPreset.Today.text() ||
+        text == mediaDateCaptionText ||
+        text == "여기에 글을 넣으세요."
 }
 
 private enum class CaptionTextPreset(val title: String) {
