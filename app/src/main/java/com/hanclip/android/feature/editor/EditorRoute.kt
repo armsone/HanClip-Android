@@ -1447,7 +1447,7 @@ private fun EditorHeader(
                     .size(58.dp)
                     .clickable(onClick = onAddMedia),
                 shape = androidx.compose.foundation.shape.CircleShape,
-                color = palette.solidPanel,
+                color = palette.panel.copy(alpha = palette.panel.alpha * 0.72f),
                 border = BorderStroke(
                     1.dp,
                     palette.border.copy(alpha = palette.border.alpha * 0.62f)
@@ -1457,7 +1457,7 @@ private fun EditorHeader(
                     Icons.Outlined.AddPhotoAlternate,
                     contentDescription = "미디어 추가",
                     tint = palette.primary,
-                    modifier = Modifier.padding(15.dp)
+                    modifier = Modifier.padding(16.5.dp)
                 )
             }
         }
@@ -1468,8 +1468,19 @@ private fun EditorHeader(
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Outlined.MovieCreation, contentDescription = null, tint = palette.secondary, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
+            Surface(
+                modifier = Modifier.size(18.dp),
+                shape = RoundedCornerShape(5.dp),
+                color = palette.secondary.copy(alpha = 0.10f)
+            ) {
+                Icon(
+                    Icons.Outlined.MovieCreation,
+                    contentDescription = null,
+                    tint = palette.primary.copy(alpha = 0.72f),
+                    modifier = Modifier.padding(4.dp)
+                )
+            }
+            Spacer(Modifier.width(7.dp))
             Text(
                 "영화 제작",
                 color = palette.text.copy(alpha = 0.76f),
