@@ -47,6 +47,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -786,6 +787,7 @@ fun AiShotRoute(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             AiShotFloatingControls(
+                primaryColor = palette.primary,
                 accentColor = palette.secondary,
                 shotLength = shotLength,
                 onShotLengthTap = ::selectNextShotLength,
@@ -1067,6 +1069,7 @@ private fun AiShotModelInfoRow() {
 @Composable
 private fun AiShotFloatingControls(
     modifier: Modifier = Modifier,
+    primaryColor: Color,
     accentColor: Color,
     shotLength: ShotLength,
     onShotLengthTap: () -> Unit,
@@ -1223,6 +1226,7 @@ private fun AiShotFloatingControls(
                 icon = { Icon(Icons.Outlined.Timer, contentDescription = null) },
                 title = shotLength.title,
                 contentDescription = "샷 시간 ${shotLength.title}, ${shotLength.timingDescription}",
+                primaryColor = primaryColor,
                 accentColor = accentColor,
                 onClick = onShotLengthTap
             )
@@ -1262,6 +1266,7 @@ private fun AiShotFloatingControls(
                 icon = { Icon(Icons.Outlined.Cameraswitch, contentDescription = null) },
                 title = lensLabel,
                 contentDescription = "카메라 전환, 현재 $lensLabel",
+                primaryColor = primaryColor,
                 accentColor = accentColor,
                 enabled = !isSwitchingCamera,
                 onClick = onSwitchCamera
@@ -1321,6 +1326,7 @@ private fun FloatingSideButton(
     icon: @Composable () -> Unit,
     title: String,
     contentDescription: String,
+    primaryColor: Color,
     accentColor: Color,
     enabled: Boolean = true,
     onClick: () -> Unit
@@ -1331,37 +1337,49 @@ private fun FloatingSideButton(
         modifier = Modifier
             .width(116.dp)
             .height(52.dp)
+            .background(
+                Brush.linearGradient(
+                    listOf(accentColor.copy(alpha = 0.15f), Color.Black.copy(alpha = 0.78f))
+                ),
+                RoundedCornerShape(12.dp)
+            )
+            .border(1.dp, accentColor.copy(alpha = 0.70f), RoundedCornerShape(12.dp))
             .semantics { this.contentDescription = contentDescription },
         shape = RoundedCornerShape(12.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = Color.Black.copy(alpha = 0.70f),
+            containerColor = Color.Transparent,
             contentColor = Color.White
         ),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
     ) {
-        Row(
+        Box(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            contentAlignment = Alignment.Center
         ) {
-            Surface(
-                color = accentColor.copy(alpha = 0.72f),
-                shape = RoundedCornerShape(9.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(30.dp)
-                        .padding(6.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    icon()
-                }
-            }
             Text(
                 title,
+                modifier = Modifier.offset(x = 8.dp),
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1
             )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 8.dp)
+                    .size(30.dp)
+                    .background(
+                        Brush.linearGradient(
+                            listOf(accentColor.copy(alpha = 0.72f), primaryColor.copy(alpha = 0.52f))
+                        ),
+                        RoundedCornerShape(9.dp)
+                    )
+                    .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(9.dp))
+                    .padding(6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                icon()
+            }
         }
     }
 }
