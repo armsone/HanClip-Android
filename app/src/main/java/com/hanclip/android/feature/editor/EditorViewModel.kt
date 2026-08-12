@@ -10,6 +10,7 @@ import com.hanclip.android.core.media.MediaImportReader
 import com.hanclip.android.core.media.Media3TransformerExportService
 import com.hanclip.android.core.media.ExportForegroundService
 import com.hanclip.android.core.media.VideoExportRequest
+import com.hanclip.android.core.media.VideoSegmentPolicy
 import com.hanclip.android.core.model.BackgroundMusicSample
 import com.hanclip.android.core.model.CaptionDateFormatter
 import com.hanclip.android.core.model.ClipItem
@@ -1643,6 +1644,12 @@ class EditorViewModel : ViewModel() {
             val target = state.clips.firstOrNull { it.id == id }
             val groupId = target?.similarPhotoGroupId ?: return@update state
             val shouldInclude = !target.isSimilarPhotoGroupRepresentative
+            if (!shouldInclude && state.clips.count {
+                    it.similarPhotoGroupId == groupId && it.isSimilarPhotoGroupRepresentative
+                } <= 1
+            ) {
+                return@update state
+            }
             lastUndoSnapshot = EditorUndoSnapshot(
                 state = state,
                 restoredMessage = if (shouldInclude) "사진 포함을 되돌렸습니다." else "사진 제외를 되돌렸습니다."
@@ -1881,7 +1888,20 @@ class EditorViewModel : ViewModel() {
                     similarPhotoGroupId = groupId,
                     similarPhotoGroupIndex = offset,
                     similarPhotoGroupCount = currentGroup.size,
-                    isSimilarPhotoGroupRepresentative = clip.id in representativeIds
+                    isSimilarPhotoGroupRepresentative = clip.id in representativeIds,
+                    videoSegmentMode = VideoSegmentMode.Single,
+                    livePhotoMode = if (clip.isLivePhoto) LivePhotoMode.Still else clip.livePhotoMode,
+                    photoDurationSeconds = if (clip.isLivePhoto) {
+                        _uiState.value.defaultDurationSeconds
+                    } else {
+                        clip.photoDurationSeconds
+                    },
+                    durationSeconds = if (clip.isLivePhoto) {
+                        _uiState.value.defaultDurationSeconds
+                    } else {
+                        clip.durationSeconds
+                    },
+                    trimStartSeconds = if (clip.isLivePhoto) 0.0 else clip.trimStartSeconds
                 )
             }
         }
@@ -2019,10 +2039,20 @@ class EditorViewModel : ViewModel() {
             }
         }
 
-        val representativeIndex = groupIndices.firstOrNull {
-            clips[it].isSimilarPhotoGroupRepresentative
-        } ?: groupIndices.maxBy { index ->
-            photoRepresentativeScore(clips[index])
+        val parentIndex = groupIndices.first()
+        val representativeIds = when (clips[parentIndex].videoSegmentMode) {
+            VideoSegmentMode.Single -> automaticSimilarPhotoRepresentativeIds(
+                clips,
+                groupIndices,
+                _uiState.value.similarPhotoRepresentativeInterval
+            )
+            VideoSegmentMode.Multiple -> groupIndices
+                .filter { clips[it].isSimilarPhotoGroupRepresentative }
+                .mapTo(mutableSetOf()) { clips[it].id }
+                .ifEmpty {
+                    mutableSetOf(clips[groupIndices.maxBy { photoRepresentativeScore(clips[it]) }].id)
+                }
+            VideoSegmentMode.All -> groupIndices.mapTo(mutableSetOf()) { clips[it].id }
         }
         return clips.mapIndexed { index, clip ->
             if (index !in groupIndices) {
@@ -2031,7 +2061,12 @@ class EditorViewModel : ViewModel() {
                 clip.copy(
                     similarPhotoGroupIndex = groupIndices.indexOf(index),
                     similarPhotoGroupCount = groupIndices.size,
-                    isSimilarPhotoGroupRepresentative = index == representativeIndex
+                    isSimilarPhotoGroupRepresentative = clip.id in representativeIds,
+                    videoSegmentMode = if (index == parentIndex) {
+                        clips[parentIndex].videoSegmentMode
+                    } else {
+                        VideoSegmentMode.Single
+                    }
                 )
             }
         }
@@ -2338,10 +2373,7 @@ class EditorViewModel : ViewModel() {
         val parent = clip.copy(
             videoSegmentMode = VideoSegmentMode.Multiple,
             isVideoSegmentParent = true,
-            videoSegmentParentId = null,
-            trimStartSeconds = 0.0,
-            durationSeconds = sourceDuration,
-            photoDurationSeconds = sourceDuration
+            videoSegmentParentId = null
         )
         val children = peaks.mapIndexed { index, peak ->
             val trimStart = max(
@@ -2350,7 +2382,7 @@ class EditorViewModel : ViewModel() {
             )
             clip.copy(
                 id = "${parentId}-segment-${index}-${UUID.randomUUID()}",
-                videoSegmentMode = VideoSegmentMode.Multiple,
+                videoSegmentMode = VideoSegmentMode.Single,
                 isVideoSegmentParent = false,
                 videoSegmentParentId = parentId,
                 durationSeconds = selectedDuration,
@@ -2373,72 +2405,13 @@ class EditorViewModel : ViewModel() {
         val rawPeaks = clip.audioPeakTimesSeconds.ifEmpty {
             listOf(fallbackPeak)
         }
-        val deduplicated = rawPeaks
-            .mapNotNull { peak ->
-                peak
-                    .takeIf { it.isFinite() }
-                    ?.coerceIn(0.0, sourceDuration)
-            }
-            .fold(emptyList<Double>()) { result, peak ->
-                if (result.any { kotlin.math.abs(it - peak) < 0.08 }) {
-                    result
-                } else {
-                    result + peak
-                }
-            }
-
-        val enriched = enrichSparsePeaks(
-            peaks = deduplicated.ifEmpty { listOf(sourceDuration / 2.0) },
-            sourceDuration = sourceDuration,
-            selectedDuration = selectedDuration
-        )
-        return nonOverlappingPeaks(
-            rankedPeaks = enriched,
+        return VideoSegmentPolicy.nonOverlappingPeaks(
+            rawPeaks = rawPeaks,
+            fallbackPeak = fallbackPeak,
             sourceDuration = sourceDuration,
             selectedDuration = selectedDuration,
             limit = 12
-        ).sorted()
-    }
-
-    private fun enrichSparsePeaks(
-        peaks: List<Double>,
-        sourceDuration: Double,
-        selectedDuration: Double
-    ): List<Double> {
-        if (peaks.size >= 2 || sourceDuration <= selectedDuration * 1.35) {
-            return peaks
-        }
-        val primary = peaks.firstOrNull() ?: sourceDuration / 2.0
-        val spacing = max(selectedDuration * 0.8, min(2.0, sourceDuration / 3.0))
-        return listOf(
-            primary,
-            primary - spacing,
-            primary + spacing,
-            sourceDuration * 0.33,
-            sourceDuration * 0.67
         )
-            .map { it.coerceIn(selectedDuration / 2.0, sourceDuration - selectedDuration / 2.0) }
-            .distinctBy { (it * 10).toInt() }
-    }
-
-    private fun nonOverlappingPeaks(
-        rankedPeaks: List<Double>,
-        sourceDuration: Double,
-        selectedDuration: Double,
-        limit: Int
-    ): List<Double> {
-        val minimumSeparation = max(0.45, selectedDuration * 0.72)
-        val selected = mutableListOf<Double>()
-        rankedPeaks.forEach { peak ->
-            val safePeak = peak.coerceIn(0.0, sourceDuration)
-            if (selected.all { kotlin.math.abs(it - safePeak) >= minimumSeparation }) {
-                selected += safePeak
-            }
-            if (selected.size >= limit) return@forEach
-        }
-        return selected.ifEmpty {
-            listOf(sourceDuration / 2.0)
-        }
     }
 }
 

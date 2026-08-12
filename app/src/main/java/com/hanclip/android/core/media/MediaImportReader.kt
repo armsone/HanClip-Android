@@ -30,6 +30,7 @@ import java.util.UUID
 import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 internal data class ImportedClipPlayback(
     val livePhotoMode: LivePhotoMode,
@@ -274,7 +275,7 @@ object MediaImportReader {
                         Color.red(pixel) * 0.299 +
                             Color.green(pixel) * 0.587 +
                             Color.blue(pixel) * 0.114
-                        ).toInt().coerceIn(0, 255)
+                        ).roundToInt().coerceIn(0, 255)
                     add(luminance)
                 }
             }
