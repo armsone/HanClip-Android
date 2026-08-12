@@ -2389,20 +2389,53 @@ private fun QuickRatioChoice(
                 selected = selected,
                 role = Role.RadioButton,
                 onClick = onClick
-            ),
-        shape = RoundedCornerShape(12.dp),
-        color = if (selected) palette.primary.copy(alpha = 0.14f) else Color.Transparent,
-        border = BorderStroke(1.dp, if (selected) palette.primary else Color.Transparent)
+        ),
+        shape = RoundedCornerShape(0.dp),
+        color = Color.Transparent
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Text(
-                label,
-                color = if (selected) palette.primary else palette.secondary,
-                fontSize = 10.sp,
-                lineHeight = 10.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .background(
+                        if (selected) palette.primary.copy(alpha = 0.14f) else Color.Transparent,
+                        RoundedCornerShape(8.dp)
+                    )
+                    .border(
+                        if (selected) 2.dp else 1.dp,
+                        if (selected) palette.primary else palette.secondary.copy(alpha = 0.72f),
+                        RoundedCornerShape(8.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                if (label == "첫\n사진") {
+                    Text(
+                        label,
+                        color = if (selected) palette.primary else palette.secondary,
+                        fontSize = 10.sp,
+                        lineHeight = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                } else {
+                    val (iconWidth, iconHeight) = when (label) {
+                        "1:1" -> 20.dp to 20.dp
+                        "3:4" -> 18.dp to 24.dp
+                        "4:3" -> 24.dp to 18.dp
+                        "9:16" -> 13.5.dp to 24.dp
+                        else -> 24.dp to 13.5.dp
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(width = iconWidth, height = iconHeight)
+                            .border(
+                                2.dp,
+                                if (selected) palette.primary else palette.secondary,
+                                RoundedCornerShape(2.dp)
+                            )
+                    )
+                }
+            }
         }
     }
 }
