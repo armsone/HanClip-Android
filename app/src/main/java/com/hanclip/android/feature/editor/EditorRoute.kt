@@ -186,9 +186,9 @@ fun EditorRoute(
     var isMusicSettingsSheetVisible by remember { mutableStateOf(false) }
     var isCalendarPickerVisible by rememberSaveable { mutableStateOf(false) }
     var mediaPickerTitle by rememberSaveable { mutableStateOf("날짜별") }
-    var isReorderMode by remember { mutableStateOf(false) }
-    var isAdvancedSettingsExpanded by remember { mutableStateOf(false) }
-    var isClipSettingsExpanded by remember(state.activeProjectId) {
+    var isReorderMode by rememberSaveable { mutableStateOf(false) }
+    var isAdvancedSettingsExpanded by rememberSaveable { mutableStateOf(false) }
+    var isClipSettingsExpanded by rememberSaveable(state.activeProjectId) {
         mutableStateOf(DefaultClipSettingsExpanded)
     }
     var isImportMenuVisible by remember { mutableStateOf(false) }
