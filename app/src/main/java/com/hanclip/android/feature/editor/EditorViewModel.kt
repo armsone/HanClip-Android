@@ -1372,7 +1372,7 @@ class EditorViewModel : ViewModel() {
                     }
                 },
                 alertMessage = if (state.clips.any { it.mediaKind == ClipMediaKind.LivePhoto }) {
-                    if (useMotion) "모션포토를 Live로 사용합니다." else "모션포토를 사진으로 사용합니다."
+                    if (useMotion) "모션포토를 영상으로 사용합니다." else "모션포토를 사진으로 사용합니다."
                 } else {
                     "현재 프로젝트에 모션포토가 없습니다."
                 }

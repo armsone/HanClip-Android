@@ -13,7 +13,7 @@ enum class ClipMediaKind {
 
 enum class LivePhotoMode(val title: String) {
     Still("사진"),
-    Motion("Live")
+    Motion("영상")
 }
 
 enum class VideoSegmentMode(val title: String) {
