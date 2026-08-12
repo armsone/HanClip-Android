@@ -29,6 +29,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,12 +52,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.SmartDisplay
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.KeyboardReturn
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Bookmark
@@ -79,7 +83,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -98,6 +101,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -105,6 +109,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -372,18 +377,19 @@ fun OnlineMusicBrowserRoute(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .statusBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(32.dp)
                         .combinedClickable(
                             onClick = ::closeOrGoBack,
                             onLongClick = {
@@ -401,24 +407,56 @@ fun OnlineMusicBrowserRoute(
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        if (canGoBack) Icons.AutoMirrored.Outlined.ArrowBack else Icons.Outlined.Close,
-                        contentDescription = null,
-                        tint = palette.text
+                    BrowserToolbarGlyph(
+                        icon = if (canGoBack) Icons.AutoMirrored.Outlined.ArrowBack else Icons.Outlined.Close,
+                        palette = palette
                     )
                 }
-                OutlinedTextField(
-                    modifier = Modifier.weight(1f),
+                BasicTextField(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(32.dp)
+                        .background(
+                            palette.panel.copy(alpha = 0.72f),
+                            androidx.compose.foundation.shape.CircleShape
+                        )
+                        .border(
+                            1.dp,
+                            palette.secondary.copy(alpha = 0.14f),
+                            androidx.compose.foundation.shape.CircleShape
+                        ),
                     value = addressText,
                     onValueChange = { addressText = it },
                     singleLine = true,
-                    textStyle = MaterialTheme.typography.bodySmall,
+                    textStyle = TextStyle(
+                        color = palette.text,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    ),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                    keyboardActions = KeyboardActions(onGo = { loadAddress() })
+                    keyboardActions = KeyboardActions(onGo = { loadAddress() }),
+                    decorationBox = { innerTextField ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 10.dp),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            if (addressText.isBlank()) {
+                                Text(
+                                    "웹 주소 입력",
+                                    color = palette.subText,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                            innerTextField()
+                        }
+                    }
                 )
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(32.dp)
                         .combinedClickable(
                             onClick = {
                                 if (isPageLoading) {
@@ -443,18 +481,23 @@ fun OnlineMusicBrowserRoute(
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        if (isPageLoading) Icons.Outlined.Close else Icons.AutoMirrored.Outlined.ArrowBack,
-                        contentDescription = null,
-                        tint = palette.text
+                    BrowserToolbarGlyph(
+                        icon = if (isPageLoading) Icons.Outlined.Close else Icons.AutoMirrored.Outlined.KeyboardReturn,
+                        isPrimary = true,
+                        palette = palette
                     )
                 }
-                IconButton(onClick = { webView?.reload() }) {
-                    Icon(Icons.Outlined.Refresh, contentDescription = "새로고침", tint = palette.text)
-                }
-                Surface(
+                Box(
                     modifier = Modifier
-                        .height(48.dp)
+                        .size(32.dp)
+                        .combinedClickable(onClick = { webView?.reload() }),
+                    contentAlignment = Alignment.Center
+                ) {
+                    BrowserToolbarGlyph(icon = Icons.Outlined.Refresh, palette = palette)
+                }
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
                         .combinedClickable(
                             onClick = { isFavoritePanelVisible = !isFavoritePanelVisible },
                             onLongClick = {
@@ -466,12 +509,17 @@ fun OnlineMusicBrowserRoute(
                         .semantics(mergeDescendants = true) {
                             contentDescription = "즐겨찾기 목록, 길게 눌러 현재 주소 등록 또는 해제"
                         },
-                    color = Color.Transparent
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        Icons.Outlined.Bookmark,
-                        contentDescription = null,
-                        tint = if (favorites.contains(normalizedBrowserUrl(addressText))) palette.primary else palette.text
+                    BrowserToolbarGlyph(
+                        icon = Icons.Outlined.Bookmark,
+                        palette = palette,
+                        isSelected = favorites.contains(normalizedBrowserUrl(addressText)),
+                        tint = if (favorites.contains(normalizedBrowserUrl(addressText))) {
+                            palette.primary
+                        } else {
+                            palette.text.copy(alpha = 0.68f)
+                        }
                     )
                 }
             }
@@ -599,7 +647,7 @@ fun OnlineMusicBrowserRoute(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .statusBarsPadding()
-                    .padding(start = 12.dp, top = 78.dp, end = 12.dp)
+                    .padding(start = 12.dp, top = 58.dp, end = 12.dp)
                     .zIndex(2f),
                 favorites = favorites,
                 maxPanelHeight = (maxHeight - 90.dp).coerceAtLeast(136.dp),
@@ -922,6 +970,37 @@ private fun queryBrowserDownload(
 }
 
 @Composable
+private fun BrowserToolbarGlyph(
+    icon: ImageVector,
+    palette: com.hanclip.android.core.theme.HanClipPalette,
+    isPrimary: Boolean = false,
+    isSelected: Boolean = false,
+    tint: Color = if (isPrimary) Color.White else palette.text.copy(alpha = 0.68f)
+) {
+    Surface(
+        modifier = Modifier.size(32.dp),
+        shape = androidx.compose.foundation.shape.CircleShape,
+        color = when {
+            isPrimary -> palette.primary
+            isSelected -> palette.primary.copy(alpha = 0.12f)
+            else -> palette.panel.copy(alpha = 0.90f)
+        },
+        border = BorderStroke(
+            1.dp,
+            when {
+                isPrimary -> palette.primary.copy(alpha = 0.34f)
+                isSelected -> palette.primary.copy(alpha = 0.30f)
+                else -> palette.secondary.copy(alpha = 0.14f)
+            }
+        )
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(13.dp))
+        }
+    }
+}
+
+@Composable
 private fun BrowserDetectedVideoPanel(
     palette: com.hanclip.android.core.theme.HanClipPalette,
     onDownload: () -> Unit,
@@ -929,7 +1008,10 @@ private fun BrowserDetectedVideoPanel(
     onDismiss: () -> Unit
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .padding(horizontal = 12.dp)
+            .padding(top = 12.dp)
+            .fillMaxWidth(),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
         color = palette.solidPanel,
         border = BorderStroke(1.dp, palette.secondary.copy(alpha = 0.22f))
@@ -976,7 +1058,10 @@ private fun BrowserDownloadPanel(
     onCancel: () -> Unit
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .padding(horizontal = 12.dp)
+            .padding(top = 12.dp)
+            .fillMaxWidth(),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
         color = palette.solidPanel,
         border = BorderStroke(1.dp, palette.secondary.copy(alpha = 0.32f))
