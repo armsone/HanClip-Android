@@ -1236,7 +1236,6 @@ private fun AiShotFloatingControls(
             } else {
                 Button(
                     onClick = onManualRecord,
-                    enabled = isReadyForTrigger,
                     modifier = Modifier
                         .size(88.dp)
                         .semantics {
@@ -1244,7 +1243,7 @@ private fun AiShotFloatingControls(
                         },
                     shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.Black.copy(alpha = 0.34f),
+                        containerColor = Color.Black.copy(alpha = 0.32f),
                         contentColor = Color.White
                     ),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
@@ -1253,13 +1252,31 @@ private fun AiShotFloatingControls(
                         Box(
                             modifier = Modifier
                                 .size(78.dp)
-                                .border(5.dp, accentColor.copy(alpha = 0.62f), CircleShape)
+                                .border(
+                                    5.dp,
+                                    if (isReadyForTrigger) {
+                                        accentColor.copy(alpha = 0.62f)
+                                    } else {
+                                        Color.White.copy(alpha = 0.28f)
+                                    },
+                                    CircleShape
+                                )
                         )
-                        GolfSwingSpriteIndicator(
-                            isAnimating = isShowingIntroSwing,
-                            playbackDurationSeconds = shotLength.fullSeconds,
-                            modifier = Modifier.size(62.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(62.dp)
+                                .background(
+                                    Color.Red.copy(alpha = if (isReadyForTrigger) 1f else 0.42f),
+                                    CircleShape
+                                )
                         )
+                        if (isShowingIntroSwing) {
+                            GolfSwingSpriteIndicator(
+                                isAnimating = true,
+                                playbackDurationSeconds = shotLength.fullSeconds,
+                                modifier = Modifier.size(54.dp)
+                            )
+                        }
                     }
                 }
             }
