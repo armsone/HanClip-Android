@@ -1076,6 +1076,7 @@ private fun FullscreenPreviewDialog(
     var zoomOffset by remember { mutableStateOf(Offset.Zero) }
     var areControlsVisible by remember { mutableStateOf(true) }
     var isPlayerPlaying by remember { mutableStateOf(false) }
+    var playbackProgress by remember { mutableFloatStateOf(0f) }
     val manualAspectModeSelection by rememberUpdatedState(hasManualAspectModeSelection)
     val looping by rememberUpdatedState(isLooping)
     val dismissThresholdPx = with(LocalDensity.current) { 120.dp.toPx() }
@@ -1128,6 +1129,17 @@ private fun FullscreenPreviewDialog(
         if (areControlsVisible && zoomScale <= 1.01f && isPlayerPlaying) {
             delay(2_600)
             if (isPlayerPlaying) areControlsVisible = false
+        }
+    }
+    LaunchedEffect(player) {
+        while (true) {
+            val durationMs = player.duration
+            playbackProgress = if (durationMs > 0L) {
+                (player.currentPosition.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+            } else {
+                0f
+            }
+            delay(100)
         }
     }
     Dialog(
@@ -1303,6 +1315,22 @@ private fun FullscreenPreviewDialog(
                         Icon(Icons.Outlined.Close, contentDescription = null, tint = Color.White)
                     }
                 }
+                }
+                if (!areControlsVisible) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .height(2.dp)
+                            .background(Color.White.copy(alpha = 0.22f))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(playbackProgress)
+                                .height(2.dp)
+                                .background(Color.White.copy(alpha = 0.92f))
+                        )
+                    }
                 }
             }
         }
