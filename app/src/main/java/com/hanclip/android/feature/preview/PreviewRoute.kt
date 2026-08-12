@@ -56,6 +56,7 @@ import androidx.compose.material.icons.outlined.Photo
 import androidx.compose.material.icons.outlined.PauseCircle
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Repeat
+import androidx.compose.material.icons.outlined.SmartDisplay
 import androidx.compose.material.icons.outlined.VideoFile
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -318,7 +319,7 @@ fun PreviewRoute(
                 color = palette.secondary.copy(alpha = 0.10f)
             ) {
                 Icon(
-                    Icons.Outlined.PlayCircle,
+                    Icons.Outlined.SmartDisplay,
                     contentDescription = null,
                     tint = palette.primary.copy(alpha = 0.72f),
                     modifier = Modifier.padding(4.dp)
