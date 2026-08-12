@@ -2316,34 +2316,25 @@ private fun CalendarMediaThumb(
                 contentScale = ContentScale.Crop
             )
         }
-        if (item.kind == ClipMediaKind.Video) {
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(6.dp),
-                shape = RoundedCornerShape(10.dp),
-                color = Color.Black.copy(alpha = 0.58f)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Outlined.MovieCreation,
-                        contentDescription = "영상",
-                        tint = Color.White,
-                        modifier = Modifier.size(13.dp)
-                    )
-                    item.durationMillis?.let { durationMillis ->
-                        Spacer(Modifier.width(3.dp))
-                        Text(
-                            formatDurationBadge(durationMillis),
-                            color = Color.White,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
+        Surface(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 5.dp, bottom = 5.dp)
+                .size(width = 20.dp, height = 18.dp),
+            shape = RoundedCornerShape(7.dp),
+            color = palette.text.copy(alpha = 0.32f)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    if (item.kind == ClipMediaKind.Video) Icons.Outlined.MovieCreation else Icons.Outlined.Photo,
+                    contentDescription = when (item.kind) {
+                        ClipMediaKind.Video -> "영상"
+                        ClipMediaKind.LivePhoto -> "모션포토"
+                        ClipMediaKind.Photo -> "사진"
+                    },
+                    tint = palette.solidPanel.copy(alpha = 0.80f),
+                    modifier = Modifier.size(12.dp)
+                )
             }
         }
         if (selectedOrder != null) {
