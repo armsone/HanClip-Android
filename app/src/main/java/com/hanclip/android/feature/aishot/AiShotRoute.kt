@@ -37,11 +37,14 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -676,13 +679,58 @@ fun AiShotRoute(
         }
     }
 
-    Column(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
     ) {
+        val previewModifier = if (maxHeight >= maxWidth * (4f / 3f)) {
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(3f / 4f)
+        } else {
+            Modifier
+                .fillMaxHeight()
+                .aspectRatio(3f / 4f)
+        }
+
+        if (hasPermissions) {
+            AndroidView(
+                factory = { viewContext ->
+                    PreviewView(viewContext).apply {
+                        implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                        scaleType = PreviewView.ScaleType.FILL_CENTER
+                        previewView = this
+                    }
+                },
+                modifier = previewModifier.align(Alignment.Center)
+            )
+        } else {
+            Box(
+                modifier = previewModifier.align(Alignment.Center),
+                contentAlignment = Alignment.Center
+            ) {
+                PermissionPanel(
+                    onRequest = {
+                        permissionLauncher.launch(
+                            arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
+                        )
+                    },
+                    onOpenSettings = {
+                        context.startActivity(
+                            Intent(
+                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.parse("package:${context.packageName}")
+                            )
+                        )
+                    }
+                )
+            }
+        }
+
         Column(
             modifier = Modifier
+                .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .statusBarsPadding()
                 .padding(horizontal = 18.dp, vertical = 12.dp),
@@ -711,45 +759,9 @@ fun AiShotRoute(
             )
         }
 
-        Box(modifier = Modifier.weight(1f)) {
-            if (hasPermissions) {
-                AndroidView(
-                    factory = { viewContext ->
-                        PreviewView(viewContext).apply {
-                            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-                            scaleType = PreviewView.ScaleType.FILL_CENTER
-                            previewView = this
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                PermissionPanel(
-                    onRequest = {
-                        permissionLauncher.launch(
-                            arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
-                        )
-                    },
-                    onOpenSettings = {
-                        context.startActivity(
-                            Intent(
-                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                Uri.parse("package:${context.packageName}")
-                            )
-                        )
-                    }
-                )
-            }
-            shotLengthNotice?.let { notice ->
-                ShotLengthNoticePanel(
-                    shotLength = notice,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-            }
-        }
-
         Column(
             modifier = Modifier
+                .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .navigationBarsPadding()
                 .padding(horizontal = 18.dp, vertical = 12.dp),
@@ -787,6 +799,13 @@ fun AiShotRoute(
                         lensFacing = targetLensFacing
                     }
                 }
+            )
+        }
+
+        shotLengthNotice?.let { notice ->
+            ShotLengthNoticePanel(
+                shotLength = notice,
+                modifier = Modifier.align(Alignment.Center)
             )
         }
     }
