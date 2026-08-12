@@ -3276,7 +3276,11 @@ private fun EndingSettingRow(
             border = BorderStroke(1.dp, palette.border)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onDecreaseDuration, modifier = Modifier.size(48.dp)) {
+                IconButton(
+                    onClick = onDecreaseDuration,
+                    enabled = duration > 1.0,
+                    modifier = Modifier.size(48.dp)
+                ) {
                     Icon(Icons.Outlined.Remove, contentDescription = "엔딩 시간 줄이기", modifier = Modifier.size(13.dp))
                 }
                 Text(
@@ -3285,7 +3289,11 @@ private fun EndingSettingRow(
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
                 )
-                IconButton(onClick = onIncreaseDuration, modifier = Modifier.size(48.dp)) {
+                IconButton(
+                    onClick = onIncreaseDuration,
+                    enabled = duration < 10.0,
+                    modifier = Modifier.size(48.dp)
+                ) {
                     Icon(Icons.Outlined.Add, contentDescription = "엔딩 시간 늘리기", modifier = Modifier.size(13.dp))
                 }
             }
@@ -3601,7 +3609,9 @@ private fun CompactClipRow(
                 CompactDurationStepper(
                     palette = palette,
                     onDecrease = onDecreaseDuration,
-                    onIncrease = onIncreaseDuration
+                    onIncrease = onIncreaseDuration,
+                    canDecrease = clip.durationSeconds > 0.1,
+                    canIncrease = clip.durationSeconds < clipMaximumDuration(clip)
                 )
             }
         }
@@ -3621,7 +3631,9 @@ private fun clipCompactTimeText(clip: ClipItem, childSegmentCount: Int): String 
 private fun CompactDurationStepper(
     palette: HanClipPalette,
     onDecrease: () -> Unit,
-    onIncrease: () -> Unit
+    onIncrease: () -> Unit,
+    canDecrease: Boolean,
+    canIncrease: Boolean
 ) {
     Surface(
         shape = RoundedCornerShape(50),
@@ -3629,16 +3641,27 @@ private fun CompactDurationStepper(
         border = BorderStroke(1.dp, palette.border)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onDecrease, modifier = Modifier.size(48.dp)) {
+            IconButton(onClick = onDecrease, enabled = canDecrease, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Outlined.Remove, contentDescription = "시간 줄이기", modifier = Modifier.size(18.dp))
             }
             Box(Modifier.width(1.dp).height(22.dp).background(palette.border))
-            IconButton(onClick = onIncrease, modifier = Modifier.size(48.dp)) {
+            IconButton(onClick = onIncrease, enabled = canIncrease, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Outlined.Add, contentDescription = "시간 늘리기", modifier = Modifier.size(18.dp))
             }
         }
     }
 }
+
+private fun clipMaximumDuration(clip: ClipItem): Double =
+    if (
+        clip.mediaKind == ClipMediaKind.Video ||
+        (clip.mediaKind == ClipMediaKind.LivePhoto &&
+            clip.livePhotoMode == com.hanclip.android.core.model.LivePhotoMode.Motion)
+    ) {
+        clip.sourceDurationSeconds ?: clip.durationSeconds
+    } else {
+        30.0
+    }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

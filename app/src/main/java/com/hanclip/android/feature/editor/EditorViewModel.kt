@@ -34,6 +34,7 @@ import com.hanclip.android.core.project.ExportRecoveryStore
 import com.hanclip.android.core.project.MovieCollectionStore
 import com.hanclip.android.core.project.BackgroundMusicStore
 import com.hanclip.android.core.project.ImportedFontStore
+import com.hanclip.android.core.safety.normalizedPhotoDuration
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -1270,7 +1271,7 @@ class EditorViewModel : ViewModel() {
                             )
                         )
                     } else {
-                        val newDuration = max(0.1, clip.durationSeconds + deltaSeconds)
+                        val newDuration = normalizedPhotoDuration(clip.durationSeconds + deltaSeconds)
                         clip.copy(
                             durationSeconds = newDuration,
                             photoDurationSeconds = newDuration,

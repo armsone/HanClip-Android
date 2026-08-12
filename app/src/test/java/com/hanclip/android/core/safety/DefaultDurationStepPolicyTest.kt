@@ -24,4 +24,11 @@ class DefaultDurationStepPolicyTest {
         assertEquals(3.5, steppedDefaultDuration(3.7, increase = false), 0.0)
         assertEquals(4.0, steppedDefaultDuration(3.7, increase = true), 0.0)
     }
+
+    @Test
+    fun `photo duration never leaves the supported range`() {
+        assertEquals(0.1, normalizedPhotoDuration(-0.9), 0.0)
+        assertEquals(12.0, normalizedPhotoDuration(12.0), 0.0)
+        assertEquals(30.0, normalizedPhotoDuration(31.0), 0.0)
+    }
 }

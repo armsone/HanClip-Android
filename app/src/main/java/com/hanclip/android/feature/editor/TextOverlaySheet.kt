@@ -779,7 +779,8 @@ internal fun EndingInfoCardSettings(
                         IconButton(
                             onClick = {
                                 onChange(settings.copy(endingInfoCardDuration = settings.normalizedEndingInfoCardDuration - 0.5))
-                            }
+                            },
+                            enabled = settings.normalizedEndingInfoCardDuration > 1.0
                         ) {
                             Icon(Icons.Outlined.Remove, contentDescription = "시간 줄이기", tint = palette.text)
                         }
@@ -791,7 +792,8 @@ internal fun EndingInfoCardSettings(
                         IconButton(
                             onClick = {
                                 onChange(settings.copy(endingInfoCardDuration = settings.normalizedEndingInfoCardDuration + 0.5))
-                            }
+                            },
+                            enabled = settings.normalizedEndingInfoCardDuration < 10.0
                         ) {
                             Icon(Icons.Outlined.Add, contentDescription = "시간 늘리기", tint = palette.text)
                         }
