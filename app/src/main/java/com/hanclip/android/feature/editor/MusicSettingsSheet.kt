@@ -46,7 +46,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -96,11 +95,6 @@ fun MusicSettingsSheet(
 ) {
     if (fullScreen) FullScreenDialogSystemBars(palette.solidPanel)
     val context = LocalContext.current
-    val initialMusicVolume = rememberSaveable { musicVolume }
-    val initialOriginalAudioVolume = rememberSaveable { originalAudioVolume }
-    val initialLoopsToFillVideo = rememberSaveable { loopsToFillVideo }
-    val initialFadeInEnabled = rememberSaveable { fadeInEnabled }
-    val initialFadeOutEnabled = rememberSaveable { fadeOutEnabled }
     var previewTarget by remember { mutableStateOf<MusicPreviewTarget?>(null) }
     val previewPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
@@ -144,14 +138,16 @@ fun MusicSettingsSheet(
                 FullScreenSettingsHeader(
                     title = "음악",
                     titleIcon = Icons.Outlined.MusicNote,
-                    resetDescription = "음악 설정 되돌리기",
+                    resetDescription = "음악 설정 초기화",
                     palette = palette,
                     onReset = {
-                        onMusicVolumeChange(initialMusicVolume)
-                        onOriginalAudioVolumeChange(initialOriginalAudioVolume)
-                        onLoopingChange(initialLoopsToFillVideo)
-                        onFadeInChange(initialFadeInEnabled)
-                        onFadeOutChange(initialFadeOutEnabled)
+                        BackgroundMusicSample.entries.firstOrNull()?.let(onUseSample)
+                        onMusicEnabledChange(true)
+                        onMusicVolumeChange(0.35)
+                        onOriginalAudioVolumeChange(1.0)
+                        onLoopingChange(true)
+                        onFadeInChange(true)
+                        onFadeOutChange(true)
                     },
                     onSave = onSave,
                     onDismiss = onDismiss
