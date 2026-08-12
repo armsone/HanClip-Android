@@ -6,6 +6,7 @@ import androidx.annotation.OptIn
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -29,6 +31,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Repeat
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.SkipNext
 import androidx.compose.material.icons.outlined.SkipPrevious
 import androidx.compose.material.icons.outlined.Remove
@@ -73,6 +76,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.hanclip.android.core.model.ClipItem
 import com.hanclip.android.core.theme.HanClipPalette
+import com.hanclip.android.feature.home.HanClipBrandCapsule
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.max
@@ -154,10 +158,49 @@ fun VideoTrimSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                Box(modifier = Modifier.clickable(onClickLabel = "편집 닫기", onClick = onDismiss)) {
+                    HanClipBrandCapsule(palette)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = {
+                        startSeconds = initialStartSeconds
+                        durationSeconds = initialDurationSeconds
+                    }) {
+                        Icon(Icons.Outlined.Refresh, contentDescription = "편집 초기화", tint = palette.text)
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Outlined.Close, contentDescription = "닫기", tint = palette.text)
+                    }
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Outlined.PlayCircle,
+                    contentDescription = null,
+                    tint = palette.subText,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    "편집",
+                    color = palette.text,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Black
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "구간 선택",
-                        style = MaterialTheme.typography.headlineSmall,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = palette.text
                     )
@@ -193,9 +236,6 @@ fun VideoTrimSheet(
                         IconButton(onClick = onDelete) {
                             Icon(Icons.Outlined.Delete, contentDescription = "영상 삭제", tint = Color(0xFFE45D42))
                         }
-                    }
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Outlined.Close, contentDescription = "닫기", tint = palette.text)
                     }
                 }
             }
