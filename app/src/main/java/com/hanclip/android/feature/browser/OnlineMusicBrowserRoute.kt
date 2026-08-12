@@ -65,6 +65,7 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.KeyboardArrowUp
+import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
@@ -937,8 +938,7 @@ private fun BrowserDetectedVideoPanel(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(Icons.Outlined.Download, contentDescription = null, tint = palette.text)
-            Text("영상", color = palette.text, fontWeight = FontWeight.Black)
+            Icon(Icons.Outlined.PlayCircle, contentDescription = null, tint = palette.text)
             Spacer(Modifier.weight(1f))
             Button(onClick = onDownload, shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)) {
                 Text("다운")
