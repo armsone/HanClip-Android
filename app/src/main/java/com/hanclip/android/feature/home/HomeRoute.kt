@@ -2286,16 +2286,36 @@ private fun SharedInboxDialog(
                 }
                 if (isCopying) {
                     val progress = copyCurrent.toFloat() / copyTotal.coerceAtLeast(1)
-                    LinearProgressIndicator(
-                        progress = { progress },
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        color = Color.White,
-                        trackColor = Color.White.copy(alpha = 0.22f)
-                    )
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "${(progress * 100).roundToInt()}%",
+                            modifier = Modifier.width(54.dp),
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.End
+                        )
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.weight(1f),
+                            color = Color.White,
+                            trackColor = Color.White.copy(alpha = 0.22f)
+                        )
+                    }
                     Text(
                         "$copyCurrent/${copyTotal}개 파일을 복사하는 중입니다.",
                         color = Color.White,
                         fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "복사가 끝나면 HanClip에서 바로 새 영화나 기존 영화에 추가할 수 있습니다.",
+                        color = Color.White.copy(alpha = 0.86f),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
                     Spacer(Modifier.weight(1f))
                     OutlinedButton(
