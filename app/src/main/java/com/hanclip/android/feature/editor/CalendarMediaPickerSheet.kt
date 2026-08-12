@@ -86,6 +86,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
@@ -2258,8 +2259,10 @@ private fun CalendarMediaThumb(
     Box(
         modifier = modifier
             .aspectRatio(1f)
-            .clip(RoundedCornerShape(16.dp))
-            .background(palette.chip)
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                if (selectedOrder != null) palette.secondary.copy(alpha = 0.16f) else palette.chip
+            )
             .then(
                 if (onLongClick == null) {
                     Modifier.clickable(onClick = onClick)
@@ -2300,7 +2303,16 @@ private fun CalendarMediaThumb(
             Image(
                 bitmap = thumbnail!!.asImageBitmap(),
                 contentDescription = null,
-                modifier = Modifier.matchParentSize(),
+                modifier = Modifier
+                    .matchParentSize()
+                    .graphicsLayer {
+                        if (selectedOrder != null) {
+                            scaleX = 0.86f
+                            scaleY = 0.86f
+                            clip = true
+                            shape = RoundedCornerShape(9.dp)
+                        }
+                    },
                 contentScale = ContentScale.Crop
             )
         }
@@ -2338,6 +2350,10 @@ private fun CalendarMediaThumb(
             Box(
                 modifier = Modifier
                     .matchParentSize()
+                    .graphicsLayer {
+                        scaleX = 0.86f
+                        scaleY = 0.86f
+                    }
                     .background(palette.secondary.copy(alpha = 0.18f))
                     .border(2.4.dp, palette.secondary, RoundedCornerShape(9.dp))
             )
