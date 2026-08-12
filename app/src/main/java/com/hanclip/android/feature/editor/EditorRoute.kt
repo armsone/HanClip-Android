@@ -243,13 +243,15 @@ fun EditorRoute(
     var quickDurationShownProjectId by rememberSaveable { mutableStateOf<String?>(null) }
     var quickTargetDurationSeconds by rememberSaveable { mutableStateOf(1.0) }
     var pendingExportAfterNotificationPermission by rememberSaveable { mutableStateOf(false) }
+    var autoAdvancePreviewOnOpen by rememberSaveable { mutableStateOf(false) }
     val trimmingClip = state.clips.firstOrNull { it.id == trimmingClipID }
     val previewClip = state.clips.firstOrNull { it.id == previewClipID }
     val pendingDeleteClip = state.clips.firstOrNull { it.id == pendingDeleteClipID }
     val previewClips = state.renderableClips
     val previewClipIndex = previewClips.indexOfFirst { it.id == previewClipID }
     val trimmingClipIndex = previewClips.indexOfFirst { it.id == trimmingClipID }
-    fun openClipFromTrim(target: ClipItem) {
+    fun openClipFromTrim(target: ClipItem, autoAdvance: Boolean = false) {
+        autoAdvancePreviewOnOpen = autoAdvance
         if (
             target.mediaKind == ClipMediaKind.Video ||
             (target.mediaKind == ClipMediaKind.LivePhoto &&
@@ -992,6 +994,9 @@ fun EditorRoute(
             )
         }
         trimmingClip?.let { clip ->
+            val automaticNextClip = if (previewClips.size > 1) {
+                previewClips.getOrNull(trimmingClipIndex + 1) ?: previewClips.first()
+            } else null
             Dialog(
                 onDismissRequest = { trimmingClipID = null },
                 properties = DialogProperties(
@@ -1002,6 +1007,8 @@ fun EditorRoute(
                 VideoTrimSheet(
                     clip = clip,
                     palette = palette,
+                    autoAdvanceOnLoad = autoAdvancePreviewOnOpen,
+                    onAutoAdvanceConsumed = { autoAdvancePreviewOnOpen = false },
                     onDismiss = { trimmingClipID = null },
                     onFirst = previewClips.firstOrNull()
                         ?.takeIf { first -> first.id != clip.id && previewClips.size > 1 }
@@ -1021,6 +1028,12 @@ fun EditorRoute(
                         { startSeconds, durationSeconds ->
                             viewModel.updateVideoTrim(clip.id, startSeconds, durationSeconds)
                             openClipFromTrim(next)
+                        }
+                    },
+                    onAutoNext = automaticNextClip?.let { next ->
+                        { startSeconds, durationSeconds ->
+                            viewModel.updateVideoTrim(clip.id, startSeconds, durationSeconds)
+                            openClipFromTrim(next, autoAdvance = true)
                         }
                     },
                     onDelete = {
@@ -1057,6 +1070,8 @@ fun EditorRoute(
                 childSegmentCount = state.clips.count { it.videoSegmentParentId == clip.id },
                 position = previewClipIndex + 1,
                 total = previewClips.size,
+                autoplayOnLoad = autoAdvancePreviewOnOpen,
+                onAutoplayConsumed = { autoAdvancePreviewOnOpen = false },
                 onFirst = if (previewClipIndex > 0) {
                     { previewClipID = previewClips.first().id }
                 } else null,
@@ -4036,6 +4051,8 @@ private fun ClipPreviewDialog(
     childSegmentCount: Int,
     position: Int,
     total: Int,
+    autoplayOnLoad: Boolean,
+    onAutoplayConsumed: () -> Unit,
     onFirst: (() -> Unit)?,
     onPrevious: (() -> Unit)?,
     onNext: (() -> Unit)?,
@@ -4046,13 +4063,21 @@ private fun ClipPreviewDialog(
     onDismiss: () -> Unit
 ) {
     var isDeleteConfirmationVisible by remember(clip.id) { mutableStateOf(false) }
-    var playbackMode by remember { mutableStateOf(DefaultClipPreviewPlaybackMode) }
+    var playbackMode by remember {
+        mutableStateOf(
+            if (autoplayOnLoad) ClipPreviewPlaybackMode.AutoNext
+            else DefaultClipPreviewPlaybackMode
+        )
+    }
     val previewThumbnailState = rememberLazyListState()
     val hasPlayableMedia = clip.mediaKind == ClipMediaKind.Video ||
         clip.livePhotoMode == com.hanclip.android.core.model.LivePhotoMode.Motion
     val previewBackgroundColor = if (hasPlayableMedia) Color.Black else palette.solidPanel
     val previewText = if (hasPlayableMedia) Color.White else palette.text
     val previewSubText = if (hasPlayableMedia) Color.White.copy(alpha = 0.72f) else palette.subText
+    LaunchedEffect(Unit) {
+        if (autoplayOnLoad) onAutoplayConsumed()
+    }
     LaunchedEffect(clip.id, playbackMode, hasPlayableMedia, position, total) {
         if (!hasPlayableMedia && playbackMode == ClipPreviewPlaybackMode.AutoNext) {
             delay((clip.durationSeconds.coerceAtLeast(0.1) * 1000).toLong())

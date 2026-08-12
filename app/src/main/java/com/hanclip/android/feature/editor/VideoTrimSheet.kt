@@ -94,9 +94,12 @@ fun VideoTrimSheet(
     clip: ClipItem,
     palette: HanClipPalette,
     onDismiss: () -> Unit,
+    autoAdvanceOnLoad: Boolean = false,
+    onAutoAdvanceConsumed: () -> Unit = {},
     onFirst: ((startSeconds: Double, durationSeconds: Double) -> Unit)? = null,
     onPrevious: ((startSeconds: Double, durationSeconds: Double) -> Unit)? = null,
     onNext: ((startSeconds: Double, durationSeconds: Double) -> Unit)? = null,
+    onAutoNext: ((startSeconds: Double, durationSeconds: Double) -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
     bottomThumbnailStrip: (@Composable (startSeconds: Double, durationSeconds: Double) -> Unit)? = null,
     onApplyTrim: (startSeconds: Double, durationSeconds: Double) -> Unit
@@ -115,7 +118,11 @@ fun VideoTrimSheet(
     var durationSeconds by rememberSaveable(clip.id) {
         mutableDoubleStateOf(initialDurationSeconds)
     }
-    var autoAdvances by rememberSaveable { mutableStateOf(false) }
+    var autoAdvances by rememberSaveable(clip.id) { mutableStateOf(autoAdvanceOnLoad) }
+
+    LaunchedEffect(clip.id) {
+        if (autoAdvanceOnLoad) onAutoAdvanceConsumed()
+    }
 
     LaunchedEffect(startSeconds, durationSeconds, sourceDuration) {
         if (startSeconds + durationSeconds > sourceDuration) {
@@ -223,6 +230,9 @@ fun VideoTrimSheet(
                 durationSeconds = durationSeconds,
                 autoAdvances = autoAdvances,
                 onAutoAdvance = when {
+                    onAutoNext != null -> {
+                        { onAutoNext(startSeconds, durationSeconds) }
+                    }
                     onNext != null -> {
                         { onNext(startSeconds, durationSeconds) }
                     }
