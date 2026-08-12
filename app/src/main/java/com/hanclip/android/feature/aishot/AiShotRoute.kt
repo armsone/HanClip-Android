@@ -691,7 +691,7 @@ fun AiShotRoute(
                     enabled = pendingSaveCount == 0 && triggerTimeSeconds == null,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(44.dp),
+                        .height(48.dp),
                     shape = RoundedCornerShape(999.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF07323A),
@@ -733,7 +733,7 @@ private fun AiShotTopBar(
             }
         }
         Surface(
-            modifier = Modifier.height(42.dp),
+            modifier = Modifier.height(48.dp),
             color = Color.Transparent,
             shape = RoundedCornerShape(999.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE6525F).copy(alpha = 0.68f)),
@@ -886,7 +886,7 @@ private fun AiShotFloatingControls(
         Row(
             modifier = Modifier
                 .fillMaxWidth(0.90f)
-                .height(46.dp)
+                .height(56.dp)
                 .background(Color.Black.copy(alpha = 0.34f), CircleShape)
                 .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape)
                 .padding(horizontal = 8.dp, vertical = 4.dp),
@@ -899,7 +899,7 @@ private fun AiShotFloatingControls(
                     onClick = { onZoomPresetChange(option) },
                     modifier = Modifier
                         .weight(1f)
-                        .height(38.dp),
+                        .height(48.dp),
                     shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (selected) Color.White.copy(alpha = 0.16f) else Color.Transparent,
@@ -1200,7 +1200,7 @@ private fun DarkFilterChip(
         )
     ) {
         Box(
-            modifier = Modifier.height(36.dp),
+            modifier = Modifier.height(48.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
