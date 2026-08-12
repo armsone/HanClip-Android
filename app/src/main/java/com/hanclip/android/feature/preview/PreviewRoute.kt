@@ -65,6 +65,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -900,64 +901,110 @@ private fun SaveOptionsSheet(
                     ) {
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(30.dp),
-                        color = palette.solidPanel.copy(alpha = 0.98f),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.52f)),
-                        shadowElevation = 12.dp
+                            shape = RoundedCornerShape(30.dp),
+                            color = palette.solidPanel.copy(alpha = 0.98f),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.52f)),
+                            shadowElevation = 12.dp
                         ) {
                             Column(
                                 modifier = Modifier.padding(22.dp),
                                 verticalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
-                            Button(
-                                onClick = onSaveToGallery,
-                                modifier = Modifier.fillMaxWidth().height(56.dp),
-                                shape = RoundedCornerShape(50),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = palette.primary,
-                                    contentColor = Color.White
-                                )
-                            ) {
-                                Icon(Icons.Outlined.Photo, contentDescription = null)
-                                Text("사진 앱으로 개봉", fontWeight = FontWeight.Bold)
-                            }
-                            Surface(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(16.dp),
-                                color = palette.panel.copy(alpha = 0.55f),
-                                border = BorderStroke(1.dp, palette.border)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("앨범", color = palette.subText, fontWeight = FontWeight.Bold)
-                                    Box(Modifier.width(14.dp))
-                                    OutlinedTextField(
-                                        value = albumName,
-                                        onValueChange = onAlbumNameChange,
-                                        modifier = Modifier.weight(1f),
-                                        singleLine = true,
-                                        label = { Text("앨범명") },
-                                        textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                            fontWeight = FontWeight.SemiBold
-                                        )
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(24.dp),
+                                    color = palette.panel,
+                                    border = BorderStroke(
+                                        1.dp,
+                                        palette.primary.copy(alpha = 0.16f)
                                     )
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(14.dp),
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Button(
+                                            onClick = onSaveToGallery,
+                                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                                            shape = RoundedCornerShape(50),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = palette.primary,
+                                                contentColor = Color.White
+                                            )
+                                        ) {
+                                            Icon(Icons.Outlined.Photo, contentDescription = null)
+                                            Text(
+                                                "사진 앱으로 개봉",
+                                                fontSize = 17.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            Text(
+                                                "앨범",
+                                                color = palette.subText,
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            OutlinedTextField(
+                                                value = albumName,
+                                                onValueChange = onAlbumNameChange,
+                                                modifier = Modifier.weight(1f),
+                                                singleLine = true,
+                                                placeholder = { Text("앨범명") },
+                                                shape = RoundedCornerShape(16.dp),
+                                                colors = OutlinedTextFieldDefaults.colors(
+                                                    focusedContainerColor = palette.solidPanel.copy(alpha = 0.28f),
+                                                    unfocusedContainerColor = palette.solidPanel.copy(alpha = 0.28f),
+                                                    focusedBorderColor = palette.primary.copy(alpha = 0.14f),
+                                                    unfocusedBorderColor = palette.primary.copy(alpha = 0.14f)
+                                                ),
+                                                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                            )
+                                        }
+                                    }
                                 }
-                            }
-                            OutlinedButton(
-                                onClick = onSaveToFile,
-                                modifier = Modifier.fillMaxWidth().height(50.dp),
-                                shape = RoundedCornerShape(50),
-                                border = BorderStroke(1.dp, palette.border),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = palette.chip,
-                                    contentColor = palette.text
-                                )
-                            ) {
-                                Icon(Icons.Outlined.FolderOpen, contentDescription = null)
-                                Text("파일 앱으로 개봉", fontWeight = FontWeight.Bold)
-                            }
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth().height(84.dp),
+                                    shape = RoundedCornerShape(22.dp),
+                                    color = palette.secondary.copy(alpha = 0.07f),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        palette.secondary.copy(alpha = 0.12f)
+                                    )
+                                ) {
+                                    Box(
+                                        modifier = Modifier.padding(14.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        OutlinedButton(
+                                            onClick = onSaveToFile,
+                                            modifier = Modifier.fillMaxWidth().height(50.dp),
+                                            shape = RoundedCornerShape(50),
+                                            border = BorderStroke(
+                                                1.dp,
+                                                palette.secondary.copy(alpha = 0.20f)
+                                            ),
+                                            colors = ButtonDefaults.outlinedButtonColors(
+                                                containerColor = palette.secondary.copy(alpha = 0.10f),
+                                                contentColor = palette.text
+                                            )
+                                        ) {
+                                            Icon(Icons.Outlined.FolderOpen, contentDescription = null)
+                                            Text(
+                                                "파일 앱으로 개봉",
+                                                fontSize = 16.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                         OutlinedButton(
