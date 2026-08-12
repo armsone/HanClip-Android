@@ -1106,6 +1106,7 @@ private fun AiShotFloatingControls(
             modifier = Modifier
                 .fillMaxWidth(0.90f)
                 .height(56.dp)
+                .offset(y = if (isPrecisionZoomVisible) (-46).dp else 0.dp)
                 .background(Color.Black.copy(alpha = 0.34f), CircleShape)
                 .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape)
                 .pointerInput(minimumZoomRatio, maximumZoomRatio, zoomOctaveWidthPx) {
