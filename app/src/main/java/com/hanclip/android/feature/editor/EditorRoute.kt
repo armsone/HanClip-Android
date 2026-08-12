@@ -163,6 +163,7 @@ import com.hanclip.android.core.theme.HanClipSystemBars
 import com.hanclip.android.core.theme.currentPalette
 import com.hanclip.android.feature.home.HanClipBrandCapsule
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -612,6 +613,8 @@ fun EditorRoute(
                             clip.livePhotoMode == com.hanclip.android.core.model.LivePhotoMode.Motion
                         ) {
                             trimmingClipID = clip.id
+                        } else if (clip.isRenderableClip) {
+                            previewClipID = clip.id
                         }
                     },
                     onDecreaseDuration = { viewModel.adjustClipDuration(clip.id, -0.1) },
@@ -3963,6 +3966,24 @@ private fun ClipPreviewDialog(
 ) {
     var isDeleteConfirmationVisible by remember(clip.id) { mutableStateOf(false) }
     var playbackMode by remember { mutableStateOf(DefaultClipPreviewPlaybackMode) }
+    val hasPlayableMedia = clip.mediaKind == ClipMediaKind.Video ||
+        clip.livePhotoMode == com.hanclip.android.core.model.LivePhotoMode.Motion
+    LaunchedEffect(clip.id, playbackMode, hasPlayableMedia, position, total) {
+        if (!hasPlayableMedia && playbackMode == ClipPreviewPlaybackMode.AutoNext) {
+            delay((clip.durationSeconds.coerceAtLeast(0.1) * 1000).toLong())
+            when (
+                nextClipIndexOnPlaybackEnded(
+                    mode = playbackMode,
+                    currentIndex = position - 1,
+                    clipCount = total
+                )
+            ) {
+                0 -> onFirst?.invoke()
+                null -> Unit
+                else -> onNext?.invoke()
+            }
+        }
+    }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -4024,7 +4045,10 @@ private fun ClipPreviewDialog(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f)
+                        .then(
+                            if (hasPlayableMedia) Modifier.weight(1f)
+                            else Modifier.aspectRatio(1f)
+                        )
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color.Black)
                 )
@@ -4075,28 +4099,23 @@ private fun ClipPreviewDialog(
                                 Text("확인")
                             }
                         }
-                        if (clip.mediaKind == ClipMediaKind.Video || clip.livePhotoMode == com.hanclip.android.core.model.LivePhotoMode.Motion) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                FilterChip(
-                                    selected = playbackMode == ClipPreviewPlaybackMode.Stop,
-                                    onClick = { playbackMode = ClipPreviewPlaybackMode.Stop },
-                                    label = { Text("한 번") }
-                                )
-                                FilterChip(
-                                    selected = playbackMode == ClipPreviewPlaybackMode.Loop,
-                                    onClick = { playbackMode = ClipPreviewPlaybackMode.Loop },
-                                    label = { Text("반복") }
-                                )
-                                FilterChip(
-                                    selected = playbackMode == ClipPreviewPlaybackMode.AutoNext,
-                                    onClick = { playbackMode = ClipPreviewPlaybackMode.AutoNext },
-                                    enabled = onNext != null,
-                                    label = { Text("자동 다음") }
-                                )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            FilterChip(
+                                selected = playbackMode == ClipPreviewPlaybackMode.AutoNext,
+                                onClick = {
+                                    playbackMode = if (playbackMode == ClipPreviewPlaybackMode.AutoNext) {
+                                        ClipPreviewPlaybackMode.Stop
+                                    } else {
+                                        ClipPreviewPlaybackMode.AutoNext
+                                    }
+                                },
+                                label = { Text("자동 진행") }
+                            )
+                            if (hasPlayableMedia) {
                                 clipPreviewPeakText(clip)?.let { peakText ->
                                     Text(
                                         text = peakText,
@@ -4108,6 +4127,8 @@ private fun ClipPreviewDialog(
                                     )
                                 }
                             }
+                        }
+                        if (hasPlayableMedia) {
                             if (
                                 clip.audioWaveform.isNotEmpty() ||
                                 clip.audioPeakTimesSeconds.isNotEmpty() ||
@@ -4181,8 +4202,10 @@ private fun ClipPreviewPlayer(
 ) {
     val context = LocalContext.current
     val isSample = clip.sourceUri.scheme == "sample"
+    val hasPlayableMedia = clip.mediaKind == ClipMediaKind.Video ||
+        clip.livePhotoMode == com.hanclip.android.core.model.LivePhotoMode.Motion
     val mediaItem = remember(clip.id, clip.sourceUri, clip.trimStartSeconds, clip.durationSeconds) {
-        if (isSample) {
+        if (isSample || !hasPlayableMedia) {
             null
         } else {
             val sourceDuration = clip.sourceDurationSeconds ?: clip.durationSeconds
@@ -4248,6 +4271,12 @@ private fun ClipPreviewPlayer(
                     }
                 },
                 modifier = Modifier.matchParentSize()
+            )
+        } else if (!hasPlayableMedia) {
+            ClipThumbnail(
+                clip = clip,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Fit
             )
         } else {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -4550,7 +4579,8 @@ private fun formatClipSeconds(seconds: Double): String {
 @Composable
 private fun ClipThumbnail(
     clip: ClipItem,
-    modifier: Modifier
+    modifier: Modifier,
+    contentScale: ContentScale = ContentScale.Crop
 ) {
     val context = LocalContext.current
     val thumbnail by produceState<Bitmap?>(initialValue = null, clip.thumbnailUri, clip.mediaKind) {
@@ -4567,7 +4597,7 @@ private fun ClipThumbnail(
         Image(
             bitmap = bitmap.asImageBitmap(),
             contentDescription = null,
-            contentScale = ContentScale.Crop,
+            contentScale = contentScale,
             modifier = modifier
         )
         Box(
