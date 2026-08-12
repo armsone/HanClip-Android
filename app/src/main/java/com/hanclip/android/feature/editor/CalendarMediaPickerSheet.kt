@@ -53,6 +53,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.FilterAlt
 import androidx.compose.material.icons.outlined.MovieCreation
+import androidx.compose.material.icons.outlined.MotionPhotosOn
 import androidx.compose.material.icons.outlined.Photo
 import androidx.compose.material.icons.outlined.SwapVert
 import androidx.compose.material3.AlertDialog
@@ -2326,7 +2327,11 @@ private fun CalendarMediaThumb(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
-                    if (item.kind == ClipMediaKind.Video) Icons.Outlined.MovieCreation else Icons.Outlined.Photo,
+                    when (item.kind) {
+                        ClipMediaKind.Video -> Icons.Outlined.MovieCreation
+                        ClipMediaKind.LivePhoto -> Icons.Outlined.MotionPhotosOn
+                        ClipMediaKind.Photo -> Icons.Outlined.Photo
+                    },
                     contentDescription = when (item.kind) {
                         ClipMediaKind.Video -> "영상"
                         ClipMediaKind.LivePhoto -> "모션포토"
