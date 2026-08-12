@@ -1264,7 +1264,22 @@ private fun FullscreenPreviewDialog(
                                     }
                                     areControlsVisible = true
                                 },
-                                onTap = { areControlsVisible = !areControlsVisible }
+                                onTap = {
+                                    when (
+                                        fullscreenPlaybackTapAction(
+                                            isPlaying = player.isPlaying,
+                                            hasEnded = player.playbackState == Player.STATE_ENDED
+                                        )
+                                    ) {
+                                        FullscreenPlaybackTapAction.Pause -> player.pause()
+                                        FullscreenPlaybackTapAction.Play -> player.play()
+                                        FullscreenPlaybackTapAction.ReplayFromStart -> {
+                                            player.seekTo(0L)
+                                            player.play()
+                                        }
+                                    }
+                                    areControlsVisible = true
+                                }
                             )
                         }
                 ) {
@@ -1397,6 +1412,21 @@ private fun FullscreenCircleButton(
     }
 }
 
+internal enum class FullscreenPlaybackTapAction {
+    Pause,
+    Play,
+    ReplayFromStart
+}
+
+internal fun fullscreenPlaybackTapAction(
+    isPlaying: Boolean,
+    hasEnded: Boolean
+): FullscreenPlaybackTapAction = when {
+    isPlaying -> FullscreenPlaybackTapAction.Pause
+    hasEnded -> FullscreenPlaybackTapAction.ReplayFromStart
+    else -> FullscreenPlaybackTapAction.Play
+}
+
 @Composable
 private fun SavingMovieDialog(palette: HanClipPalette) {
     Dialog(
@@ -1488,6 +1518,7 @@ private fun ExportedVideoPlayerView(
         factory = { viewContext ->
             PlayerView(viewContext).apply {
                 this.player = player
+                contentDescription = "시사회 재생 또는 일시정지"
                 useController = true
                 controllerShowTimeoutMs = 3_000
                 this.resizeMode = resizeMode
