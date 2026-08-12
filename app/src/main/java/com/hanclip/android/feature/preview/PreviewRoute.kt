@@ -1444,11 +1444,13 @@ internal fun FullscreenPreviewDialog(
                             )
                         }
                     }
-                    FullscreenCircleButton(
-                        onClick = { onShare?.invoke() },
-                        contentDescription = "공유"
-                    ) {
-                        Icon(Icons.Outlined.IosShare, contentDescription = null, tint = Color.White)
+                    if (onShare != null) {
+                        FullscreenCircleButton(
+                            onClick = onShare,
+                            contentDescription = "공유"
+                        ) {
+                            Icon(Icons.Outlined.IosShare, contentDescription = null, tint = Color.White)
+                        }
                     }
                     FullscreenCircleButton(
                         onClick = onClose,
