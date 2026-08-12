@@ -44,9 +44,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Fullscreen
 import androidx.compose.material.icons.outlined.FullscreenExit
@@ -90,6 +90,7 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -736,51 +737,59 @@ private fun PreviewActionRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        OutlinedButton(
+        Button(
             onClick = onEdit,
             modifier = Modifier
                 .weight(1f)
                 .height(48.dp),
-            border = BorderStroke(1.dp, palette.border),
             shape = RoundedCornerShape(50),
-            colors = ButtonDefaults.outlinedButtonColors(
-                containerColor = palette.chip,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = palette.secondary.copy(alpha = 0.10f),
                 contentColor = palette.text
             )
         ) {
             Icon(
-                if (canReturnToEditor) Icons.Outlined.Edit else Icons.Outlined.Home,
+                if (canReturnToEditor) Icons.Outlined.ChevronLeft else Icons.Outlined.Home,
                 contentDescription = null
             )
-            Text(if (canReturnToEditor) "다시 편집" else "완성본 목록")
+            Text(
+                if (canReturnToEditor) "다시 편집" else "완성본 목록",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold
+            )
         }
         Surface(
             onClick = onShare,
-            modifier = Modifier.size(54.dp),
+            modifier = Modifier.width(54.dp).height(48.dp),
             shape = RoundedCornerShape(50),
-            color = palette.chip,
-            border = BorderStroke(1.dp, palette.border)
+            color = palette.secondary.copy(alpha = 0.10f)
         ) {
             Icon(
                 Icons.Outlined.IosShare,
                 contentDescription = "공유하기",
                 tint = palette.text,
-                modifier = Modifier.padding(15.dp)
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 15.dp)
             )
         }
         Button(
             onClick = onRelease,
             modifier = Modifier
                 .weight(1f)
-                .height(48.dp),
+                .height(48.dp)
+                .background(
+                    Brush.linearGradient(
+                        listOf(palette.primary, palette.secondary.copy(alpha = 0.82f))
+                    ),
+                    RoundedCornerShape(50)
+                ),
             shape = RoundedCornerShape(50),
             colors = ButtonDefaults.buttonColors(
-                containerColor = palette.primary,
+                containerColor = Color.Transparent,
                 contentColor = Color.White
             )
         ) {
             Icon(Icons.Outlined.Download, contentDescription = null)
-            Text("개봉하기")
+            Text("개봉하기", fontSize = 15.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
