@@ -13,6 +13,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.selection.selectable
@@ -103,6 +104,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -2336,22 +2338,22 @@ private fun CalendarMediaThumb(
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .background(palette.primary.copy(alpha = 0.34f))
+                    .background(palette.secondary.copy(alpha = 0.18f))
+                    .border(2.4.dp, palette.secondary, RoundedCornerShape(9.dp))
             )
             Surface(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(6.dp)
-                    .size(26.dp),
-                shape = CircleShape,
-                color = palette.primary,
-                border = BorderStroke(2.dp, Color.White.copy(alpha = 0.92f))
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 6.dp, bottom = 5.dp)
+                    .size(18.dp),
+                shape = RoundedCornerShape(9.dp),
+                color = palette.secondary
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(
-                        selectedOrder.coerceAtMost(99).toString(),
+                        "✓",
                         color = Color.White,
-                        style = MaterialTheme.typography.labelMedium,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Black
                     )
                 }
