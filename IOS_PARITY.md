@@ -412,3 +412,4 @@ Android 작업이 다음 날까지 이어지면 그날 첫 소스 변경 전에 
 - 고정 iOS `Info.plist`와 Android `shortcuts.xml`은 홈 아이콘에 사진·퀵모드·AiShot 세 개만 노출한다. 양쪽 라우터는 별도 외부 URL용 `open/calendar/files/search`까지 모두 유지하므로 노출 목록과 라우팅 목록의 차이는 의도된 동일 동작으로 확인했다.
 - 실제 `SM-F968N` 닫힌 커버 화면에서 다크 테마 상태바 아이콘이 검정색으로 고정돼 보이지 않는 문제를 확인했다. 홈·편집·시사회·음악 브라우저는 현재 테마 panel 명도, AiShot은 검정 배경에 맞춰 Activity 시스템 바 아이콘과 내비게이션 바를 갱신하며 전체화면 Dialog의 별도 window 정책은 유지한다.
 - 전체화면 Media3 진행바의 scrub 시작·종료를 공통 컨트롤 상태에 연결한다. scrub 중에는 컨트롤 자동 숨김을 멈추고, 손을 놓은 뒤 실제 재생 중일 때만 기존 약 3초 숨김 타이머를 다시 시작하며 인라인 시사회 PlayerView에는 영향을 주지 않는다.
+- 전체화면 Player는 Activity lifecycle `ON_STOP`에서 현재 위치를 유지한 채 pause하고, 그때 실제 재생 중이었던 동일 Dialog만 `ON_START`에서 resume한다. 사용자가 직접 일시정지한 상태와 loop/fit/zoom 등 Compose 세션 상태는 그대로 보존하며 dispose 시 observer를 제거한다.

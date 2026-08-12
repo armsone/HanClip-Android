@@ -102,6 +102,9 @@ import com.hanclip.android.core.theme.currentPalette
 import com.hanclip.android.feature.home.HanClipBrandCapsule
 import com.hanclip.android.feature.editor.FullScreenDialogSystemBars
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
@@ -1064,6 +1067,7 @@ private fun FullscreenPreviewDialog(
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val player = remember(uri, startPositionMs) {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(uri))
@@ -1113,6 +1117,26 @@ private fun FullscreenPreviewDialog(
             player.removeListener(listener)
             player.release()
         }
+    }
+    DisposableEffect(lifecycleOwner, player) {
+        var shouldResumeAfterStop = false
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_STOP -> {
+                    shouldResumeAfterStop = player.playWhenReady
+                    player.pause()
+                }
+                Lifecycle.Event.ON_START -> {
+                    if (shouldResumeAfterStop) {
+                        shouldResumeAfterStop = false
+                        player.play()
+                    }
+                }
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     DisposableEffect(context) {
         val activity = context.findActivity()
