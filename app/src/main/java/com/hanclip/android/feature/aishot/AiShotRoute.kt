@@ -83,6 +83,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
@@ -924,7 +926,15 @@ private fun AiShotFloatingControls(
             )
             Button(
                 onClick = onManualRecord,
-                modifier = Modifier.size(88.dp),
+                modifier = Modifier
+                    .size(88.dp)
+                    .semantics {
+                        contentDescription = if (isRecording) {
+                            "AiShot 클립 저장 중지"
+                        } else {
+                            "AiShot 수동 촬영"
+                        }
+                    },
                 shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color.Black.copy(alpha = 0.34f),

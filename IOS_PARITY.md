@@ -454,3 +454,4 @@ Android 작업이 다음 날까지 이어지면 그날 첫 소스 변경 전에 
 - AiShot은 `OrientationEventListener`의 물리 방향을 CameraX preview와 capture target rotation에 함께 반영하고 렌즈 재결합 때 현재 display rotation으로 초기화한다. 저장 MP4의 실제 회전 metadata·프레임 확인은 잠긴 실기기에서 실행하지 않아 `구현됨-미검증`을 유지한다.
 - 장시간 제작은 foreground service 알림·진행률·동일 token 취소 handshake와 계측시험 근거가 있다. 실제 Transformer 작업은 ViewModel coroutine이 소유하므로 프로세스 종료 뒤 이어서 제작하지 않고 recovery marker로 안전하게 재시도한다. 따라서 장시간 혼합 export의 화면 이탈·알림 취소·완료 AT는 계속 `구현됨-미검증`이며, 서비스로 작업 소유권을 옮기는 변경은 별도 대형 작업으로 분리한다.
 - `SM-F968N`은 앱 1.0.1(522)이 설치되어 있고 닫힘 자세 0이지만 보안 잠금 상태다. 잠금 해제나 인증 입력을 시도하지 않았고 `SM-T500`에는 시험 명령을 보내지 않았다.
+- AiShot 중앙 수동 촬영 버튼에 정지 상태 `AiShot 수동 촬영`, 저장 중 상태 `AiShot 클립 저장 중지` 행동 설명을 추가했다. 카메라·감지·녹화·저장 순서는 변경하지 않았고 필수 빌드·시험·린트 통과 뒤 `SM-F968N`에 데이터 보존 설치와 프로세스 실행을 확인했다.
