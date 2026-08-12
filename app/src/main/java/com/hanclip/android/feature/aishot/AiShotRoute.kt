@@ -88,6 +88,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -347,7 +348,7 @@ fun AiShotRoute(
     var isShowingIntroSwing by remember { mutableStateOf(false) }
 
     @SuppressLint("MissingPermission")
-    fun triggerClip(reason: String) {
+    fun triggerClip() {
         val activeRecording = recording ?: return
         if (!isRollingRecordingActive || triggerTimeSeconds != null) return
         val now = SystemClock.elapsedRealtime()
@@ -363,7 +364,7 @@ fun AiShotRoute(
         triggerTimeSeconds = elapsedSeconds
         activeCaptureSequence = sequence
         activeShotLength = timing
-        statusText = reason
+        statusText = ""
         capturePhase = AiShotCapturePhase.Detected
         activeRecordingSeconds = timing.recordingSeconds
         recordingRemainingSeconds = ceil(timing.afterSeconds).toLong()
@@ -462,7 +463,7 @@ fun AiShotRoute(
                         capturedShots = (capturedShots + CapturedShot(finalizedSequence, uri))
                             .sortedBy(CapturedShot::sequence)
                         savedCount = capturedShots.size
-                        statusText = "클립 저장 완료"
+                        statusText = ""
                     }.onFailure {
                         destination.delete()
                         statusText = "클립 저장 실패"
@@ -493,16 +494,14 @@ fun AiShotRoute(
         val delayMillis = (readyAt - SystemClock.elapsedRealtime()).coerceAtLeast(0L)
         delay(delayMillis)
         if (recording != null && triggerTimeSeconds == null) {
-            statusText = "스윙 감지 대기"
+            statusText = ""
         }
     }
 
     LaunchedEffect(savedCount) {
         if (savedCount == 0) return@LaunchedEffect
         delay(1700L)
-        if (recording != null && triggerTimeSeconds == null && statusText == "클립 저장 완료") {
-            statusText = "스윙 감지 대기"
-        }
+        if (recording != null && triggerTimeSeconds == null) statusText = ""
     }
 
     fun selectNextShotLength() {
@@ -659,7 +658,7 @@ fun AiShotRoute(
                 },
                 onImpact = {
                     withContext(Dispatchers.Main) {
-                        triggerClip(reason = "타격 감지")
+                        triggerClip()
                     }
                 }
             )
@@ -691,7 +690,6 @@ fun AiShotRoute(
         ) {
             AiShotTopBar(
                 statusText = statusText,
-                savedCount = savedCount,
                 onClose = {
                     didHandOffCapturedUris = false
                     onClose()
@@ -768,7 +766,7 @@ fun AiShotRoute(
                 isShowingIntroSwing = isShowingIntroSwing,
                 isSwitchingCamera = pendingLensFacing != null,
                 onManualRecord = {
-                    triggerClip("수동 클립 저장 중")
+                    triggerClip()
                 },
                 onSwitchCamera = {
                     val targetLensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) {
@@ -813,30 +811,43 @@ fun AiShotRoute(
 @Composable
 private fun AiShotTopBar(
     statusText: String,
-    savedCount: Int,
     onClose: () -> Unit
 ) {
+    val isReady = statusText.isEmpty()
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
-            color = Color(0xFF4A1719),
+            color = if (isReady) Color(0xFF0B5B66).copy(alpha = 0.72f) else Color(0xFF4F1F24).copy(alpha = 0.78f),
             shape = RoundedCornerShape(999.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE6525F).copy(alpha = 0.68f))
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                if (isReady) Color(0xFF2FC6D2).copy(alpha = 0.72f) else Color(0xFFE05257).copy(alpha = 0.58f)
+            )
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                modifier = Modifier
+                    .height(40.dp)
+                    .padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                Icon(Icons.Outlined.Timer, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                Text("$statusText · ${savedCount}개", color = Color.White, fontWeight = FontWeight.Bold)
+                if (isReady) {
+                    Image(
+                        painter = painterResource(R.drawable.aishot_icon),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                } else {
+                    Icon(Icons.Outlined.Timer, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                }
+                Text(if (isReady) "AiShot" else statusText, color = Color.White, fontWeight = FontWeight.Bold)
             }
         }
         Surface(
-            modifier = Modifier.height(48.dp),
+            modifier = Modifier.height(40.dp),
             color = Color.Transparent,
             shape = RoundedCornerShape(999.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE6525F).copy(alpha = 0.68f)),

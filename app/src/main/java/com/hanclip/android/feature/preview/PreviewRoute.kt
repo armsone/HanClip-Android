@@ -432,13 +432,7 @@ fun PreviewRoute(
     if (showFullscreenPreview && exportedVideoUri != null) {
         FullscreenPreviewDialog(
             uri = exportedVideoUri,
-            title = movieSummary.presetTitle,
             startPositionMs = fullscreenStartPositionMs,
-            onShare = {
-                val shareUri = preferredShareUri ?: exportedVideoUri
-                runCatching { VideoSaveShare.shareVideo(context, shareUri) }
-                    .onFailure { message = "공유 화면을 열지 못했습니다." }
-            },
             onClose = {
                 showFullscreenPreview = false
                 inlinePreviewPlayer?.play()
