@@ -102,11 +102,17 @@ fun VideoTrimSheet(
 ) {
     FullScreenDialogSystemBars(palette.solidPanel)
     val sourceDuration = max(0.1, clip.sourceDurationSeconds ?: clip.durationSeconds)
+    val initialStartSeconds = remember(clip.id) {
+        clip.trimStartSeconds.coerceIn(0.0, sourceDuration)
+    }
+    val initialDurationSeconds = remember(clip.id) {
+        clip.durationSeconds.coerceIn(0.1, sourceDuration)
+    }
     var startSeconds by rememberSaveable(clip.id) {
-        mutableDoubleStateOf(clip.trimStartSeconds.coerceIn(0.0, sourceDuration))
+        mutableDoubleStateOf(initialStartSeconds)
     }
     var durationSeconds by rememberSaveable(clip.id) {
-        mutableDoubleStateOf(clip.durationSeconds.coerceIn(0.1, sourceDuration))
+        mutableDoubleStateOf(initialDurationSeconds)
     }
     var autoAdvances by rememberSaveable { mutableStateOf(false) }
 
@@ -226,67 +232,19 @@ fun VideoTrimSheet(
                 }
             )
 
-            VideoImpactPanel(
-                clip = clip,
+            ImpactWaveform(
+                waveform = clip.audioWaveform,
+                peaks = clip.audioPeakTimesSeconds.ifEmpty {
+                    listOfNotNull(clip.audioPeakTimeSeconds)
+                },
                 sourceDuration = sourceDuration,
                 startSeconds = startSeconds,
                 durationSeconds = durationSeconds,
                 palette = palette,
-                onCenterOnImpact = {
-                    val peak = clip.audioPeakTimeSeconds
-                        ?: clip.audioPeakTimesSeconds.firstOrNull()
-                        ?: sourceDuration / 2.0
-                    val selectedDuration = min(durationSeconds, sourceDuration)
-                    startSeconds = max(
-                        0.0,
-                        min(sourceDuration - selectedDuration, peak - selectedDuration / 2.0)
-                    )
-                    durationSeconds = selectedDuration
-                },
-                onUseFullRange = {
-                    startSeconds = 0.0
-                    durationSeconds = sourceDuration
-                },
                 onRangeChange = { nextStart, nextDuration ->
                     startSeconds = nextStart
                     durationSeconds = nextDuration
                 }
-            )
-
-            TrimSliderBlock(
-                title = "시작",
-                valueText = formatSeconds(startSeconds),
-                value = startSeconds,
-                valueRange = 0.0..max(0.0, sourceDuration - durationSeconds),
-                onValueChange = { startSeconds = it }
-            )
-            TrimSliderBlock(
-                title = "길이",
-                valueText = formatSeconds(durationSeconds),
-                value = durationSeconds,
-                valueRange = 0.1..sourceDuration,
-                onValueChange = { value ->
-                    durationSeconds = min(value, sourceDuration)
-                    if (startSeconds + durationSeconds > sourceDuration) {
-                        startSeconds = max(0.0, sourceDuration - durationSeconds)
-                    }
-                }
-            )
-
-            TrimPrecisionControls(
-                startSeconds = startSeconds,
-                durationSeconds = durationSeconds,
-                sourceDuration = sourceDuration,
-                onStartChange = { next ->
-                    startSeconds = next.coerceIn(0.0, max(0.0, sourceDuration - durationSeconds))
-                },
-                onDurationChange = { next ->
-                    durationSeconds = next.coerceIn(0.1, sourceDuration)
-                    if (startSeconds + durationSeconds > sourceDuration) {
-                        startSeconds = max(0.0, sourceDuration - durationSeconds)
-                    }
-                },
-                palette = palette
             )
 
             Row(
@@ -307,17 +265,27 @@ fun VideoTrimSheet(
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
-                Button(
-                    onClick = {
-                        onApplyTrim(startSeconds, durationSeconds)
-                        onDismiss()
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = palette.primary,
-                        contentColor = Color.White
-                    )
-                ) {
-                    Text("선택 구간 적용")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = {
+                            startSeconds = initialStartSeconds
+                            durationSeconds = initialDurationSeconds
+                        }
+                    ) {
+                        Text("리셋")
+                    }
+                    Button(
+                        onClick = {
+                            onApplyTrim(startSeconds, durationSeconds)
+                            onDismiss()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = palette.primary,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text("선택 구간 적용")
+                    }
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -372,6 +340,7 @@ private fun VideoImpactPanel(
                 sourceDuration = sourceDuration,
                 startSeconds = startSeconds,
                 durationSeconds = durationSeconds,
+                palette = palette,
                 onRangeChange = onRangeChange
             )
             Text(
@@ -416,6 +385,7 @@ private fun ImpactWaveform(
     sourceDuration: Double,
     startSeconds: Double,
     durationSeconds: Double,
+    palette: HanClipPalette,
     onRangeChange: (startSeconds: Double, durationSeconds: Double) -> Unit
 ) {
     val bars = if (waveform.isEmpty()) List(48) { 0.18 } else waveform
@@ -479,7 +449,7 @@ private fun ImpactWaveform(
         val selectedStartX = (startSeconds / safeDuration).toFloat() * size.width
         val selectedEndX = ((startSeconds + durationSeconds) / safeDuration).toFloat() * size.width
         drawRoundRect(
-            color = TrimPrimary.copy(alpha = 0.12f),
+            color = palette.primary.copy(alpha = 0.12f),
             topLeft = Offset(selectedStartX, 0f),
             size = androidx.compose.ui.geometry.Size(
                 width = (selectedEndX - selectedStartX).coerceAtLeast(2f),
@@ -493,7 +463,7 @@ private fun ImpactWaveform(
             val barHeight = size.height * (0.18f + normalized * 0.72f)
             val inSelection = x in selectedStartX..selectedEndX
             drawLine(
-                color = if (inSelection) TrimPrimary else TrimSubText.copy(alpha = 0.34f),
+                color = if (inSelection) palette.primary else palette.subText.copy(alpha = 0.34f),
                 start = Offset(x, (size.height - barHeight) / 2f),
                 end = Offset(x, (size.height + barHeight) / 2f),
                 strokeWidth = 3.2f,
