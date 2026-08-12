@@ -79,6 +79,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
@@ -1392,14 +1395,19 @@ private fun FullscreenPreviewDialog(
 private fun FullscreenCircleButton(
     onClick: () -> Unit,
     contentDescription: String,
-    active: Boolean = false,
+    active: Boolean? = null,
     icon: @Composable () -> Unit
 ) {
     Surface(
-        modifier = Modifier.height(48.dp),
+        modifier = Modifier
+            .height(48.dp)
+            .semantics {
+                this.contentDescription = contentDescription
+                active?.let { selected = it }
+            },
         shape = RoundedCornerShape(50),
-        color = Color.White.copy(alpha = if (active) 0.24f else 0.14f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = if (active) 0.42f else 0.24f)),
+        color = Color.White.copy(alpha = if (active == true) 0.24f else 0.14f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = if (active == true) 0.42f else 0.24f)),
         onClick = onClick
     ) {
         Box(
