@@ -84,6 +84,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.viewinterop.AndroidView
@@ -901,7 +902,8 @@ private fun AiShotFloatingControls(
                     onClick = { onZoomPresetChange(option) },
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp),
+                        .height(48.dp)
+                        .semantics { this.selected = selected },
                     shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (selected) Color.White.copy(alpha = 0.16f) else Color.Transparent,
@@ -922,6 +924,7 @@ private fun AiShotFloatingControls(
             FloatingSideButton(
                 icon = { Icon(Icons.Outlined.Timer, contentDescription = null) },
                 title = shotLength.title,
+                contentDescription = "샷 시간 ${shotLength.title}, ${shotLength.timingDescription}",
                 onClick = onShotLengthTap
             )
             Button(
@@ -962,6 +965,7 @@ private fun AiShotFloatingControls(
             FloatingSideButton(
                 icon = { Icon(Icons.Outlined.Cameraswitch, contentDescription = null) },
                 title = lensLabel,
+                contentDescription = "카메라 전환, 현재 $lensLabel",
                 onClick = onSwitchCamera
             )
         }
@@ -1017,13 +1021,15 @@ private fun GolfSwingSpriteIndicator(
 private fun FloatingSideButton(
     icon: @Composable () -> Unit,
     title: String,
+    contentDescription: String,
     onClick: () -> Unit
 ) {
     Button(
         onClick = onClick,
         modifier = Modifier
             .width(116.dp)
-            .height(52.dp),
+            .height(52.dp)
+            .semantics { this.contentDescription = contentDescription },
         shape = RoundedCornerShape(12.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = Color.Black.copy(alpha = 0.70f),
@@ -1201,7 +1207,7 @@ private fun DarkFilterChip(
 ) {
     Surface(
         onClick = onClick,
-        modifier = modifier,
+        modifier = modifier.semantics { this.selected = selected },
         shape = RoundedCornerShape(12.dp),
         color = if (selected) Color(0xFF0D7778) else Color.Black.copy(alpha = 0.36f),
         border = androidx.compose.foundation.BorderStroke(
