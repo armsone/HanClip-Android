@@ -632,7 +632,6 @@ fun OnlineMusicBrowserRoute(
         detectedVideoPreviewUri?.let { previewUri ->
             FullscreenPreviewDialog(
                 uri = previewUri,
-                title = "감지된 영상",
                 onClose = { detectedVideoPreviewUri = null }
             )
         }
