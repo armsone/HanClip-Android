@@ -533,6 +533,18 @@ fun HomeRoute(
                 .navigationBarsPadding()
                 .padding(bottom = 8.dp)
                 .size(48.dp)
+                .clearAndSetSemantics {
+                    contentDescription = "카피라이터 설정, 길게 눌러 음악 브라우저 열기"
+                    onClick(label = "카피라이터 설정 열기") {
+                        showSettingsInfo = true
+                        true
+                    }
+                    onLongClick(label = "음악 브라우저 열기") {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onOpenBrowser()
+                        true
+                    }
+                }
                 .combinedClickable(
                     onClick = { showSettingsInfo = true },
                     onLongClick = {
@@ -540,10 +552,7 @@ fun HomeRoute(
                         onOpenBrowser()
                     },
                     onLongClickLabel = "음악 브라우저 열기"
-                )
-                .semantics(mergeDescendants = true) {
-                    contentDescription = "카피라이터 설정, 길게 눌러 음악 브라우저 열기"
-                },
+                ),
             contentAlignment = Alignment.Center
         ) {
             Surface(
