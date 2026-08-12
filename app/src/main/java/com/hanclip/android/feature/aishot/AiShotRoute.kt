@@ -757,13 +757,12 @@ fun AiShotRoute(
                 onZoomRatioChange = { zoomRatio = it },
                 lensLabel = if (lensFacing == CameraSelector.LENS_FACING_FRONT) "전면" else "후면",
                 isRecording = triggerTimeSeconds != null,
+                isReadyForTrigger = isRollingRecordingActive &&
+                    triggerTimeSeconds == null &&
+                    recordingDurationNanos / 1_000_000_000.0 >= shotLength.beforeSeconds,
                 isShowingIntroSwing = isShowingIntroSwing,
                 onManualRecord = {
-                    if (triggerTimeSeconds == null) {
-                        triggerClip("수동 클립 저장 중")
-                    } else {
-                        recording?.stop()
-                    }
+                    triggerClip("수동 클립 저장 중")
                 },
                 onSwitchCamera = {
                     discardAndStopRollingRecording()
@@ -973,6 +972,7 @@ private fun AiShotFloatingControls(
     onZoomRatioChange: (Float) -> Unit,
     lensLabel: String,
     isRecording: Boolean,
+    isReadyForTrigger: Boolean,
     isShowingIntroSwing: Boolean,
     onManualRecord: () -> Unit,
     onSwitchCamera: () -> Unit
@@ -1117,14 +1117,11 @@ private fun AiShotFloatingControls(
             )
             Button(
                 onClick = onManualRecord,
+                enabled = isReadyForTrigger && !isRecording,
                 modifier = Modifier
                     .size(88.dp)
                     .semantics {
-                        contentDescription = if (isRecording) {
-                            "AiShot 클립 저장 중지"
-                        } else {
-                            "AiShot 수동 촬영"
-                        }
+                        contentDescription = "AiShot 수동 촬영"
                     },
                 shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(
