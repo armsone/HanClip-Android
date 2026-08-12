@@ -153,6 +153,7 @@ import com.hanclip.android.core.model.MoviePreset
 import com.hanclip.android.core.model.OutputAspectRatio
 import com.hanclip.android.core.model.OutputQualityPreset
 import com.hanclip.android.core.model.VideoSegmentMode
+import com.hanclip.android.core.safety.steppedDefaultDuration
 import com.hanclip.android.core.settings.SleepPreventionMode
 import com.hanclip.android.core.theme.HanClipPalette
 import com.hanclip.android.core.theme.HanClipThemeStore
@@ -3041,8 +3042,10 @@ private fun ProjectControls(
                 CompactSettingRow(Icons.Outlined.Timer, "기본시간", palette) {
                     StepperPill(
                         value = "%.1f초".format(defaultDuration),
-                        onDecrease = { onSetDuration(defaultDuration - 0.1) },
-                        onIncrease = { onSetDuration(defaultDuration + 0.1) },
+                        onDecrease = { onSetDuration(steppedDefaultDuration(defaultDuration, increase = false)) },
+                        onIncrease = { onSetDuration(steppedDefaultDuration(defaultDuration, increase = true)) },
+                        canDecrease = defaultDuration > 0.1,
+                        canIncrease = defaultDuration < 30.0,
                         palette = palette
                     )
                     CompactChoice("적용", true, palette, onApplyDuration)
@@ -3085,6 +3088,8 @@ private fun ProjectControls(
                             value = "1/$similarPhotoRepresentativeInterval",
                             onDecrease = { onSetSimilarPhotoInterval(similarPhotoRepresentativeInterval - 1) },
                             onIncrease = { onSetSimilarPhotoInterval(similarPhotoRepresentativeInterval + 1) },
+                            canDecrease = similarPhotoRepresentativeInterval > 1,
+                            canIncrease = similarPhotoRepresentativeInterval < 20,
                             palette = palette
                         )
                         CompactChoice(
@@ -3378,11 +3383,13 @@ private fun StepperPill(
     value: String,
     onDecrease: () -> Unit,
     onIncrease: () -> Unit,
+    canDecrease: Boolean = true,
+    canIncrease: Boolean = true,
     palette: HanClipPalette
 ) {
     Surface(shape = RoundedCornerShape(50), color = palette.chip, border = BorderStroke(1.dp, palette.border)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onDecrease, modifier = Modifier.size(48.dp)) {
+            IconButton(onClick = onDecrease, enabled = canDecrease, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Outlined.Remove, contentDescription = "줄이기", modifier = Modifier.size(16.dp))
             }
             Text(
@@ -3392,7 +3399,7 @@ private fun StepperPill(
                 lineHeight = 14.sp,
                 fontWeight = FontWeight.Bold
             )
-            IconButton(onClick = onIncrease, modifier = Modifier.size(48.dp)) {
+            IconButton(onClick = onIncrease, enabled = canIncrease, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Outlined.Add, contentDescription = "늘리기", modifier = Modifier.size(16.dp))
             }
         }
@@ -4545,14 +4552,20 @@ private fun GlobalTimePanel(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     IconButton(
-                        onClick = { onSetDuration(defaultDuration - 0.1) },
+                        onClick = {
+                            onSetDuration(steppedDefaultDuration(defaultDuration, increase = false))
+                        },
+                        enabled = defaultDuration > 0.1,
                         modifier = Modifier.size(34.dp)
                     ) {
                         Icon(Icons.Outlined.Remove, contentDescription = "전체 시간 줄이기", tint = palette.secondary)
                     }
                     Text("%.1f초".format(defaultDuration), fontWeight = FontWeight.Bold, color = palette.primary)
                     IconButton(
-                        onClick = { onSetDuration(defaultDuration + 0.1) },
+                        onClick = {
+                            onSetDuration(steppedDefaultDuration(defaultDuration, increase = true))
+                        },
+                        enabled = defaultDuration < 30.0,
                         modifier = Modifier.size(34.dp)
                     ) {
                         Icon(Icons.Outlined.Add, contentDescription = "전체 시간 늘리기", tint = palette.secondary)
