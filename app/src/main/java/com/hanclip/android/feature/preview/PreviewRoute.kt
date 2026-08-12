@@ -1396,7 +1396,7 @@ private fun FullscreenCircleButton(
     icon: @Composable () -> Unit
 ) {
     Surface(
-        modifier = Modifier.height(44.dp),
+        modifier = Modifier.height(48.dp),
         shape = RoundedCornerShape(50),
         color = Color.White.copy(alpha = if (active) 0.24f else 0.14f),
         border = BorderStroke(1.dp, Color.White.copy(alpha = if (active) 0.42f else 0.24f)),
