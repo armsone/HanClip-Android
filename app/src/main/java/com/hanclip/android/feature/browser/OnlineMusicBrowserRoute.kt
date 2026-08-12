@@ -87,6 +87,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -153,6 +154,7 @@ fun OnlineMusicBrowserRoute(
     var activeDownload by remember { mutableStateOf<BrowserDownloadTicket?>(null) }
     var downloadProgress by remember { mutableStateOf<BrowserDownloadProgress?>(null) }
     var fullscreenContent by remember { mutableStateOf<BrowserFullscreenContent?>(null) }
+    val latestFullscreenContent by rememberUpdatedState(fullscreenContent)
     val cxFavoriteImportIntent = remember(context) {
         cxBrowserFavoritesFileIntent(context)
     }
@@ -573,6 +575,16 @@ fun OnlineMusicBrowserRoute(
                     if (view.url != targetUrl) {
                         view.loadUrl(targetUrl)
                     }
+                },
+                onRelease = { view ->
+                    latestFullscreenContent?.callback?.onCustomViewHidden()
+                    view.stopLoading()
+                    view.removeJavascriptInterface("HanClipVideo")
+                    view.setDownloadListener(null)
+                    view.webChromeClient = WebChromeClient()
+                    view.webViewClient = WebViewClient()
+                    view.removeAllViews()
+                    view.destroy()
                 }
             )
         }

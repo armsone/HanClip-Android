@@ -472,3 +472,4 @@ Android 작업이 다음 날까지 이어지면 그날 첫 소스 변경 전에 
 - 외부음악 WebView는 사이트 재생과 영상 탐지에 필요한 JavaScript·DOM storage는 유지하되 로컬 file/content URI와 HTTPS 페이지의 혼합 HTTP 하위 콘텐츠 접근을 차단한다. 즐겨찾기·HTTPS 탐색·명시적 다운로드 흐름은 변경하지 않는다.
 - 내장음악 6개는 문자열 리소스 이름 대신 빌드가 추적하는 `R.raw` ID에 직접 연결한다. 저장하는 sample ID·화면 제목·실제 오디오 파일은 바꾸지 않으며 출시 최적화에서도 미사용 리소스로 오판되지 않게 한다.
 - 필수 검증과 `SM-F968N` 데이터 보존 설치 뒤 6개 sample ID가 패키지의 실제 오디오를 모두 여는 계측시험 1개가 통과했고, lint의 내장음악 `UnusedResources` 4건은 0건이 됐다.
+- 외부음악 화면 종료 시 전체화면 video callback을 복원하고 WebView 로딩·JavaScript bridge·download listener·view tree를 해제한 뒤 `destroy()`한다. 시스템 DownloadManager로 이미 시작된 다운로드와 저장된 즐겨찾기는 유지하며 반복 진입의 WebView 누적을 막는다.
