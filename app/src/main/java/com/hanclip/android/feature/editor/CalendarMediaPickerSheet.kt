@@ -7,6 +7,8 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import androidx.annotation.OptIn as AndroidXOptIn
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -274,7 +276,14 @@ fun CalendarMediaPickerSheet(
                 .statusBarsPadding()
                 .navigationBarsPadding()
         ) {
-            Column(
+            Crossfade(
+                targetState = pickerMode,
+                animationSpec = tween(durationMillis = 110),
+                label = "photo-calendar-mode",
+                modifier = Modifier.fillMaxSize()
+            ) { displayedMode ->
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 16.dp, vertical = 14.dp),
@@ -284,15 +293,15 @@ fun CalendarMediaPickerSheet(
                 val newMonth = visibleMonth.minusMonths(1)
                 visibleMonth = newMonth
                 selectedDates = setOf(newMonth.atDay(1))
-                if (pickerMode != MediaPickerSheetMode.Recent) selectedUris = emptyList()
+                if (displayedMode != MediaPickerSheetMode.Recent) selectedUris = emptyList()
             }
             val moveToNextMonth = {
                 val newMonth = visibleMonth.plusMonths(1)
                 visibleMonth = newMonth
                 selectedDates = setOf(newMonth.atDay(1))
-                if (pickerMode != MediaPickerSheetMode.Recent) selectedUris = emptyList()
+                if (displayedMode != MediaPickerSheetMode.Recent) selectedUris = emptyList()
             }
-            if (pickerMode == MediaPickerSheetMode.Calendar) {
+            if (displayedMode == MediaPickerSheetMode.Calendar) {
                 CalendarTopActions(
                     palette = palette,
                     selectedCount = selectedUris.size,
@@ -310,7 +319,7 @@ fun CalendarMediaPickerSheet(
                     onPrevious = moveToPreviousMonth,
                     onNext = moveToNextMonth
                 )
-            } else if (pickerMode == MediaPickerSheetMode.Recent) {
+            } else if (displayedMode == MediaPickerSheetMode.Recent) {
                 RecentPickerHeader(
                     palette = palette,
                     selectedCount = selectedUris.size,
@@ -330,7 +339,7 @@ fun CalendarMediaPickerSheet(
             } else {
                 CalendarSheetHeader(
                     title = title,
-                    mode = pickerMode,
+                    mode = displayedMode,
                     sortOrder = sortOrder,
                     palette = palette,
                     visibleMonth = visibleMonth,
@@ -339,7 +348,7 @@ fun CalendarMediaPickerSheet(
                     onDismiss = onDismiss
                 )
             }
-            if (pickerMode == MediaPickerSheetMode.Calendar) {
+            if (displayedMode == MediaPickerSheetMode.Calendar) {
                 CalendarMonthGrid(
                     palette = palette,
                     visibleMonth = visibleMonth,
@@ -367,7 +376,7 @@ fun CalendarMediaPickerSheet(
             CalendarMediaStrip(
                 modifier = Modifier.weight(1f),
                 palette = palette,
-                mode = pickerMode,
+                mode = displayedMode,
                 visibleMonth = visibleMonth,
                 selectedDates = selectedDates,
                 items = visibleItems,
@@ -397,7 +406,7 @@ fun CalendarMediaPickerSheet(
                     }
                 }
             )
-            if (pickerMode == MediaPickerSheetMode.Videos) {
+            if (displayedMode == MediaPickerSheetMode.Videos) {
                 MediaSelectionSummary(
                     palette = palette,
                     items = visibleItems,
@@ -412,7 +421,7 @@ fun CalendarMediaPickerSheet(
             }
         }
 
-        if (pickerMode != MediaPickerSheetMode.Videos) {
+        if (displayedMode != MediaPickerSheetMode.Videos) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -420,7 +429,7 @@ fun CalendarMediaPickerSheet(
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 44.dp)
             ) {
-                when (pickerMode) {
+                when (displayedMode) {
                 MediaPickerSheetMode.Calendar -> {
                     CalendarDayActions(
                         palette = palette,
@@ -510,6 +519,8 @@ fun CalendarMediaPickerSheet(
                     )
                 }
                 MediaPickerSheetMode.Videos -> Unit
+                }
+            }
                 }
             }
         }
