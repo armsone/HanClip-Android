@@ -8,6 +8,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,11 +21,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.PlayCircle
+import androidx.compose.material.icons.outlined.Repeat
+import androidx.compose.material.icons.outlined.SkipNext
+import androidx.compose.material.icons.outlined.SkipPrevious
 import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material.icons.outlined.SportsGolf
 import androidx.compose.material.icons.outlined.Timelapse
@@ -41,7 +48,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,6 +59,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -63,6 +73,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.hanclip.android.core.model.ClipItem
 import com.hanclip.android.core.theme.HanClipPalette
+import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -72,11 +83,20 @@ private val TrimText = Color(0xFF14221A)
 private val TrimSubText = Color(0xFF46564C)
 private val TrimBorder = Color(0xFFD4DDD7)
 
+private enum class WaveformDragMode {
+    Start,
+    End,
+    Range
+}
+
 @Composable
 fun VideoTrimSheet(
     clip: ClipItem,
     palette: HanClipPalette,
     onDismiss: () -> Unit,
+    onPrevious: ((startSeconds: Double, durationSeconds: Double) -> Unit)? = null,
+    onNext: ((startSeconds: Double, durationSeconds: Double) -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
     onApplyTrim: (startSeconds: Double, durationSeconds: Double) -> Unit
 ) {
     FullScreenDialogSystemBars(palette.solidPanel)
@@ -87,6 +107,7 @@ fun VideoTrimSheet(
     var durationSeconds by rememberSaveable(clip.id) {
         mutableDoubleStateOf(clip.durationSeconds.coerceIn(0.1, sourceDuration))
     }
+    var loopsSelection by rememberSaveable(clip.id) { mutableStateOf(true) }
 
     LaunchedEffect(startSeconds, durationSeconds, sourceDuration) {
         if (startSeconds + durationSeconds > sourceDuration) {
@@ -126,14 +147,73 @@ fun VideoTrimSheet(
                         color = palette.subText
                     )
                 }
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Outlined.Close, contentDescription = "닫기", tint = palette.text)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        enabled = onPrevious != null,
+                        onClick = { onPrevious?.invoke(startSeconds, durationSeconds) }
+                    ) {
+                        Icon(Icons.Outlined.SkipPrevious, contentDescription = "이전 영상", tint = palette.text)
+                    }
+                    IconButton(onClick = { loopsSelection = !loopsSelection }) {
+                        Icon(
+                            Icons.Outlined.Repeat,
+                            contentDescription = if (loopsSelection) "구간 반복 끄기" else "구간 반복 켜기",
+                            tint = if (loopsSelection) palette.primary else palette.text
+                        )
+                    }
+                    IconButton(
+                        enabled = onNext != null,
+                        onClick = { onNext?.invoke(startSeconds, durationSeconds) }
+                    ) {
+                        Icon(Icons.Outlined.SkipNext, contentDescription = "다음 영상", tint = palette.text)
+                    }
+                    if (onDelete != null) {
+                        IconButton(onClick = onDelete) {
+                            Icon(Icons.Outlined.Delete, contentDescription = "영상 삭제", tint = Color(0xFFE45D42))
+                        }
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Outlined.Close, contentDescription = "닫기", tint = palette.text)
+                    }
                 }
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .width(72.dp)
+                    .height(18.dp)
+                    .pointerInput(clip.id, startSeconds, durationSeconds) {
+                        var downwardDrag = 0f
+                        detectVerticalDragGestures(
+                            onVerticalDrag = { change, amount ->
+                                change.consume()
+                                downwardDrag = (downwardDrag + amount).coerceAtLeast(0f)
+                            },
+                            onDragEnd = {
+                                if (downwardDrag >= 55.dp.toPx()) {
+                                    onApplyTrim(startSeconds, durationSeconds)
+                                    onDismiss()
+                                }
+                                downwardDrag = 0f
+                            },
+                            onDragCancel = { downwardDrag = 0f }
+                        )
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    Modifier
+                        .width(42.dp)
+                        .height(5.dp)
+                        .background(palette.border, RoundedCornerShape(50))
+                )
             }
 
             VideoPreview(
                 clip = clip,
-                startSeconds = startSeconds
+                startSeconds = startSeconds,
+                durationSeconds = durationSeconds,
+                loopsSelection = loopsSelection
             )
 
             VideoImpactPanel(
@@ -156,6 +236,10 @@ fun VideoTrimSheet(
                 onUseFullRange = {
                     startSeconds = 0.0
                     durationSeconds = sourceDuration
+                },
+                onRangeChange = { nextStart, nextDuration ->
+                    startSeconds = nextStart
+                    durationSeconds = nextDuration
                 }
             )
 
@@ -239,7 +323,8 @@ private fun VideoImpactPanel(
     durationSeconds: Double,
     palette: HanClipPalette,
     onCenterOnImpact: () -> Unit,
-    onUseFullRange: () -> Unit
+    onUseFullRange: () -> Unit,
+    onRangeChange: (startSeconds: Double, durationSeconds: Double) -> Unit
 ) {
     val impactIncluded = isImpactInRange(clip, startSeconds, durationSeconds)
     Surface(
@@ -276,7 +361,8 @@ private fun VideoImpactPanel(
                 peaks = clip.audioPeakTimesSeconds.ifEmpty { listOfNotNull(clip.audioPeakTimeSeconds) },
                 sourceDuration = sourceDuration,
                 startSeconds = startSeconds,
-                durationSeconds = durationSeconds
+                durationSeconds = durationSeconds,
+                onRangeChange = onRangeChange
             )
             Text(
                 text = impactSelectionGuideText(impactIncluded, durationSeconds),
@@ -319,13 +405,61 @@ private fun ImpactWaveform(
     peaks: List<Double>,
     sourceDuration: Double,
     startSeconds: Double,
-    durationSeconds: Double
+    durationSeconds: Double,
+    onRangeChange: (startSeconds: Double, durationSeconds: Double) -> Unit
 ) {
     val bars = if (waveform.isEmpty()) List(48) { 0.18 } else waveform
+    val latestStartSeconds by rememberUpdatedState(startSeconds)
+    val latestDurationSeconds by rememberUpdatedState(durationSeconds)
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
             .height(64.dp)
+            .pointerInput(sourceDuration) {
+                var dragMode = WaveformDragMode.Range
+                var dragStartX = 0f
+                var initialStart = 0.0
+                var initialDuration = 0.1
+                detectDragGestures(
+                    onDragStart = { position ->
+                        dragStartX = position.x
+                        initialStart = latestStartSeconds
+                        initialDuration = latestDurationSeconds
+                        val startX = (initialStart / sourceDuration).toFloat() * size.width
+                        val endX = ((initialStart + initialDuration) / sourceDuration).toFloat() * size.width
+                        dragMode = when {
+                            abs(position.x - startX) <= 32.dp.toPx() -> WaveformDragMode.Start
+                            abs(position.x - endX) <= 32.dp.toPx() -> WaveformDragMode.End
+                            else -> WaveformDragMode.Range
+                        }
+                    },
+                    onDrag = { change, _ ->
+                        change.consume()
+                        val secondsAtPointer = change.position.x.toDouble()
+                            .div(size.width.coerceAtLeast(1).toDouble())
+                            .times(sourceDuration)
+                            .coerceIn(0.0, sourceDuration)
+                        when (dragMode) {
+                            WaveformDragMode.Start -> {
+                                val end = initialStart + initialDuration
+                                val nextStart = secondsAtPointer.coerceAtMost(end - 0.1)
+                                onRangeChange(nextStart, end - nextStart)
+                            }
+                            WaveformDragMode.End -> {
+                                val nextEnd = secondsAtPointer.coerceAtLeast(initialStart + 0.1)
+                                onRangeChange(initialStart, nextEnd - initialStart)
+                            }
+                            WaveformDragMode.Range -> {
+                                val deltaSeconds = (change.position.x - dragStartX).toDouble() /
+                                    size.width.coerceAtLeast(1).toDouble() * sourceDuration
+                                val nextStart = (initialStart + deltaSeconds)
+                                    .coerceIn(0.0, sourceDuration - initialDuration)
+                                onRangeChange(nextStart, initialDuration)
+                            }
+                        }
+                    }
+                )
+            }
             .semantics {
                 contentDescription =
                     "오디오 파형, 선택 구간 ${"%.1f".format(startSeconds)}초부터 ${"%.1f".format(startSeconds + durationSeconds)}초, 타격점 ${peaks.size}개"
@@ -600,7 +734,9 @@ private fun impactInRangeText(
 @Composable
 private fun VideoPreview(
     clip: ClipItem,
-    startSeconds: Double
+    startSeconds: Double,
+    durationSeconds: Double,
+    loopsSelection: Boolean
 ) {
     val context = LocalContext.current
     val isSample = clip.sourceUri.scheme == "sample"
@@ -609,7 +745,7 @@ private fun VideoPreview(
             null
         } else {
             ExoPlayer.Builder(context).build().apply {
-                repeatMode = Player.REPEAT_MODE_ONE
+                repeatMode = Player.REPEAT_MODE_OFF
                 setMediaItem(MediaItem.fromUri(clip.sourceUri))
                 prepare()
             }
@@ -618,6 +754,24 @@ private fun VideoPreview(
 
     LaunchedEffect(player, startSeconds) {
         player?.seekTo((startSeconds * 1000).toLong())
+    }
+
+    LaunchedEffect(player, startSeconds, durationSeconds, loopsSelection) {
+        val activePlayer = player ?: return@LaunchedEffect
+        val startMs = (startSeconds * 1000).toLong()
+        val endMs = ((startSeconds + durationSeconds) * 1000).toLong()
+        while (true) {
+            if (activePlayer.currentPosition >= endMs) {
+                if (loopsSelection) {
+                    activePlayer.seekTo(startMs)
+                    activePlayer.play()
+                } else {
+                    activePlayer.pause()
+                    activePlayer.seekTo(endMs)
+                }
+            }
+            delay(50L)
+        }
     }
 
     DisposableEffect(player) {

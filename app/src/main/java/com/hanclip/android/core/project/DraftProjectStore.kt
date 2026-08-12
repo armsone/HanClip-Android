@@ -198,6 +198,10 @@ object EditableProjectStore {
     const val MaximumProjectCount = 10
     const val MaximumAiShotProjectCount = 2
     const val MaximumPinnedProjectCount = 5
+    @Volatile
+    private var lastFailedProjectCount = 0
+
+    fun failedProjectCount(): Int = lastFailedProjectCount
 
     fun upsert(context: Context, project: DraftProject): DraftProject {
         val records = loadRecords(context).toMutableList()
@@ -330,9 +334,10 @@ object EditableProjectStore {
     }
 
     private fun loadFileRecords(context: Context): List<EditableProjectRecord> {
-        return projectsRoot(context).listFiles()
+        val directories = projectsRoot(context).listFiles()
             ?.filter { it.isDirectory }
-            ?.mapNotNull { directory ->
+            .orEmpty()
+        val records = directories.mapNotNull { directory ->
                 runCatching {
                     val json = loadProjectMetadata(directory) ?: error("프로젝트 메타데이터가 없습니다.")
                     val projectJson = json.getJSONObject("project")
@@ -356,7 +361,8 @@ object EditableProjectStore {
                     )
                 }.getOrNull()
             }
-            .orEmpty()
+        lastFailedProjectCount = directories.size - records.size
+        return records
     }
 
     private fun loadLegacyRecords(context: Context): List<EditableProjectRecord> {

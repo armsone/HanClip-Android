@@ -17,4 +17,5 @@ internal fun steppedDefaultDuration(currentSeconds: Double, increase: Boolean): 
     return (adjustedTenths ?: currentTenths.coerceIn(1, 300)) / 10.0
 }
 
-internal fun normalizedPhotoDuration(seconds: Double): Double = seconds.coerceIn(0.1, 30.0)
+internal fun normalizedPhotoDuration(seconds: Double): Double =
+    (seconds.coerceIn(0.1, 30.0) * 10.0).roundToInt() / 10.0

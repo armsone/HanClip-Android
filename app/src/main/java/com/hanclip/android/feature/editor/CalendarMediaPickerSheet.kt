@@ -46,6 +46,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
@@ -897,7 +898,8 @@ private fun RecentSelectionPreview(
             palette = palette,
             item = item,
             onDismiss = { previewItem = null },
-            onRemove = {
+            isSelected = true,
+            onToggleSelection = {
                 onRemove(item.uri)
                 previewItem = null
             }
@@ -911,7 +913,8 @@ private fun CalendarMediaPreviewDialog(
     palette: HanClipPalette,
     item: CalendarMediaItem,
     onDismiss: () -> Unit,
-    onRemove: () -> Unit
+    isSelected: Boolean,
+    onToggleSelection: () -> Unit
 ) {
     val context = LocalContext.current
     val isVideo = item.kind == ClipMediaKind.Video
@@ -947,14 +950,17 @@ private fun CalendarMediaPreviewDialog(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Button(
-                onClick = onRemove,
+                onClick = onToggleSelection,
                 modifier = Modifier.fillMaxWidth(0.70f),
                 shape = RoundedCornerShape(18.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = palette.primary)
             ) {
-                Icon(Icons.Outlined.Delete, contentDescription = null)
+                Icon(
+                    if (isSelected) Icons.Outlined.Delete else Icons.Outlined.Add,
+                    contentDescription = null
+                )
                 Spacer(Modifier.width(5.dp))
-                Text("선택에서 제거")
+                Text(if (isSelected) "선택에서 제거" else "선택에 추가")
             }
             Surface(
                 modifier = Modifier
@@ -1783,9 +1789,7 @@ private fun CalendarMediaStrip(
                                     .takeIf { it >= 0 }
                                     ?.plus(1),
                                 onClick = { onToggle(item.uri) },
-                                onLongClick = if (item.uri in selectedUris) {
-                                    { previewItem = item }
-                                } else null
+                                onLongClick = { previewItem = item }
                             )
                         }
                     }
@@ -1798,9 +1802,7 @@ private fun CalendarMediaStrip(
                                 .takeIf { it >= 0 }
                                 ?.plus(1),
                             onClick = { onToggle(item.uri) },
-                            onLongClick = if (item.uri in selectedUris) {
-                                { previewItem = item }
-                            } else null
+                            onLongClick = { previewItem = item }
                         )
                     }
                 }
@@ -1812,8 +1814,9 @@ private fun CalendarMediaStrip(
             palette = palette,
             item = item,
             onDismiss = { previewItem = null },
-            onRemove = {
-                if (item.uri in selectedUris) onToggle(item.uri)
+            isSelected = item.uri in selectedUris,
+            onToggleSelection = {
+                onToggle(item.uri)
                 previewItem = null
             }
         )

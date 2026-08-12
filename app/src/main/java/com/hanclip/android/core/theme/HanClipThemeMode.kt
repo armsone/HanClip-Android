@@ -17,10 +17,10 @@ enum class HanClipThemeMode(
         HanClipPalette(
             primary = Color(0xFF072931),
             secondary = Color(0xFF007E81),
-            background = Brush.verticalGradient(listOf(Color(0xFFE7F0EE), Color(0xFFF8FBFA))),
-            text = Color(0xFF0F172A),
-            subText = Color(0xFF52615D),
-            solidPanel = Color(0xFFF1F7F5),
+            background = Brush.verticalGradient(listOf(Color(0xFFF5F5F5), Color.White)),
+            text = Color(0xFF1A1A1A),
+            subText = Color(0x941A1A1A),
+            solidPanel = Color.White,
             panel = Color(0x14007E81),
             chip = Color(0x29007E81),
             border = Color(0x2E072931)
@@ -133,9 +133,21 @@ data class HanClipPalette(
     val border: Color
 )
 
+private val AutomaticDarkPalette = HanClipPalette(
+    primary = Color(0xFF67E8F9),
+    secondary = Color(0xFF527387),
+    background = Brush.verticalGradient(listOf(Color(0xFF353835), Color(0xFF373A36))),
+    text = Color.White,
+    subText = Color(0xA8FFFFFF),
+    solidPanel = Color(0xFF373A36),
+    panel = Color(0x14527387),
+    chip = Color(0x24527387),
+    border = Color(0x3867E8F9)
+)
+
 val HanClipThemeMode.currentPalette: HanClipPalette
-    @Composable get() = if (this == HanClipThemeMode.Automatic && isSystemInDarkTheme()) {
-        HanClipThemeMode.Dark.palette
+@Composable get() = if (this == HanClipThemeMode.Automatic && isSystemInDarkTheme()) {
+        AutomaticDarkPalette
     } else {
         palette
     }

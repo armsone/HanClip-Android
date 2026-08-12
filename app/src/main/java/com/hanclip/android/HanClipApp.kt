@@ -68,6 +68,7 @@ fun HanClipApp(
     var collectionMovies by remember { mutableStateOf<List<CollectedMovie>>(emptyList()) }
     var isPreviewSavingVideo by remember { mutableStateOf(false) }
     var hasDraftProject by remember { mutableStateOf(false) }
+    var reportedFailedProjectCount by remember { mutableStateOf(0) }
     var editableProjectSummaries by remember {
         mutableStateOf<List<EditableProjectSummary>>(emptyList())
     }
@@ -160,6 +161,15 @@ fun HanClipApp(
                 }
             }
             editableProjectSummaries = EditableProjectStore.list(context)
+            val failedProjectCount = EditableProjectStore.failedProjectCount()
+            if (failedProjectCount > 0 && failedProjectCount != reportedFailedProjectCount) {
+                Toast.makeText(
+                    context,
+                    "읽을 수 없는 프로젝트 ${failedProjectCount}개를 목록에서 제외했습니다.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            reportedFailedProjectCount = failedProjectCount
             hasDraftProject = editableProjectSummaries.isNotEmpty()
             exportedMovieSummaries = ExportHistoryStore.list(context)
             MovieCollectionStore.migrateLegacyHistory(context)

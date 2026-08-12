@@ -19,6 +19,10 @@ class HanClipQuickWidgetProvider : AppWidgetProvider() {
         appWidgetIds.forEach { appWidgetId ->
             val views = RemoteViews(context.packageName, R.layout.hanclip_quick_widget).apply {
                 setOnClickPendingIntent(
+                    R.id.widget_open,
+                    quickActionIntent(context, "open", requestCode = appWidgetId * 10)
+                )
+                setOnClickPendingIntent(
                     R.id.widget_photo,
                     quickActionIntent(context, "photo", requestCode = appWidgetId * 10 + 1)
                 )

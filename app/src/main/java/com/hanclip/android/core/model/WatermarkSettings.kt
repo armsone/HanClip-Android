@@ -1,6 +1,7 @@
 package com.hanclip.android.core.model
 
 import java.io.Serializable
+import kotlin.math.round
 
 enum class WatermarkPosition(val gridColumn: Int, val gridRow: Int) {
     TopLeading(0, 0),
@@ -121,16 +122,16 @@ data class WatermarkSettings(
     val logoEnabled: Boolean = false,
     val address: String = "",
     val platform: WatermarkPlatform = WatermarkPlatform.HanClip,
-    val text: String = "오늘의 스윙\nHanClip",
+    val text: String = CaptionDateFormatter.single(),
     val position: WatermarkPosition = WatermarkPosition.TopLeading,
-    val fontName: String = "pretendard",
-    val textColorHex: String = "#FFFFFF",
+    val fontName: String = "poppins",
+    val textColorHex: String = "#FFE45C",
     val shadowEnabled: Boolean = true,
-    val shadowOpacity: Double = 0.2,
-    val shadowColorHex: String = "#000000",
+    val shadowOpacity: Double = 0.75,
+    val shadowColorHex: String = "#642BFF",
     val lineSpacing: WatermarkLineSpacing = WatermarkLineSpacing.Normal,
     val lineSpacingScale: Double = WatermarkLineSpacing.DefaultScale,
-    val fontSize: WatermarkFontSize = WatermarkFontSize.Large,
+    val fontSize: WatermarkFontSize = WatermarkFontSize.ExtraLarge,
     val logoColorHex: String = "#007644",
     val logoShadowColorHex: String = "#29AB87",
     val logoShadowOpacity: Double = 0.5,
@@ -164,5 +165,5 @@ data class WatermarkSettings(
         get() = address.trim().ifBlank { platform.title }
 
     val normalizedEndingInfoCardDuration: Double
-        get() = (endingInfoCardDuration * 2.0).toInt().div(2.0).coerceIn(1.0, 10.0)
+        get() = (round(endingInfoCardDuration * 2.0) / 2.0).coerceIn(1.0, 10.0)
 }

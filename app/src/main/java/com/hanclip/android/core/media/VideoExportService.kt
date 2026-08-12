@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
@@ -45,6 +46,7 @@ import com.hanclip.android.core.safety.ExportFileTransaction
 import androidx.media3.effect.OverlayEffect
 import androidx.media3.effect.BitmapOverlay
 import androidx.media3.effect.Presentation
+import androidx.media3.effect.MatrixTransformation
 import androidx.media3.effect.StaticOverlaySettings
 import androidx.media3.effect.TextOverlay
 import androidx.media3.transformer.Composition
@@ -76,7 +78,7 @@ data class VideoExportRequest(
     val clips: List<ClipItem>,
     val renderWidth: Int,
     val renderHeight: Int,
-    val frameRate: Int = 30,
+    val frameRate: Int = HanClipExportFrameRate,
     val watermarkSettings: WatermarkSettings = WatermarkSettings(),
     val backgroundMusicUri: Uri? = null,
     val backgroundMusicVolume: Double = 0.35,
@@ -116,7 +118,7 @@ class Media3TransformerExportService(
             requiredBytes = StorageSpaceGuard.requiredExportBytes(
                 width = request.renderWidth,
                 height = request.renderHeight,
-                frameRate = request.frameRate,
+                frameRate = HanClipExportFrameRate,
                 durationSeconds = request.clips.sumOf(ClipItem::durationSeconds) +
                     if (request.watermarkSettings.includesEndingInfoCard) {
                         request.watermarkSettings.normalizedEndingInfoCardDuration
@@ -162,13 +164,13 @@ class Media3TransformerExportService(
                 return Uri.fromFile(ExportFileTransaction.promote(outputFile, finalOutputFile))
             }
 
-        val effects = effectsForRequest(request)
-        val editedItems = effectiveClips.map { clip ->
+        val editedItems = effectiveClips.mapIndexed { index, clip ->
+            val isEndingInfoClip = endingInfoFile != null && index == effectiveClips.lastIndex
             val builder = EditedMediaItem.Builder(mediaItemForClip(clip))
-                .setRemoveAudio(clip.mediaKind != ClipMediaKind.Video)
+                .setRemoveAudio(!clip.keepsSourceAudio())
                 .setRemoveVideo(false)
-                .setFrameRate(request.frameRate)
-            builder.setEffects(effects)
+                .setFrameRate(HanClipExportFrameRate)
+            builder.setEffects(effectsForClip(request, clip, isEndingInfoClip))
             builder.build()
         }
         val videoSequence = EditedMediaItemSequence.Builder(editedItems)
@@ -404,7 +406,11 @@ class Media3TransformerExportService(
         const val QuickTimeDescriptionKey = "com.apple.quicktime.description"
     }
 
-    private fun effectsForRequest(request: VideoExportRequest): Effects {
+    private fun effectsForClip(
+        request: VideoExportRequest,
+        clip: ClipItem,
+        isEndingInfoClip: Boolean
+    ): Effects {
         val videoEffects = mutableListOf<Effect>(
             Presentation.createForWidthAndHeight(
                 request.renderWidth,
@@ -412,13 +418,24 @@ class Media3TransformerExportService(
                 Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP
             )
         )
+        if (clip.usesPhotoZoom()) {
+            videoEffects += photoZoomEffect(
+                durationUs = (clip.durationSeconds * 1_000_000.0).toLong().coerceAtLeast(1L),
+                motion = randomPhotoZoomMotion()
+            )
+        }
         val watermark = request.watermarkSettings
         if (!watermark.shouldRender) {
             return Effects(audioProcessorsForVolume(request.originalAudioVolume), videoEffects)
         }
 
+        val layerPolicy = watermarkLayerPolicy(
+            shouldRenderText = watermark.shouldRenderText,
+            logoEnabled = watermark.logoEnabled,
+            isEndingInfoClip = isEndingInfoClip
+        )
         val overlays = buildList {
-            if (watermark.shouldRenderText) {
+            if (layerPolicy.rendersText) {
                 add(
                     textOverlay(
                         text = watermark.text.trim(),
@@ -433,12 +450,28 @@ class Media3TransformerExportService(
                     )
                 )
             }
-            if (watermark.logoEnabled) {
+            if (layerPolicy.rendersLogo) {
                 add(copyrightBitmapOverlay(watermark, request.renderWidth))
             }
         }
-        videoEffects += OverlayEffect(overlays)
+        if (overlays.isNotEmpty()) {
+            videoEffects += OverlayEffect(overlays)
+        }
         return Effects(audioProcessorsForVolume(request.originalAudioVolume), videoEffects)
+    }
+
+    private fun photoZoomEffect(
+        durationUs: Long,
+        motion: PhotoZoomMotion
+    ): MatrixTransformation {
+        return MatrixTransformation { presentationTimeUs ->
+            val scale = photoZoomScale(motion, presentationTimeUs, durationUs)
+            val focalX = -1f + motion.focalX * 2f
+            val focalY = 1f - motion.focalY * 2f
+            Matrix().apply {
+                setScale(scale, scale, focalX, focalY)
+            }
+        }
     }
 
     private fun audioProcessorsForVolume(volume: Double): List<GainProcessor> {

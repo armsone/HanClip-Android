@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.view.View
@@ -18,6 +19,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
@@ -80,6 +82,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.graphics.Color
@@ -91,6 +95,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.viewinterop.AndroidView
 import com.hanclip.android.core.media.VideoSaveShare
 import com.hanclip.android.core.model.OutputAspectRatio
@@ -98,6 +103,9 @@ import com.hanclip.android.core.model.OutputQualityPreset
 import com.hanclip.android.core.model.WatermarkSettings
 import com.hanclip.android.core.project.ExportedMovieSummary
 import com.hanclip.android.core.project.hanClipCompletionTitle
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.roundToInt
 import com.hanclip.android.core.theme.HanClipPalette
 import com.hanclip.android.core.theme.HanClipThemeStore
 import com.hanclip.android.core.theme.HanClipSystemBars
@@ -1060,9 +1068,15 @@ private fun SaveDestinationCard(
     }
 }
 
+private enum class FullscreenDragMode {
+    HorizontalScrub,
+    Volume,
+    DownwardDismiss
+}
+
 @OptIn(UnstableApi::class, ExperimentalFoundationApi::class)
 @Composable
-private fun FullscreenPreviewDialog(
+internal fun FullscreenPreviewDialog(
     uri: Uri,
     title: String? = null,
     startPositionMs: Long = 0L,
@@ -1070,6 +1084,9 @@ private fun FullscreenPreviewDialog(
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
+    val audioManager = remember(context) {
+        context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    }
     val lifecycleOwner = LocalLifecycleOwner.current
     val player = remember(uri, startPositionMs) {
         ExoPlayer.Builder(context).build().apply {
@@ -1091,7 +1108,10 @@ private fun FullscreenPreviewDialog(
     var isScrubbing by remember { mutableStateOf(false) }
     val manualAspectModeSelection by rememberUpdatedState(hasManualAspectModeSelection)
     val looping by rememberUpdatedState(isLooping)
-    val dismissThresholdPx = with(LocalDensity.current) { 120.dp.toPx() }
+    val configuration = LocalConfiguration.current
+    val dismissThresholdPx = with(LocalDensity.current) {
+        max(55.dp.toPx(), configuration.screenHeightDp.dp.toPx() * 0.08f)
+    }
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onVideoSizeChanged(videoSize: VideoSize) {
@@ -1195,20 +1215,67 @@ private fun FullscreenPreviewDialog(
                     alpha = (1f - verticalDragPx / (dismissThresholdPx * 3f))
                         .coerceIn(0.72f, 1f)
                 }
-                .pointerInput(dismissThresholdPx) {
-                    detectVerticalDragGestures(
-                        onVerticalDrag = { change, dragAmount ->
-                            if (zoomScale > 1.01f) return@detectVerticalDragGestures
-                            if (dragAmount > 0f || verticalDragPx > 0f) {
-                                change.consume()
-                                verticalDragPx = (verticalDragPx + dragAmount).coerceAtLeast(0f)
+                .pointerInput(dismissThresholdPx, zoomScale) {
+                    var dragMode: FullscreenDragMode? = null
+                    var totalDrag = Offset.Zero
+                    var dragStartPositionMs = 0L
+                    var dragStartVolume = 0
+                    detectDragGestures(
+                        onDragStart = {
+                            dragMode = null
+                            totalDrag = Offset.Zero
+                            dragStartPositionMs = player.currentPosition
+                            dragStartVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                        },
+                        onDrag = { change, dragAmount ->
+                            if (zoomScale > 1.01f) return@detectDragGestures
+                            change.consume()
+                            totalDrag += dragAmount
+                            if (dragMode == null) {
+                                dragMode = when {
+                                    abs(totalDrag.x) >= abs(totalDrag.y) -> FullscreenDragMode.HorizontalScrub
+                                    totalDrag.y < 0f -> FullscreenDragMode.Volume
+                                    else -> FullscreenDragMode.DownwardDismiss
+                                }
                             }
+                            when (dragMode) {
+                                FullscreenDragMode.HorizontalScrub -> {
+                                    val durationMs = player.duration
+                                    if (durationMs > 0L) {
+                                        val deltaMs = totalDrag.x / size.width.coerceAtLeast(1) * durationMs
+                                        player.seekTo(
+                                            (dragStartPositionMs + deltaMs.toLong()).coerceIn(0L, durationMs)
+                                        )
+                                    }
+                                    verticalDragPx = 0f
+                                }
+                                FullscreenDragMode.Volume -> {
+                                    val maximumVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                                    val adjustmentHeight = max(size.height * 0.72f, 160f)
+                                    val target = (dragStartVolume - totalDrag.y / adjustmentHeight * maximumVolume)
+                                        .roundToInt()
+                                        .coerceIn(0, maximumVolume)
+                                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
+                                    verticalDragPx = 0f
+                                }
+                                FullscreenDragMode.DownwardDismiss -> {
+                                    verticalDragPx = totalDrag.y.coerceAtLeast(0f)
+                                }
+                                else -> Unit
+                            }
+                            areControlsVisible = true
                         },
                         onDragEnd = {
-                            if (verticalDragPx >= dismissThresholdPx) onClose()
+                            if (dragMode == FullscreenDragMode.DownwardDismiss &&
+                                verticalDragPx >= dismissThresholdPx
+                            ) onClose()
                             else verticalDragPx = 0f
+                            dragMode = null
                         },
-                        onDragCancel = { verticalDragPx = 0f }
+                        onDragCancel = {
+                            dragMode = null
+                            verticalDragPx = 0f
+                        }
                     )
                 }
         ) {
@@ -1228,7 +1295,7 @@ private fun FullscreenPreviewDialog(
                 )
             }
             val transformableState = rememberTransformableState { zoomChange, panChange, _ ->
-                val newScale = (zoomScale * zoomChange).coerceIn(1f, 4f)
+                val newScale = (zoomScale * zoomChange).coerceIn(0.5f, 4f)
                 zoomScale = newScale
                 zoomOffset = if (newScale <= 1.01f) Offset.Zero else {
                     clampZoomOffset(zoomOffset + panChange, newScale)
@@ -1244,6 +1311,27 @@ private fun FullscreenPreviewDialog(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .semantics {
+                            contentDescription = "한클립 동영상 플레이어"
+                            customActions = listOf(
+                                CustomAccessibilityAction("10초 앞으로") {
+                                    player.seekTo(
+                                        (player.currentPosition + 10_000L)
+                                            .coerceAtMost(player.duration.coerceAtLeast(0L))
+                                    )
+                                    true
+                                },
+                                CustomAccessibilityAction("10초 뒤로") {
+                                    player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
+                                    true
+                                },
+                                CustomAccessibilityAction("화면 크기 초기화") {
+                                    zoomScale = 1f
+                                    zoomOffset = Offset.Zero
+                                    true
+                                }
+                            )
+                        }
                         .graphicsLayer {
                             scaleX = zoomScale
                             scaleY = zoomScale
@@ -1254,16 +1342,10 @@ private fun FullscreenPreviewDialog(
                         .transformable(state = transformableState)
                         .pointerInput(zoomScale) {
                             detectTapGestures(
-                                onDoubleTap = { position ->
-                                    if (zoomScale > 1.01f) {
+                                onDoubleTap = {
+                                    if (abs(zoomScale - 1f) > 0.01f || zoomOffset != Offset.Zero) {
                                         zoomScale = 1f
                                         zoomOffset = Offset.Zero
-                                    } else {
-                                        val direction = if (position.x < size.width / 2f) -1L else 1L
-                                        player.seekTo(
-                                            (player.currentPosition + direction * 10_000L)
-                                                .coerceIn(0L, player.duration.coerceAtLeast(0L))
-                                        )
                                     }
                                     areControlsVisible = true
                                 },

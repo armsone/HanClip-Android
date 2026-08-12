@@ -7,8 +7,13 @@ import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.Effect
+import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.effect.Presentation
 import androidx.media3.transformer.Composition
+import androidx.media3.transformer.EditedMediaItem
+import androidx.media3.transformer.Effects
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
@@ -21,6 +26,9 @@ import kotlin.coroutines.resumeWithException
 
 @OptIn(UnstableApi::class)
 internal object AiShotVideoTrimmer {
+    internal const val OutputWidth = 1080
+    internal const val OutputHeight = 1440
+    internal const val OutputFrameRate = 30
     private val bufferFilename = Regex("aishot-buffer-\\d+\\.mp4")
     private val capturedFilename = Regex("aishot-\\d+-\\d+\\.mp4")
 
@@ -65,6 +73,21 @@ internal object AiShotVideoTrimmer {
                     .build()
             )
             .build()
+        val editedMediaItem = EditedMediaItem.Builder(mediaItem)
+            .setFrameRate(OutputFrameRate)
+            .setEffects(
+                Effects(
+                    emptyList<AudioProcessor>(),
+                    listOf<Effect>(
+                        Presentation.createForWidthAndHeight(
+                            OutputWidth,
+                            OutputHeight,
+                            Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP
+                        )
+                    )
+                )
+            )
+            .build()
 
         suspendCancellableCoroutine { continuation ->
             val transformer = Transformer.Builder(context.applicationContext)
@@ -106,7 +129,7 @@ internal object AiShotVideoTrimmer {
                 transformer.cancel()
                 destinationFile.delete()
             }
-            transformer.start(mediaItem, destinationFile.absolutePath)
+            transformer.start(editedMediaItem, destinationFile.absolutePath)
         }
     }
 

@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Undo
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -115,6 +116,7 @@ internal fun FullScreenSettingsHeader(
     palette: HanClipPalette,
     onReset: () -> Unit,
     onResetLongPress: (() -> Unit)? = null,
+    onSave: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     Row(
@@ -131,10 +133,19 @@ internal fun FullScreenSettingsHeader(
         Spacer(Modifier.weight(1f))
         SettingsHeaderCircleButton(
             icon = Icons.Outlined.Close,
-            description = "닫기",
+            description = if (onSave == null) "닫기" else "저장 없이 나가기",
             palette = palette,
             onClick = onDismiss
         )
+        if (onSave != null) {
+            Spacer(Modifier.size(6.dp))
+            SettingsHeaderCircleButton(
+                icon = Icons.Outlined.Save,
+                description = "저장 후 닫기",
+                palette = palette,
+                onClick = onSave
+            )
+        }
     }
     Row(
         modifier = Modifier.fillMaxWidth(),

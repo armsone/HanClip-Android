@@ -114,6 +114,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import com.hanclip.android.core.theme.HanClipThemeStore
 import com.hanclip.android.core.theme.HanClipSystemBars
 import com.hanclip.android.core.theme.currentPalette
+import com.hanclip.android.feature.preview.FullscreenPreviewDialog
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -150,6 +151,7 @@ fun OnlineMusicBrowserRoute(
     var canGoForward by remember { mutableStateOf(false) }
     var isPageLoading by remember { mutableStateOf(false) }
     var detectedVideoUrl by remember { mutableStateOf<String?>(null) }
+    var detectedVideoPreviewUri by remember { mutableStateOf<Uri?>(null) }
     var dismissedVideoUrl by remember { mutableStateOf<String?>(null) }
     var activeDownload by remember { mutableStateOf<BrowserDownloadTicket?>(null) }
     var downloadProgress by remember { mutableStateOf<BrowserDownloadProgress?>(null) }
@@ -478,6 +480,7 @@ fun OnlineMusicBrowserRoute(
                         beginDownload(videoUrl, mimeType = "video/mp4")
                         detectedVideoUrl = null
                     },
+                    onPreview = { detectedVideoPreviewUri = Uri.parse(videoUrl) },
                     onDismiss = {
                         dismissedVideoUrl = videoUrl
                         detectedVideoUrl = null
@@ -624,6 +627,13 @@ fun OnlineMusicBrowserRoute(
                     content = content
                 )
             }
+        }
+        detectedVideoPreviewUri?.let { previewUri ->
+            FullscreenPreviewDialog(
+                uri = previewUri,
+                title = "감지된 영상",
+                onClose = { detectedVideoPreviewUri = null }
+            )
         }
         }
     }
@@ -913,6 +923,7 @@ private fun queryBrowserDownload(
 private fun BrowserDetectedVideoPanel(
     palette: com.hanclip.android.core.theme.HanClipPalette,
     onDownload: () -> Unit,
+    onPreview: () -> Unit,
     onDismiss: () -> Unit
 ) {
     Surface(
@@ -931,6 +942,9 @@ private fun BrowserDetectedVideoPanel(
             Spacer(Modifier.weight(1f))
             Button(onClick = onDownload, shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)) {
                 Text("받기")
+            }
+            OutlinedButton(onClick = onPreview, shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)) {
+                Text("보기")
             }
             OutlinedButton(onClick = onDismiss, shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)) {
                 Text("닫기")
@@ -1247,7 +1261,7 @@ object BrowserFavoritesStore {
         }
 
         var addedCount = 0
-        var skippedCount = 0
+        val replacedAddresses = mutableSetOf<String>()
         importedFavorites.forEach { value ->
             val normalized = normalizedBrowserUrl(value)
             val key = browserFavoriteAddressKey(normalized) ?: return@forEach
@@ -1257,14 +1271,15 @@ object BrowserFavoritesStore {
                 merged.add(normalized)
                 addedCount += 1
             } else {
-                skippedCount += 1
+                merged[existingIndex] = normalized
+                replacedAddresses += key
             }
         }
 
         save(context, merged)
         return BrowserFavoritesMergeResult(
             addedCount = addedCount,
-            skippedCount = skippedCount,
+            replacedCount = replacedAddresses.size,
             totalCount = merged.size
         )
     }
@@ -1314,17 +1329,17 @@ object BrowserFavoritesStore {
 
 data class BrowserFavoritesMergeResult(
     val addedCount: Int,
-    val skippedCount: Int,
+    val replacedCount: Int,
     val totalCount: Int
 )
 
 fun browserFavoritesImportMessage(result: BrowserFavoritesMergeResult): String = when {
-    result.addedCount > 0 && result.skippedCount > 0 ->
-        "브라우저 즐겨찾기 ${result.addedCount}개 추가, 중복 ${result.skippedCount}개 제외"
+    result.addedCount > 0 && result.replacedCount > 0 ->
+        "브라우저 즐겨찾기 ${result.addedCount}개를 추가하고 ${result.replacedCount}개를 덮어썼습니다."
     result.addedCount > 0 ->
         "브라우저 즐겨찾기 ${result.addedCount}개를 추가했습니다."
-    result.skippedCount > 0 ->
-        "중복된 즐겨찾기 ${result.skippedCount}개는 가져오지 않았습니다."
+    result.replacedCount > 0 ->
+        "브라우저 즐겨찾기 ${result.replacedCount}개를 덮어썼습니다."
     else ->
         "가져올 브라우저 즐겨찾기가 없습니다."
 }
@@ -1349,7 +1364,17 @@ private fun browserFavoriteAddressKey(url: String): String? {
     val uri = Uri.parse(normalized)
     val scheme = uri.scheme?.lowercase()?.takeIf { it == "http" || it == "https" }
         ?: return null
-    val host = uri.host?.lowercase()?.removePrefix("www.") ?: return null
+    val host = uri.host?.lowercase() ?: return null
     val path = uri.path.orEmpty().trimEnd('/').ifBlank { "/" }
-    return "$scheme://$host$path"
+    val port = uri.port.takeIf { it >= 0 && !(
+        scheme == "https" && it == 443 || scheme == "http" && it == 80
+    ) }
+    val authority = if (port == null) host else "$host:$port"
+    return uri.buildUpon()
+        .scheme(scheme)
+        .encodedAuthority(authority)
+        .encodedPath(path)
+        .fragment(null)
+        .build()
+        .toString()
 }

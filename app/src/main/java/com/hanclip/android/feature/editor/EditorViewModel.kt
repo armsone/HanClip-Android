@@ -430,8 +430,7 @@ class EditorViewModel : ViewModel() {
             }.onFailure { error ->
                 Log.w("HanClipExport", "Foreground export notification unavailable", error)
             }
-            var actualOutputQualityPreset = state.outputQualityPreset
-            var usedCompatibilityRetry = false
+            val actualOutputQualityPreset = OutputQualityPreset.Standard
             val madeAtMillis = System.currentTimeMillis()
             val sourceDates = clips.mapNotNull(ClipItem::sourceCreatedAtMillis)
             val shootingStartAtMillis = sourceDates.minOrNull() ?: madeAtMillis
@@ -448,7 +447,7 @@ class EditorViewModel : ViewModel() {
                     clips = clips,
                     renderWidth = renderSize.first,
                     renderHeight = renderSize.second,
-                    frameRate = state.outputQualityPreset.frameRate,
+                    frameRate = OutputQualityPreset.Standard.frameRate,
                     watermarkSettings = state.watermarkSettings,
                     backgroundMusicUri = state.backgroundMusicUri,
                     backgroundMusicVolume = state.backgroundMusicVolume,
@@ -505,27 +504,7 @@ class EditorViewModel : ViewModel() {
                     }
                 }
 
-                try {
-                    runExportAttempt(exportRequest, state.outputQualityPreset)
-                } catch (error: Throwable) {
-                    if (error is CancellationException || state.outputQualityPreset.frameRate <= 30) {
-                        throw error
-                    }
-                    usedCompatibilityRetry = true
-                    actualOutputQualityPreset = OutputQualityPreset.Standard
-                    _uiState.update {
-                        it.copy(
-                            progressMessage = "60fps 제작이 불안정해 30fps 호환 모드로 다시 만드는 중... 완료 후 시사회로 이동",
-                            workProgress = 0f,
-                            workCurrent = 0,
-                            workTotal = 100
-                        )
-                    }
-                    runExportAttempt(
-                        exportRequest.copy(frameRate = OutputQualityPreset.Standard.frameRate),
-                        OutputQualityPreset.Standard
-                    )
-                }
+                runExportAttempt(exportRequest, OutputQualityPreset.Standard)
             }.onSuccess { outputUri ->
                 if (!exportOperationGate.isCurrent(exportToken)) return@onSuccess
                 stopExportForeground()
@@ -569,11 +548,7 @@ class EditorViewModel : ViewModel() {
                         workProgress = null,
                         workCurrent = 0,
                         workTotal = 0,
-                        alertMessage = if (usedCompatibilityRetry) {
-                            "60fps 제작이 불안정해 30fps 호환 모드로 완성했습니다."
-                        } else {
-                            null
-                        }
+                        alertMessage = null
                     )
                 }
                 onExported()
@@ -696,7 +671,7 @@ class EditorViewModel : ViewModel() {
                     }
                 },
                 alertMessage = if (changedCount > 0) {
-                    "MP4 완성본 클립 ${changedCount}개를 %.1f초 리듬으로 맞췄습니다. 현재 작업도 자동 저장됩니다."
+                    "MP4 완성본 클립 ${changedCount}개를 %.1f초 리듬으로 맞췄습니다."
                         .format(state.defaultDurationSeconds)
                 } else {
                     "적용할 클립이 없습니다."
@@ -766,7 +741,7 @@ class EditorViewModel : ViewModel() {
         _uiState.update {
             it.copy(
                 outputAspectRatio = ratio,
-                alertMessage = "MP4 완성본 화면을 $ratioText 설정으로 바꿨습니다. 현재 작업도 자동 저장됩니다.",
+                alertMessage = "MP4 완성본 화면을 $ratioText 설정으로 바꿨습니다.",
                 undoDeleteMessage = null
             )
         }
@@ -777,7 +752,7 @@ class EditorViewModel : ViewModel() {
         _uiState.update {
             it.copy(
                 outputQualityPreset = preset,
-                alertMessage = "MP4 완성본 품질을 ${preset.displayTitle}로 설정했습니다. 현재 작업도 자동 저장됩니다.",
+                alertMessage = "MP4 완성본 품질을 ${preset.displayTitle}로 설정했습니다.",
                 undoDeleteMessage = null
             )
         }
@@ -807,9 +782,9 @@ class EditorViewModel : ViewModel() {
             it.copy(
                 watermarkSettings = settings,
                 alertMessage = if (settings.includesEndingInfoCard) {
-                    "엔딩 ${settings.endingInfoCardTheme.title} · ${"%.1f".format(settings.normalizedEndingInfoCardDuration)}초를 MP4 완성본에 적용했습니다. 현재 작업도 자동 저장됩니다."
+                    "엔딩 ${settings.endingInfoCardTheme.title} · ${"%.1f".format(settings.normalizedEndingInfoCardDuration)}초를 MP4 완성본에 적용했습니다."
                 } else {
-                    "MP4 완성본에서 엔딩을 사용하지 않도록 설정했습니다. 현재 작업도 자동 저장됩니다."
+                    "MP4 완성본에서 엔딩을 사용하지 않도록 설정했습니다."
                 },
                 undoDeleteMessage = null
             )
@@ -843,7 +818,7 @@ class EditorViewModel : ViewModel() {
                 backgroundMusicTitle = displayNameForUri(appContext, uri),
                 backgroundMusicSampleId = null,
                 backgroundMusicVolume = 0.35,
-                alertMessage = "배경 음악을 MP4 완성본에 적용했습니다. 현재 작업도 자동 저장됩니다."
+                alertMessage = "배경 음악을 MP4 완성본에 적용했습니다."
             )
         }
     }
@@ -855,7 +830,7 @@ class EditorViewModel : ViewModel() {
                 backgroundMusicTitle = sample.title,
                 backgroundMusicSampleId = sample.id,
                 backgroundMusicVolume = 0.35,
-                alertMessage = "${sample.title} 음악을 MP4 완성본에 적용했습니다. 현재 작업도 자동 저장됩니다."
+                alertMessage = "${sample.title} 음악을 MP4 완성본에 적용했습니다."
             )
         }
     }
@@ -891,7 +866,32 @@ class EditorViewModel : ViewModel() {
                 backgroundMusicTitle = null,
                 backgroundMusicSampleId = null,
                 backgroundMusicVolume = 0.35,
-                alertMessage = "MP4 완성본에서 배경 음악을 제거했습니다. 현재 작업도 자동 저장됩니다."
+                alertMessage = "MP4 완성본에서 배경 음악을 제거했습니다."
+            )
+        }
+    }
+
+    fun restoreBackgroundMusicSettings(
+        uri: Uri?,
+        title: String?,
+        sampleId: String?,
+        musicVolume: Double,
+        originalAudioVolume: Double,
+        loopsToFillVideo: Boolean,
+        fadeInEnabled: Boolean,
+        fadeOutEnabled: Boolean
+    ) {
+        _uiState.update {
+            it.copy(
+                backgroundMusicUri = uri,
+                backgroundMusicTitle = title,
+                backgroundMusicSampleId = sampleId,
+                backgroundMusicVolume = musicVolume,
+                originalAudioVolume = originalAudioVolume,
+                backgroundMusicLoopsToFillVideo = loopsToFillVideo,
+                backgroundMusicFadeInEnabled = fadeInEnabled,
+                backgroundMusicFadeOutEnabled = fadeOutEnabled,
+                alertMessage = null
             )
         }
     }
@@ -1213,7 +1213,7 @@ class EditorViewModel : ViewModel() {
                         clip
                     }
                 },
-                alertMessage = "선택한 사진만 MP4 완성본에서 %.1f초로 적용했습니다. 현재 작업도 자동 저장됩니다.".format(safeDuration),
+                alertMessage = "선택한 사진만 MP4 완성본에서 %.1f초로 적용했습니다.".format(safeDuration),
                 undoDeleteMessage = null
             )
         }
@@ -1241,7 +1241,7 @@ class EditorViewModel : ViewModel() {
                         )
                     }
                 },
-                alertMessage = "선택한 영상 구간을 MP4 완성본에 %.1f초로 적용했습니다. 현재 작업도 자동 저장됩니다."
+                alertMessage = "선택한 영상 구간을 MP4 완성본에 %.1f초로 적용했습니다."
                     .format(durationSeconds.coerceAtLeast(0.1)),
                 undoDeleteMessage = null
             )
@@ -1342,7 +1342,7 @@ class EditorViewModel : ViewModel() {
                     }
                 },
                 alertMessage = if (state.clips.any { it.mediaKind == ClipMediaKind.LivePhoto }) {
-                    if (useMotion) "모션포토를 영상으로 사용합니다." else "모션포토를 사진으로 사용합니다."
+                    if (useMotion) "모션포토를 Live로 사용합니다." else "모션포토를 사진으로 사용합니다."
                 } else {
                     "현재 프로젝트에 모션포토가 없습니다."
                 }
@@ -1560,9 +1560,9 @@ class EditorViewModel : ViewModel() {
                     .filter { groupId -> rebalanced.any { it.similarPhotoGroupId == groupId } }
                     .toSet(),
                 alertMessage = if (removedCount > 1) {
-                    "MP4 완성본 번호순에서 클립 ${removedCount}개를 제외했습니다. 현재 작업도 자동 저장됩니다."
+                    "MP4 완성본 번호순에서 클립 ${removedCount}개를 제외했습니다."
                 } else {
-                    "MP4 완성본 번호순에서 클립을 제외했습니다. 현재 작업도 자동 저장됩니다."
+                    "MP4 완성본 번호순에서 클립을 제외했습니다."
                 },
                 undoDeleteMessage = "방금 제외한 클립을 되돌릴 수 있습니다."
             )
@@ -1785,7 +1785,7 @@ class EditorViewModel : ViewModel() {
             } else {
                 state.copy(
                     clips = moveClipGroup(state.clips, index, -1),
-                    alertMessage = "MP4 완성본 번호순에서 클립을 한 칸 앞으로 이동했습니다. 현재 작업도 자동 저장됩니다."
+                    alertMessage = "MP4 완성본 번호순에서 클립을 한 칸 앞으로 이동했습니다."
                 )
             }
         }
@@ -1799,7 +1799,7 @@ class EditorViewModel : ViewModel() {
             } else {
                 state.copy(
                     clips = moveClipGroup(state.clips, index, 1),
-                    alertMessage = "MP4 완성본 번호순에서 클립을 한 칸 뒤로 이동했습니다. 현재 작업도 자동 저장됩니다."
+                    alertMessage = "MP4 완성본 번호순에서 클립을 한 칸 뒤로 이동했습니다."
                 )
             }
         }
@@ -2158,7 +2158,7 @@ class EditorViewModel : ViewModel() {
         return when (preset) {
             MoviePreset.AiShot -> WatermarkSettings(
                 isEnabled = true,
-                logoEnabled = true,
+                logoEnabled = false,
                 text = dateText,
                 position = WatermarkPosition.BottomLeading,
                 fontName = "do_hyeon",
@@ -2176,7 +2176,7 @@ class EditorViewModel : ViewModel() {
             )
             MoviePreset.Travel -> WatermarkSettings(
                 isEnabled = true,
-                logoEnabled = true,
+                logoEnabled = false,
                 text = dateText,
                 position = WatermarkPosition.BottomCenter,
                 fontName = "gowun_batang",
@@ -2216,7 +2216,7 @@ class EditorViewModel : ViewModel() {
 
     private fun watermarkApplyMessage(settings: WatermarkSettings): String {
         if (!settings.shouldRender) {
-            return "MP4 완성본 자막과 HanClip 로고를 껐습니다. 현재 작업도 자동 저장됩니다."
+            return "MP4 완성본 자막과 HanClip 로고를 껐습니다."
         }
         val parts = buildList {
             if (settings.shouldRenderText) {
@@ -2227,7 +2227,7 @@ class EditorViewModel : ViewModel() {
                 add("HanClip 로고 ${watermarkPositionTitle(settings.copyrightPosition)}")
             }
         }
-        return parts.joinToString(" · ", postfix = " MP4 완성본에 적용했습니다. 현재 작업도 자동 저장됩니다.")
+        return parts.joinToString(" · ", postfix = " MP4 완성본에 적용했습니다.")
     }
 
     private fun watermarkPositionTitle(position: WatermarkPosition): String {

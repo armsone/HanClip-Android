@@ -9,6 +9,29 @@
     android:padding="6dp">
 
     <LinearLayout
+        android:id="@+id/widget_open"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:contentDescription="@string/widget_open"
+        android:gravity="center"
+        android:orientation="vertical">
+        <ImageView
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:contentDescription="@null"
+            android:src="@mipmap/ic_launcher" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:text="HanClip"
+            android:textColor="#002F35"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <LinearLayout
         android:id="@+id/widget_photo"
         android:layout_width="0dp"
         android:layout_height="match_parent"

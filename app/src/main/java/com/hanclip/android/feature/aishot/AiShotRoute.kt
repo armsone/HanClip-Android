@@ -64,12 +64,14 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -275,7 +277,9 @@ fun AiShotRoute(
     var nextShotLengthEdge by remember(projectId) {
         mutableStateOf(AiShotPreferenceStore.loadNextShotLengthEdge(context, projectId))
     }
-    var zoomPreset by remember { mutableStateOf(ZoomPreset.One) }
+    var zoomRatio by remember { mutableFloatStateOf(1f) }
+    var minimumZoomRatio by remember { mutableFloatStateOf(1f) }
+    var maximumZoomRatio by remember { mutableFloatStateOf(8f) }
     var level by remember { mutableDoubleStateOf(0.0) }
     var statusText by remember { mutableStateOf("스윙 감지 대기") }
     var savedCount by remember { mutableIntStateOf(0) }
@@ -478,7 +482,7 @@ fun AiShotRoute(
             it.setSurfaceProvider(view.surfaceProvider)
         }
         val recorder = Recorder.Builder()
-            .setQualitySelector(QualitySelector.from(Quality.HD))
+            .setQualitySelector(QualitySelector.from(Quality.FHD))
             .build()
         val capture = VideoCapture.withOutput(recorder).also { it.targetRotation = rotation }
         val selector = CameraSelector.Builder()
@@ -523,12 +527,17 @@ fun AiShotRoute(
         }
     }
 
-    LaunchedEffect(camera, zoomPreset) {
+    LaunchedEffect(camera) {
         val boundCamera = camera ?: return@LaunchedEffect
         val zoomState = boundCamera.cameraInfo.zoomState.value
-        val minimum = zoomState?.minZoomRatio ?: 1f
-        val maximum = zoomState?.maxZoomRatio ?: 8f
-        val safeRatio = zoomPreset.ratio.toFloat().coerceIn(minimum, maximum)
+        minimumZoomRatio = zoomState?.minZoomRatio ?: 1f
+        maximumZoomRatio = zoomState?.maxZoomRatio ?: 8f
+        zoomRatio = zoomRatio.coerceIn(minimumZoomRatio, maximumZoomRatio)
+    }
+
+    LaunchedEffect(camera, zoomRatio) {
+        val boundCamera = camera ?: return@LaunchedEffect
+        val safeRatio = zoomRatio.coerceIn(minimumZoomRatio, maximumZoomRatio)
         runCatching {
             boundCamera.cameraControl.setZoomRatio(safeRatio)
         }
@@ -666,8 +675,10 @@ fun AiShotRoute(
             AiShotFloatingControls(
                 shotLength = shotLength,
                 onShotLengthTap = ::selectNextShotLength,
-                zoomPreset = zoomPreset,
-                onZoomPresetChange = { zoomPreset = it },
+                zoomRatio = zoomRatio,
+                minimumZoomRatio = minimumZoomRatio,
+                maximumZoomRatio = maximumZoomRatio,
+                onZoomRatioChange = { zoomRatio = it },
                 lensLabel = if (lensFacing == CameraSelector.LENS_FACING_FRONT) "전면" else "후면",
                 isRecording = triggerTimeSeconds != null,
                 onManualRecord = {
@@ -875,8 +886,10 @@ private fun AiShotFloatingControls(
     modifier: Modifier = Modifier,
     shotLength: ShotLength,
     onShotLengthTap: () -> Unit,
-    zoomPreset: ZoomPreset,
-    onZoomPresetChange: (ZoomPreset) -> Unit,
+    zoomRatio: Float,
+    minimumZoomRatio: Float,
+    maximumZoomRatio: Float,
+    onZoomRatioChange: (Float) -> Unit,
     lensLabel: String,
     isRecording: Boolean,
     onManualRecord: () -> Unit,
@@ -897,10 +910,12 @@ private fun AiShotFloatingControls(
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ZoomPreset.entries.forEach { option ->
-                val selected = option == zoomPreset
+            ZoomPreset.entries
+                .filter { it.ratio.toFloat() in minimumZoomRatio..maximumZoomRatio }
+                .forEach { option ->
+                val selected = kotlin.math.abs(option.ratio.toFloat() - zoomRatio) < 0.05f
                 Button(
-                    onClick = { onZoomPresetChange(option) },
+                    onClick = { onZoomRatioChange(option.ratio.toFloat()) },
                     modifier = Modifier
                         .weight(1f)
                         .height(48.dp)
@@ -915,6 +930,23 @@ private fun AiShotFloatingControls(
                     Text(option.title, fontWeight = FontWeight.Bold)
                 }
             }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(0.90f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                "%.1fx".format(zoomRatio),
+                color = Color(0xFF25C481),
+                fontWeight = FontWeight.Bold
+            )
+            Slider(
+                value = zoomRatio.coerceIn(minimumZoomRatio, maximumZoomRatio),
+                onValueChange = onZoomRatioChange,
+                valueRange = minimumZoomRatio..maximumZoomRatio,
+                modifier = Modifier.weight(1f)
+            )
         }
 
         Row(

@@ -90,6 +90,7 @@ fun MusicSettingsSheet(
     onLoopingChange: (Boolean) -> Unit,
     onFadeInChange: (Boolean) -> Unit,
     onFadeOutChange: (Boolean) -> Unit,
+    onSave: () -> Unit,
     onDismiss: () -> Unit
 ) {
     if (fullScreen) FullScreenDialogSystemBars(palette.solidPanel)
@@ -151,6 +152,7 @@ fun MusicSettingsSheet(
                         onFadeInChange(initialFadeInEnabled)
                         onFadeOutChange(initialFadeOutEnabled)
                     },
+                    onSave = onSave,
                     onDismiss = onDismiss
                 )
             } else {
@@ -417,8 +419,7 @@ private fun MusicVolumePanel(
             value = value.toFloat().coerceIn(0f, 1f),
             onValueChange = { onValueChange(it.toDouble()) },
             enabled = enabled,
-            valueRange = 0f..1f,
-            steps = 19
+            valueRange = 0f..1f
         )
     }
 }

@@ -3,7 +3,9 @@ package com.hanclip.android.feature.editor
 import android.Manifest
 import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
@@ -166,6 +168,17 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
 
+private data class MusicSettingsSnapshot(
+    val uri: Uri?,
+    val title: String?,
+    val sampleId: String?,
+    val musicVolume: Double,
+    val originalAudioVolume: Double,
+    val loopsToFillVideo: Boolean,
+    val fadeInEnabled: Boolean,
+    val fadeOutEnabled: Boolean
+)
+
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 fun EditorRoute(
@@ -186,12 +199,25 @@ fun EditorRoute(
     val editorColumnCount = if (LocalConfiguration.current.screenWidthDp >= 600) 2 else 1
     val palette = HanClipThemeStore.load(context).currentPalette
     HanClipSystemBars(palette.solidPanel)
+    DisposableEffect(context) {
+        val activity = context.findEditorActivity()
+        val isPhone = context.resources.configuration.smallestScreenWidthDp < 600
+        val previousOrientation = activity?.requestedOrientation
+        if (activity != null && isPhone) {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+        onDispose {
+            if (activity != null && isPhone && previousOrientation != null) {
+                activity.requestedOrientation = previousOrientation
+            }
+        }
+    }
     var trimmingClipID by rememberSaveable { mutableStateOf<String?>(null) }
-    var photoDurationClipID by rememberSaveable { mutableStateOf<String?>(null) }
     var previewClipID by rememberSaveable { mutableStateOf<String?>(null) }
     var isTextOverlaySheetVisible by rememberSaveable { mutableStateOf(false) }
     var isEndingInfoSettingsSheetVisible by rememberSaveable { mutableStateOf(false) }
     var isMusicSettingsSheetVisible by rememberSaveable { mutableStateOf(false) }
+    var musicSettingsSnapshot by remember { mutableStateOf<MusicSettingsSnapshot?>(null) }
     var isCalendarPickerVisible by rememberSaveable { mutableStateOf(false) }
     var mediaPickerTitle by rememberSaveable { mutableStateOf("날짜별") }
     var isReorderMode by rememberSaveable { mutableStateOf(false) }
@@ -212,11 +238,31 @@ fun EditorRoute(
     var quickTargetDurationSeconds by rememberSaveable { mutableStateOf(1.0) }
     var pendingExportAfterNotificationPermission by rememberSaveable { mutableStateOf(false) }
     val trimmingClip = state.clips.firstOrNull { it.id == trimmingClipID }
-    val photoDurationClip = state.clips.firstOrNull { it.id == photoDurationClipID }
     val previewClip = state.clips.firstOrNull { it.id == previewClipID }
     val pendingDeleteClip = state.clips.firstOrNull { it.id == pendingDeleteClipID }
     val previewClips = state.renderableClips
     val previewClipIndex = previewClips.indexOfFirst { it.id == previewClipID }
+    val trimmingClips = state.renderableClips.filter { clip ->
+        clip.mediaKind == ClipMediaKind.Video ||
+            (clip.mediaKind == ClipMediaKind.LivePhoto &&
+                clip.livePhotoMode == com.hanclip.android.core.model.LivePhotoMode.Motion)
+    }
+    val trimmingClipIndex = trimmingClips.indexOfFirst { it.id == trimmingClipID }
+    fun openMusicSettings() {
+        if (musicSettingsSnapshot == null) {
+            musicSettingsSnapshot = MusicSettingsSnapshot(
+                uri = state.backgroundMusicUri,
+                title = state.backgroundMusicTitle,
+                sampleId = state.backgroundMusicSampleId,
+                musicVolume = state.backgroundMusicVolume,
+                originalAudioVolume = state.originalAudioVolume,
+                loopsToFillVideo = state.backgroundMusicLoopsToFillVideo,
+                fadeInEnabled = state.backgroundMusicFadeInEnabled,
+                fadeOutEnabled = state.backgroundMusicFadeOutEnabled
+            )
+        }
+        isMusicSettingsSheetVisible = true
+    }
     val galleryPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -244,7 +290,9 @@ fun EditorRoute(
         } else {
             viewModel.showAlert("음악 선택을 취소했습니다. 음악 설정에서 다시 선택하거나 샘플 음악을 사용할 수 있습니다.")
         }
-        if (reopenQuickAfterSettings) {
+        if (musicSettingsSnapshot != null) {
+            isMusicSettingsSheetVisible = true
+        } else if (reopenQuickAfterSettings) {
             reopenQuickAfterSettings = false
             isQuickDurationVisible = true
         }
@@ -364,27 +412,6 @@ fun EditorRoute(
         }
     }
 
-    LaunchedEffect(
-        state.clips,
-        state.defaultDurationSeconds,
-        state.defaultVideoSegmentMode,
-        state.outputAspectRatio,
-        state.outputQualityPreset,
-        state.watermarkSettings,
-        state.backgroundMusicUri,
-        state.backgroundMusicTitle,
-        state.backgroundMusicSampleId,
-        state.backgroundMusicVolume,
-        state.originalAudioVolume,
-        state.backgroundMusicLoopsToFillVideo,
-        state.backgroundMusicFadeInEnabled,
-        state.backgroundMusicFadeOutEnabled
-    ) {
-        if (state.clips.isNotEmpty() && !state.isImportingMedia && !state.isExporting) {
-            viewModel.saveDraft(context)
-        }
-    }
-
     fun requestBackHome() {
         if (state.clips.isEmpty()) {
             viewModel.discardPersistedProjectIfEmpty(context)
@@ -475,7 +502,7 @@ fun EditorRoute(
                     onOpenTextOverlay = {
                         isTextOverlaySheetVisible = true
                     },
-                    onOpenMusicSettings = { isMusicSettingsSheetVisible = true },
+                    onOpenMusicSettings = ::openMusicSettings,
                     onToggleEnding = { enabled ->
                         viewModel.updateEndingInfo(
                             state.watermarkSettings.copy(includesEndingInfoCard = enabled)
@@ -585,12 +612,10 @@ fun EditorRoute(
                             clip.livePhotoMode == com.hanclip.android.core.model.LivePhotoMode.Motion
                         ) {
                             trimmingClipID = clip.id
-                        } else {
-                            photoDurationClipID = clip.id
                         }
                     },
-                    onDecreaseDuration = { viewModel.adjustClipDuration(clip.id, -1.0) },
-                    onIncreaseDuration = { viewModel.adjustClipDuration(clip.id, 1.0) },
+                    onDecreaseDuration = { viewModel.adjustClipDuration(clip.id, -0.1) },
+                    onIncreaseDuration = { viewModel.adjustClipDuration(clip.id, 0.1) },
                     onMoveUp = { viewModel.moveClipUp(clip.id) },
                     onMoveDown = { viewModel.moveClipDown(clip.id) },
                     onDelete = { pendingDeleteClipID = clip.id },
@@ -905,7 +930,7 @@ fun EditorRoute(
                     if (enabled && state.backgroundMusicUri == null) {
                         isQuickDurationVisible = false
                         reopenQuickAfterSettings = true
-                        isMusicSettingsSheetVisible = true
+                        openMusicSettings()
                     } else {
                         viewModel.updateBackgroundMusicVolume(if (enabled) 0.35 else 0.0)
                     }
@@ -924,7 +949,7 @@ fun EditorRoute(
                 onOpenMusic = {
                     isQuickDurationVisible = false
                     reopenQuickAfterSettings = true
-                    isMusicSettingsSheetVisible = true
+                    openMusicSettings()
                 },
                 onAddPhoto = {
                     isQuickDurationVisible = false
@@ -956,30 +981,28 @@ fun EditorRoute(
                     clip = clip,
                     palette = palette,
                     onDismiss = { trimmingClipID = null },
+                    onPrevious = trimmingClips.getOrNull(trimmingClipIndex - 1)?.let { previous ->
+                        { startSeconds, durationSeconds ->
+                            viewModel.updateVideoTrim(clip.id, startSeconds, durationSeconds)
+                            trimmingClipID = previous.id
+                        }
+                    },
+                    onNext = trimmingClips.getOrNull(trimmingClipIndex + 1)?.let { next ->
+                        { startSeconds, durationSeconds ->
+                            viewModel.updateVideoTrim(clip.id, startSeconds, durationSeconds)
+                            trimmingClipID = next.id
+                        }
+                    },
+                    onDelete = {
+                        trimmingClipID = null
+                        pendingDeleteClipID = clip.id
+                    },
                     onApplyTrim = { startSeconds, durationSeconds ->
                         viewModel.updateVideoTrim(
                             id = clip.id,
                             startSeconds = startSeconds,
                             durationSeconds = durationSeconds
                         )
-                    }
-                )
-            }
-        }
-        photoDurationClip?.let { clip ->
-            Dialog(
-                onDismissRequest = { photoDurationClipID = null },
-                properties = DialogProperties(
-                    usePlatformDefaultWidth = false,
-                    decorFitsSystemWindows = false
-                )
-            ) {
-                PhotoDurationSheet(
-                    clip = clip,
-                    palette = palette,
-                    onDismiss = { photoDurationClipID = null },
-                    onApplyDuration = { durationSeconds ->
-                        viewModel.updatePhotoDuration(clip.id, durationSeconds)
                     }
                 )
             }
@@ -1000,17 +1023,15 @@ fun EditorRoute(
                 onNext = if (previewClipIndex in 0 until previewClips.lastIndex) {
                     { previewClipID = previewClips[previewClipIndex + 1].id }
                 } else null,
-                onEdit = {
-                    previewClipID = null
-                    if (
+                onEdit = if (
                         clip.mediaKind == ClipMediaKind.Video ||
                         clip.livePhotoMode == com.hanclip.android.core.model.LivePhotoMode.Motion
                     ) {
+                    {
+                        previewClipID = null
                         trimmingClipID = clip.id
-                    } else {
-                        photoDurationClipID = clip.id
                     }
-                },
+                } else null,
                 onDelete = {
                     val nextClipId = previewClips.getOrNull(previewClipIndex + 1)?.id
                         ?: previewClips.getOrNull(previewClipIndex - 1)?.id
@@ -1070,7 +1091,22 @@ fun EditorRoute(
             }
         }
         if (isMusicSettingsSheetVisible) {
-            fun closeMusicSettings() {
+            fun closeMusicSettings(save: Boolean) {
+                if (!save) {
+                    musicSettingsSnapshot?.let { snapshot ->
+                        viewModel.restoreBackgroundMusicSettings(
+                            uri = snapshot.uri,
+                            title = snapshot.title,
+                            sampleId = snapshot.sampleId,
+                            musicVolume = snapshot.musicVolume,
+                            originalAudioVolume = snapshot.originalAudioVolume,
+                            loopsToFillVideo = snapshot.loopsToFillVideo,
+                            fadeInEnabled = snapshot.fadeInEnabled,
+                            fadeOutEnabled = snapshot.fadeOutEnabled
+                        )
+                    }
+                }
+                musicSettingsSnapshot = null
                 isMusicSettingsSheetVisible = false
                 if (reopenQuickAfterSettings) {
                     reopenQuickAfterSettings = false
@@ -1078,7 +1114,7 @@ fun EditorRoute(
                 }
             }
             Dialog(
-                onDismissRequest = ::closeMusicSettings,
+                onDismissRequest = { closeMusicSettings(save = false) },
                 properties = DialogProperties(
                     usePlatformDefaultWidth = false,
                     decorFitsSystemWindows = false
@@ -1097,7 +1133,6 @@ fun EditorRoute(
                     fullScreen = true,
                     onUseSample = { sample ->
                         viewModel.useSampleBackgroundMusic(context, sample)
-                        closeMusicSettings()
                     },
                     onPickFile = {
                         isMusicSettingsSheetVisible = false
@@ -1110,14 +1145,14 @@ fun EditorRoute(
                     },
                     onRemove = {
                         viewModel.removeBackgroundMusic()
-                        closeMusicSettings()
                     },
                     onMusicVolumeChange = viewModel::updateBackgroundMusicVolume,
                     onOriginalAudioVolumeChange = viewModel::updateOriginalAudioVolume,
                     onLoopingChange = viewModel::updateBackgroundMusicLooping,
                     onFadeInChange = viewModel::updateBackgroundMusicFadeIn,
                     onFadeOutChange = viewModel::updateBackgroundMusicFadeOut,
-                    onDismiss = ::closeMusicSettings
+                    onSave = { closeMusicSettings(save = true) },
+                    onDismiss = { closeMusicSettings(save = false) }
                 )
             }
         }
@@ -3059,7 +3094,7 @@ private fun ProjectControls(
                         onClick = { onSetLivePhotoMotion(false) }
                     )
                     CompactChoice(
-                        "영상",
+                        "Live",
                         livePhotosUseMotion,
                         palette,
                         onClick = { onSetLivePhotoMotion(true) },
@@ -3154,20 +3189,6 @@ private fun ProjectControls(
         }
         if (isClipSettingsExpanded && isAdvancedSettingsExpanded) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutputQualityPreset.entries.forEach { quality ->
-                    FilterChip(
-                        selected = selectedQuality == quality,
-                        onClick = { onSelectQuality(quality) },
-                        label = { Text(quality.chipTitle) },
-                        colors = clearFilterChipColors(palette),
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = selectedQuality == quality,
-                            borderColor = palette.border,
-                            selectedBorderColor = palette.primary
-                        )
-                    )
-                }
                 FilterChip(
                     selected = selectedRatio == null,
                     onClick = { onSelectRatio(null) },
@@ -3562,7 +3583,7 @@ private fun CompactClipRow(
                         clip.mediaKind == ClipMediaKind.LivePhoto -> {
                             ClipControlPill(
                                 palette,
-                                if (clip.livePhotoMode == com.hanclip.android.core.model.LivePhotoMode.Motion) "영상" else "사진",
+                                clip.livePhotoMode.title,
                                 active = true,
                                 onClick = onToggleLivePhotoMode
                             )
@@ -3922,7 +3943,7 @@ private fun ClipPreviewDialog(
     onFirst: (() -> Unit)?,
     onPrevious: (() -> Unit)?,
     onNext: (() -> Unit)?,
-    onEdit: () -> Unit,
+    onEdit: (() -> Unit)?,
     onDelete: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -4020,8 +4041,10 @@ private fun ClipPreviewDialog(
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
-                            OutlinedButton(onClick = onEdit) {
-                                Text("편집")
+                            if (onEdit != null) {
+                                OutlinedButton(onClick = onEdit) {
+                                    Text("편집")
+                                }
                             }
                             OutlinedButton(onClick = { isDeleteConfirmationVisible = true }) {
                                 Text("삭제", color = Color(0xFFE45D42))
@@ -4877,4 +4900,10 @@ private fun overlayStatusText(hasTextOverlay: Boolean, hasLogoOverlay: Boolean):
         hasLogoOverlay -> "HanClip 로고"
         else -> "자막/로고 꺼짐"
     }
+}
+
+private tailrec fun Context.findEditorActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findEditorActivity()
+    else -> null
 }
