@@ -173,15 +173,31 @@ fun VideoTrimSheet(
                 Box(modifier = Modifier.clickable(onClickLabel = "편집 닫기", onClick = ::dismissSavingSelection)) {
                     HanClipBrandCapsule(palette)
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = ::dismissSavingSelection) {
-                        Icon(Icons.Outlined.Close, contentDescription = "닫기", tint = palette.text)
-                    }
-                    IconButton(onClick = {
-                        startSeconds = initialStartSeconds
-                        durationSeconds = initialDurationSeconds
-                    }) {
-                        Icon(Icons.Outlined.Refresh, contentDescription = "편집 초기화", tint = palette.text)
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = palette.panel.copy(alpha = palette.panel.alpha * 0.72f),
+                    border = BorderStroke(
+                        1.dp,
+                        palette.border.copy(alpha = palette.border.alpha * 0.62f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.height(58.dp).padding(horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = ::dismissSavingSelection) {
+                            Icon(Icons.Outlined.Close, contentDescription = "닫기", tint = palette.primary)
+                        }
+                        IconButton(onClick = {
+                            startSeconds = initialStartSeconds
+                            durationSeconds = initialDurationSeconds
+                        }) {
+                            Icon(
+                                Icons.Outlined.Refresh,
+                                contentDescription = "편집 초기화",
+                                tint = palette.primary
+                            )
+                        }
                     }
                 }
             }
