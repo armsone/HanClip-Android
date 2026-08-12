@@ -2129,7 +2129,7 @@ class EditorViewModel : ViewModel() {
 
     private fun sampleBackgroundMusicUri(context: Context?, sample: BackgroundMusicSample): Uri {
         val packageName = context?.packageName ?: "com.hanclip.android"
-        return Uri.parse("android.resource://$packageName/raw/${sample.rawResourceName}")
+        return Uri.parse("android.resource://$packageName/${sample.rawResourceId}")
     }
 
     private fun presetSampleMusic(preset: MoviePreset): BackgroundMusicSample? {

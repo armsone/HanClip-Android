@@ -530,5 +530,5 @@ private fun togglePreviewTarget(
 }
 
 private fun BackgroundMusicSample.previewUri(packageName: String): Uri {
-    return Uri.parse("android.resource://$packageName/raw/$rawResourceName")
+    return Uri.parse("android.resource://$packageName/$rawResourceId")
 }

@@ -16,6 +16,7 @@ import android.webkit.JavascriptInterface
 import android.webkit.URLUtil
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.view.View
@@ -506,6 +507,9 @@ fun OnlineMusicBrowserRoute(
                         settings.javaScriptEnabled = true
                         settings.domStorageEnabled = true
                         settings.mediaPlaybackRequiresUserGesture = false
+                        settings.allowFileAccess = false
+                        settings.allowContentAccess = false
+                        settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
                         addJavascriptInterface(
                             BrowserVideoBridge { source ->
                                 if (source != dismissedVideoUrl && isDownloadableVideoUrl(source)) {

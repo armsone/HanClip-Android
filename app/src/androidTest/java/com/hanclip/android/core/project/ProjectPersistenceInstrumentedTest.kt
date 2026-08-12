@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.hanclip.android.core.model.ClipItem
+import com.hanclip.android.core.model.BackgroundMusicSample
 import com.hanclip.android.core.model.ClipMediaKind
 import com.hanclip.android.core.model.LivePhotoMode
 import com.hanclip.android.core.model.MoviePreset
@@ -656,6 +657,15 @@ class ProjectPersistenceInstrumentedTest {
         assertEquals(emptyList<String>(), storedFile.parentFile?.listFiles().orEmpty()
             .filter { it.name.startsWith(".music-staging-") }
             .map(File::getName))
+    }
+
+    @Test
+    fun allBundledMusicSamplesResolveToPackagedAudio() {
+        BackgroundMusicSample.entries.forEach { sample ->
+            baseContext.resources.openRawResource(sample.rawResourceId).use { input ->
+                assertEquals(true, input.read() >= 0)
+            }
+        }
     }
 
     @Test
