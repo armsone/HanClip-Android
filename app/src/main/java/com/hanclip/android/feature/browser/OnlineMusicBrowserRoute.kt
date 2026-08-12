@@ -23,8 +23,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -36,8 +34,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -66,7 +62,6 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
@@ -132,14 +127,13 @@ import kotlinx.coroutines.delay
 
 private const val PixabayMusicUrl = "https://pixabay.com/music/"
 private const val MixkitMusicUrl = "https://mixkit.co/free-stock-music/"
-private const val CxFileExplorerPackage = "com.cxinventor.file.explorer"
 
 private data class BrowserFullscreenContent(
     val view: View,
     val callback: WebChromeClient.CustomViewCallback
 )
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun OnlineMusicBrowserRoute(
     onClose: () -> Unit
@@ -167,41 +161,6 @@ fun OnlineMusicBrowserRoute(
     var downloadProgress by remember { mutableStateOf<BrowserDownloadProgress?>(null) }
     var fullscreenContent by remember { mutableStateOf<BrowserFullscreenContent?>(null) }
     val latestFullscreenContent by rememberUpdatedState(fullscreenContent)
-    val cxFavoriteImportIntent = remember(context) {
-        cxBrowserFavoritesFileIntent(context)
-    }
-    val favoriteImportLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val uri = result.data?.data
-        if (uri == null) return@rememberLauncherForActivityResult
-        runCatching { BrowserFavoritesStore.parseArchive(context, uri) }
-            .onSuccess { importedFavorites ->
-                if (importedFavorites.isEmpty()) {
-                    Toast.makeText(
-                        context,
-                        "즐겨찾기 파일에서 주소를 찾지 못했습니다.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                } else {
-                    val result = BrowserFavoritesStore.merge(context, importedFavorites)
-                    favorites = BrowserFavoritesStore.load(context)
-                    Toast.makeText(
-                        context,
-                        browserFavoritesImportMessage(result),
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            }
-            .onFailure {
-                Toast.makeText(
-                    context,
-                    "HanClip 즐겨찾기 파일을 읽지 못했습니다.",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-    }
-
     fun closeFullscreenVideo() {
         fullscreenContent?.callback?.onCustomViewHidden()
         fullscreenContent = null
@@ -332,19 +291,12 @@ fun OnlineMusicBrowserRoute(
 
     if (isFavoriteManagerVisible) {
         BrowserFavoriteManager(
-            favorites = favorites,
-            palette = palette,
+                favorites = favorites,
+                palette = palette,
             onFavoritesChange = { nextFavorites ->
                 favorites = nextFavorites
                 BrowserFavoritesStore.save(context, nextFavorites)
             },
-            onImport = {
-                favoriteImportLauncher.launch(browserFavoritesFileIntent(context))
-            },
-            onImportWithCx = {
-                cxFavoriteImportIntent?.let(favoriteImportLauncher::launch)
-            },
-            isCxAvailable = cxFavoriteImportIntent != null,
             onShare = { BrowserFavoritesStore.share(context, favorites) },
             onClose = {
                 isFavoriteManagerVisible = false
@@ -720,25 +672,6 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
     else -> null
-}
-
-private fun browserFavoritesFileIntent(context: Context): Intent {
-    val openDocument = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-        type = "*/*"
-        addCategory(Intent.CATEGORY_OPENABLE)
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
-    return Intent.createChooser(openDocument, "HanClip 즐겨찾기 파일 선택")
-}
-
-private fun cxBrowserFavoritesFileIntent(context: Context): Intent? {
-    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-        type = "*/*"
-        setPackage(CxFileExplorerPackage)
-        addCategory(Intent.CATEGORY_OPENABLE)
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
-    return intent.takeIf { it.resolveActivity(context.packageManager) != null }
 }
 
 @Composable
@@ -1206,15 +1139,11 @@ private fun BrowserFavoriteRow(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BrowserFavoriteManager(
     favorites: List<String>,
     palette: com.hanclip.android.core.theme.HanClipPalette,
     onFavoritesChange: (List<String>) -> Unit,
-    onImport: () -> Unit,
-    onImportWithCx: () -> Unit,
-    isCxAvailable: Boolean,
     onShare: () -> Unit,
     onClose: () -> Unit
 ) {
@@ -1232,25 +1161,6 @@ private fun BrowserFavoriteManager(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("즐겨찾기 관리", color = palette.text, fontWeight = FontWeight.Black)
-                IconButton(onClick = onClose) {
-                    Icon(Icons.Outlined.Close, contentDescription = "즐겨찾기 관리 닫기", tint = palette.text)
-                }
-            }
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(onClick = onImport) {
-                    Icon(Icons.Outlined.FolderOpen, contentDescription = null)
-                    Text("파일 불러오기")
-                }
-                if (isCxAvailable) {
-                    OutlinedButton(onClick = onImportWithCx) {
-                        Icon(Icons.Outlined.FolderOpen, contentDescription = null)
-                        Text("CX 파일 탐색기")
-                    }
-                }
                 OutlinedButton(
                     onClick = { onFavoritesChange(emptyList()) },
                     enabled = favorites.isNotEmpty()
@@ -1258,9 +1168,14 @@ private fun BrowserFavoriteManager(
                     Icon(Icons.Outlined.Delete, contentDescription = null)
                     Text("전체삭제")
                 }
-                OutlinedButton(onClick = onShare, enabled = favorites.isNotEmpty()) {
-                    Icon(Icons.Outlined.IosShare, contentDescription = null)
-                    Text("파일로 저장")
+                Text("즐겨찾기", color = palette.text, fontWeight = FontWeight.Black)
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    IconButton(onClick = onShare, enabled = favorites.isNotEmpty()) {
+                        Icon(Icons.Outlined.IosShare, contentDescription = "현재 즐겨찾기 파일로 저장", tint = palette.primary)
+                    }
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.Outlined.Close, contentDescription = "닫기", tint = palette.primary)
+                    }
                 }
             }
             if (favorites.isEmpty()) {
@@ -1285,7 +1200,7 @@ private fun BrowserFavoriteManager(
                             border = BorderStroke(1.dp, palette.border)
                         ) {
                             Row(
-                                modifier = Modifier.padding(8.dp),
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
