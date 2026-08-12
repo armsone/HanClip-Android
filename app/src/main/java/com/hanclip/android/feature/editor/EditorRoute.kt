@@ -3325,7 +3325,7 @@ private fun ProjectControls(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "화질 · 화면비 · 화면 유지${if (hasClips) " · 초기화" else ""}",
+                    "화면비 · 화면 유지${if (hasClips) " · 초기화" else ""}",
                     color = palette.subText,
                     fontWeight = FontWeight.SemiBold
                 )
