@@ -191,6 +191,14 @@ fun TextOverlaySheet(
                         saveCaptionPresetAppearances(context, emptyMap())
                         Toast.makeText(context, "자막 프리셋을 초기화했습니다.", Toast.LENGTH_SHORT).show()
                     },
+                    onSave = if (draft != settings) {
+                        {
+                            onApply(draft)
+                            onDismiss()
+                        }
+                    } else {
+                        null
+                    },
                     onDismiss = onDismiss
                 )
             } else {
@@ -682,24 +690,6 @@ fun TextOverlaySheet(
                 )
             }
 
-            Button(
-                onClick = {
-                    onApply(draft)
-                    onDismiss()
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = palette.primary,
-                    contentColor = Color.White
-                )
-            ) {
-                Text(
-                    applyButtonText(draft),
-                    fontWeight = FontWeight.Bold
-                )
-            }
         }
     }
 }
@@ -1333,15 +1323,6 @@ private fun previewTextShadow(settings: WatermarkSettings): Shadow? {
         offset = Offset(1.6f, 1.8f),
         blurRadius = 4f
     )
-}
-
-private fun applyButtonText(settings: WatermarkSettings): String {
-    return when {
-        settings.shouldRenderText && settings.logoEnabled -> "MP4에 자막과 워터마크 적용"
-        settings.shouldRenderText -> "MP4에 자막 적용"
-        settings.logoEnabled -> "MP4에 워터마크 적용"
-        else -> "MP4 자막/로고 끄기 적용"
-    }
 }
 
 private fun hanClipDefaultWatermark(settings: WatermarkSettings): WatermarkSettings {
