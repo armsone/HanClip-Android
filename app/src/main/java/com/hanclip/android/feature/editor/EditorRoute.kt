@@ -195,13 +195,13 @@ fun EditorRoute(
     var isResetConfirmationVisible by remember { mutableStateOf(false) }
     var pendingDeleteClipID by remember { mutableStateOf<String?>(null) }
     var isExitConfirmationVisible by remember { mutableStateOf(false) }
-    var isQuickDurationVisible by remember { mutableStateOf(false) }
-    var reopenQuickAfterPicker by remember { mutableStateOf(false) }
+    var isQuickDurationVisible by rememberSaveable { mutableStateOf(false) }
+    var reopenQuickAfterPicker by rememberSaveable { mutableStateOf(false) }
     var reopenQuickAfterSettings by rememberSaveable { mutableStateOf(false) }
     var showPermissionSettingsAction by remember { mutableStateOf(false) }
     var resumeCalendarAfterSettings by rememberSaveable { mutableStateOf(false) }
-    var quickDurationShownProjectId by remember { mutableStateOf<String?>(null) }
-    var quickTargetDurationSeconds by remember { mutableStateOf(1.0) }
+    var quickDurationShownProjectId by rememberSaveable { mutableStateOf<String?>(null) }
+    var quickTargetDurationSeconds by rememberSaveable { mutableStateOf(1.0) }
     var pendingExportAfterNotificationPermission by rememberSaveable { mutableStateOf(false) }
     val trimmingClip = state.clips.firstOrNull { it.id == trimmingClipID }
     val photoDurationClip = state.clips.firstOrNull { it.id == photoDurationClipID }
@@ -1857,7 +1857,7 @@ private fun QuickDurationDialog(
     val recommendedDuration = sourceMediaCount.toDouble()
     val minimumDuration = (sourceMediaCount * 0.2).coerceAtLeast(0.2)
     var mediaMenuExpanded by remember { mutableStateOf(false) }
-    var usesRecommendedDuration by remember { mutableStateOf(true) }
+    var usesRecommendedDuration by rememberSaveable { mutableStateOf(true) }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
