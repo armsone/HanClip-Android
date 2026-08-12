@@ -321,6 +321,7 @@ fun AiShotRoute(
     var activeCaptureSequence by remember { mutableStateOf<Long?>(null) }
     var nextCaptureSequence by remember { mutableLongStateOf(0L) }
     var activeShotLength by remember { mutableStateOf<ShotLength?>(null) }
+    var captureProgressTiming by remember { mutableStateOf<ShotLength?>(null) }
     var discardCurrentRecording by remember { mutableStateOf(false) }
     var pendingSaveCount by remember { mutableIntStateOf(0) }
     var lensFacing by remember { mutableIntStateOf(CameraSelector.LENS_FACING_BACK) }
@@ -363,6 +364,7 @@ fun AiShotRoute(
         triggerTimeSeconds = elapsedSeconds
         activeCaptureSequence = sequence
         activeShotLength = timing
+        captureProgressTiming = timing
         statusText = ""
         capturePhase = AiShotCapturePhase.Detected
         recordingRemainingMillis = (timing.afterSeconds * 1_000.0).toLong()
@@ -434,7 +436,10 @@ fun AiShotRoute(
                     finalizedTiming == null || finalizedSequence == null
                 ) {
                     outputFile.delete()
-                    if (event.hasError() && !shouldDiscard) statusText = "저장 불가"
+                    if (event.hasError() && !shouldDiscard) {
+                        captureProgressTiming = null
+                        statusText = "저장 불가"
+                    }
                     return@start
                 }
                 pendingSaveCount += 1
@@ -492,6 +497,7 @@ fun AiShotRoute(
         delay(delayMillis)
         if (recording != null && triggerTimeSeconds == null) {
             statusText = ""
+            captureProgressTiming = null
         }
     }
 
@@ -767,11 +773,19 @@ fun AiShotRoute(
                 maximumZoomRatio = maximumZoomRatio,
                 onZoomRatioChange = { zoomRatio = it },
                 lensLabel = if (lensFacing == CameraSelector.LENS_FACING_FRONT) "전면" else "후면",
-                isRecording = triggerTimeSeconds != null,
-                saveProgress = activeShotLength?.let { timing ->
+                isRecording = captureProgressTiming != null,
+                saveProgress = captureProgressTiming?.let { timing ->
                     val fullMillis = timing.fullSeconds * 1_000.0
-                    val elapsedAfterTriggerMillis = timing.afterSeconds * 1_000.0 - recordingRemainingMillis
-                    (elapsedAfterTriggerMillis / fullMillis).toFloat().coerceIn(0f, 1f)
+                    if (triggerTimeSeconds != null) {
+                        val elapsedAfterTriggerMillis =
+                            timing.afterSeconds * 1_000.0 - recordingRemainingMillis
+                        (elapsedAfterTriggerMillis / fullMillis).toFloat().coerceIn(0f, 1f)
+                    } else {
+                        val afterWeight = timing.afterSeconds / timing.fullSeconds
+                        val preparation = (recordingDurationNanos / 1_000_000_000.0 / timing.beforeSeconds)
+                            .coerceIn(0.0, 1.0)
+                        (afterWeight + preparation * (1.0 - afterWeight)).toFloat()
+                    }
                 } ?: 0f,
                 isReadyForTrigger = isRollingRecordingActive &&
                     triggerTimeSeconds == null &&
