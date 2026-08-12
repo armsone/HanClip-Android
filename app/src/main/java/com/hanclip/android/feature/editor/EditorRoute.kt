@@ -3258,7 +3258,7 @@ private fun EndingSettingRow(
             border = BorderStroke(1.dp, palette.border)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onDecreaseDuration, modifier = Modifier.size(27.dp)) {
+                IconButton(onClick = onDecreaseDuration, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Outlined.Remove, contentDescription = "엔딩 시간 줄이기", modifier = Modifier.size(13.dp))
                 }
                 Text(
@@ -3267,7 +3267,7 @@ private fun EndingSettingRow(
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
                 )
-                IconButton(onClick = onIncreaseDuration, modifier = Modifier.size(27.dp)) {
+                IconButton(onClick = onIncreaseDuration, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Outlined.Add, contentDescription = "엔딩 시간 늘리기", modifier = Modifier.size(13.dp))
                 }
             }
@@ -3363,7 +3363,7 @@ private fun StepperPill(
 ) {
     Surface(shape = RoundedCornerShape(50), color = palette.chip, border = BorderStroke(1.dp, palette.border)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onDecrease, modifier = Modifier.size(30.dp)) {
+            IconButton(onClick = onDecrease, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Outlined.Remove, contentDescription = "줄이기", modifier = Modifier.size(16.dp))
             }
             Text(
@@ -3373,7 +3373,7 @@ private fun StepperPill(
                 lineHeight = 14.sp,
                 fontWeight = FontWeight.Bold
             )
-            IconButton(onClick = onIncrease, modifier = Modifier.size(30.dp)) {
+            IconButton(onClick = onIncrease, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Outlined.Add, contentDescription = "늘리기", modifier = Modifier.size(16.dp))
             }
         }
@@ -3603,11 +3603,11 @@ private fun CompactDurationStepper(
         border = BorderStroke(1.dp, palette.border)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onDecrease, modifier = Modifier.size(34.dp)) {
+            IconButton(onClick = onDecrease, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Outlined.Remove, contentDescription = "시간 줄이기", modifier = Modifier.size(18.dp))
             }
             Box(Modifier.width(1.dp).height(22.dp).background(palette.border))
-            IconButton(onClick = onIncrease, modifier = Modifier.size(34.dp)) {
+            IconButton(onClick = onIncrease, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Outlined.Add, contentDescription = "시간 늘리기", modifier = Modifier.size(18.dp))
             }
         }
