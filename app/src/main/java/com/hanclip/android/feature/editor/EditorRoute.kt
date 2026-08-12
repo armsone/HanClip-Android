@@ -4049,22 +4049,23 @@ private fun ClipPreviewDialog(
                         }
                     }
                 }
-                Column(
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.End
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Icon(
+                        Icons.Outlined.PlayCircle,
+                        contentDescription = null,
+                        tint = previewSubText,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(7.dp))
                     Text(
                         text = if (clip.isVideoSegmentParent) "모클립 편집" else "편집",
                         color = previewText,
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Black,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = "$position / $total",
-                        color = previewSubText,
-                        style = MaterialTheme.typography.bodySmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
