@@ -1211,8 +1211,9 @@ private fun GolfSwingSpriteIndicator(
     LaunchedEffect(isAnimating, playbackDurationSeconds) {
         frameIndex = 0
         if (!isAnimating) return@LaunchedEffect
-        val motionDurationMillis = (playbackDurationSeconds * 0.8 * 1_000.0)
-            .toLong()
+        val playbackDurationMillis = (playbackDurationSeconds * 1_000.0).toLong()
+        val finishHoldDurationMillis = minOf(300L, (playbackDurationSeconds * 200.0).toLong())
+        val motionDurationMillis = (playbackDurationMillis - finishHoldDurationMillis)
             .coerceAtLeast(100L)
         val frameDelayMillis = (motionDurationMillis / 35L).coerceAtLeast(16L)
         for (index in 0 until frames.lastIndex) {
