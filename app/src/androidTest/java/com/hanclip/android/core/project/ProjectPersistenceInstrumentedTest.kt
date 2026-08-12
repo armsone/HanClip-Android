@@ -340,6 +340,17 @@ class ProjectPersistenceInstrumentedTest {
         assertEquals(2.0, defaulted.durationSeconds, 0.0)
         assertEquals(2.0, defaulted.photoDurationSeconds, 0.0)
         assertEquals(5.0, defaulted.sourceDurationSeconds ?: 0.0, 0.0)
+
+        viewModel.toggleLivePhotoMode("motion-clip")
+        viewModel.setDefaultDuration(context, 3.0)
+        viewModel.toggleLivePhotoMode("motion-clip")
+
+        val toggledBackToMotion = viewModel.uiState.value.clips.single()
+        assertEquals(LivePhotoMode.Motion, toggledBackToMotion.livePhotoMode)
+        assertEquals(1.0, toggledBackToMotion.trimStartSeconds, 0.0)
+        assertEquals(3.0, toggledBackToMotion.durationSeconds, 0.0)
+        assertEquals(2.0, toggledBackToMotion.photoDurationSeconds, 0.0)
+        assertEquals(5.0, toggledBackToMotion.livePhotoDurationSeconds ?: 0.0, 0.0)
     }
 
     @Test

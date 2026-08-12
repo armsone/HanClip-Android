@@ -1281,10 +1281,14 @@ class EditorViewModel : ViewModel() {
                         val motionDuration = clip.livePhotoDurationSeconds
                             ?: clip.sourceDurationSeconds
                             ?: clip.durationSeconds
+                        val selectedDuration = min(state.defaultDurationSeconds, motionDuration)
+                            .coerceAtLeast(0.1)
                         clip.copy(
                             livePhotoMode = LivePhotoMode.Motion,
-                            durationSeconds = motionDuration.coerceAtLeast(0.1),
-                            trimStartSeconds = 0.0
+                            livePhotoDurationSeconds = motionDuration,
+                            sourceDurationSeconds = motionDuration,
+                            durationSeconds = selectedDuration,
+                            trimStartSeconds = max(0.0, (motionDuration - selectedDuration) / 2.0)
                         )
                     } else {
                         clip.copy(
@@ -1308,10 +1312,14 @@ class EditorViewModel : ViewModel() {
                         val motionDuration = clip.livePhotoDurationSeconds
                             ?: clip.sourceDurationSeconds
                             ?: clip.durationSeconds
+                        val selectedDuration = min(state.defaultDurationSeconds, motionDuration)
+                            .coerceAtLeast(0.1)
                         clip.copy(
                             livePhotoMode = LivePhotoMode.Motion,
-                            durationSeconds = motionDuration.coerceAtLeast(0.1),
-                            trimStartSeconds = 0.0
+                            livePhotoDurationSeconds = motionDuration,
+                            sourceDurationSeconds = motionDuration,
+                            durationSeconds = selectedDuration,
+                            trimStartSeconds = max(0.0, (motionDuration - selectedDuration) / 2.0)
                         )
                     } else {
                         clip.copy(
