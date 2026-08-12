@@ -283,6 +283,7 @@ fun AiShotRoute(
     var hasPermissions by remember {
         mutableStateOf(context.hasAiShotPermissions())
     }
+    var statusText by remember { mutableStateOf("준비 중") }
     var isLifecycleResumed by remember {
         mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
     }
@@ -291,6 +292,7 @@ fun AiShotRoute(
     ) { grants ->
         hasPermissions = grants[Manifest.permission.CAMERA] == true &&
             grants[Manifest.permission.RECORD_AUDIO] == true
+        statusText = if (hasPermissions) "준비 중" else "권한 필요"
     }
 
     DisposableEffect(lifecycleOwner, context) {
@@ -338,7 +340,6 @@ fun AiShotRoute(
     var minimumZoomRatio by remember { mutableFloatStateOf(1f) }
     var maximumZoomRatio by remember { mutableFloatStateOf(8f) }
     var level by remember { mutableDoubleStateOf(0.0) }
-    var statusText by remember { mutableStateOf("스윙 감지 대기") }
     var savedCount by remember { mutableIntStateOf(0) }
     var capturedShots by remember { mutableStateOf<List<CapturedShot>>(emptyList()) }
     val capturedUris = orderedCaptureValues(capturedShots.map { it.sequence to it.uri })
@@ -440,11 +441,11 @@ fun AiShotRoute(
                     finalizedTiming == null || finalizedSequence == null
                 ) {
                     outputFile.delete()
-                    if (event.hasError() && !shouldDiscard) statusText = "클립 저장 실패"
+                    if (event.hasError() && !shouldDiscard) statusText = "저장 불가"
                     return@start
                 }
                 pendingSaveCount += 1
-                statusText = "클립 저장 중"
+                statusText = "준비 중"
                 scope.launch {
                     val destination = File(
                         outputFile.parentFile,
@@ -469,7 +470,7 @@ fun AiShotRoute(
                         statusText = ""
                     }.onFailure {
                         destination.delete()
-                        statusText = "클립 저장 실패"
+                        statusText = "저장 불가"
                     }
                 }
             }
@@ -578,7 +579,7 @@ fun AiShotRoute(
             cameraPreview = preview
             videoCapture = capture
         }.onFailure {
-            statusText = "카메라 준비 실패"
+            statusText = "카메라 사용 불가"
         }
     }
 
