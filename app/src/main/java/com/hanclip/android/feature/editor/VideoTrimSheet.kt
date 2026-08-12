@@ -94,6 +94,7 @@ fun VideoTrimSheet(
     clip: ClipItem,
     palette: HanClipPalette,
     onDismiss: () -> Unit,
+    onFirst: ((startSeconds: Double, durationSeconds: Double) -> Unit)? = null,
     onPrevious: ((startSeconds: Double, durationSeconds: Double) -> Unit)? = null,
     onNext: ((startSeconds: Double, durationSeconds: Double) -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
@@ -107,7 +108,7 @@ fun VideoTrimSheet(
     var durationSeconds by rememberSaveable(clip.id) {
         mutableDoubleStateOf(clip.durationSeconds.coerceIn(0.1, sourceDuration))
     }
-    var loopsSelection by rememberSaveable(clip.id) { mutableStateOf(true) }
+    var autoAdvances by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(startSeconds, durationSeconds, sourceDuration) {
         if (startSeconds + durationSeconds > sourceDuration) {
@@ -154,11 +155,11 @@ fun VideoTrimSheet(
                     ) {
                         Icon(Icons.Outlined.SkipPrevious, contentDescription = "이전 영상", tint = palette.text)
                     }
-                    IconButton(onClick = { loopsSelection = !loopsSelection }) {
+                    IconButton(onClick = { autoAdvances = !autoAdvances }) {
                         Icon(
                             Icons.Outlined.Repeat,
-                            contentDescription = if (loopsSelection) "구간 반복 끄기" else "구간 반복 켜기",
-                            tint = if (loopsSelection) palette.primary else palette.text
+                            contentDescription = if (autoAdvances) "자동 진행 끄기" else "자동 진행 켜기",
+                            tint = if (autoAdvances) palette.primary else palette.text
                         )
                     }
                     IconButton(
@@ -213,7 +214,16 @@ fun VideoTrimSheet(
                 clip = clip,
                 startSeconds = startSeconds,
                 durationSeconds = durationSeconds,
-                loopsSelection = loopsSelection
+                autoAdvances = autoAdvances,
+                onAutoAdvance = when {
+                    onNext != null -> {
+                        { onNext(startSeconds, durationSeconds) }
+                    }
+                    onFirst != null -> {
+                        { onFirst(startSeconds, durationSeconds) }
+                    }
+                    else -> null
+                }
             )
 
             VideoImpactPanel(
@@ -736,7 +746,8 @@ private fun VideoPreview(
     clip: ClipItem,
     startSeconds: Double,
     durationSeconds: Double,
-    loopsSelection: Boolean
+    autoAdvances: Boolean,
+    onAutoAdvance: (() -> Unit)?
 ) {
     val context = LocalContext.current
     val isSample = clip.sourceUri.scheme == "sample"
@@ -756,13 +767,21 @@ private fun VideoPreview(
         player?.seekTo((startSeconds * 1000).toLong())
     }
 
-    LaunchedEffect(player, startSeconds, durationSeconds, loopsSelection) {
+    LaunchedEffect(player, startSeconds, durationSeconds, autoAdvances, onAutoAdvance) {
         val activePlayer = player ?: return@LaunchedEffect
         val startMs = (startSeconds * 1000).toLong()
         val endMs = ((startSeconds + durationSeconds) * 1000).toLong()
+        if (autoAdvances) {
+            activePlayer.seekTo(startMs)
+            activePlayer.play()
+        }
         while (true) {
             if (activePlayer.currentPosition >= endMs) {
-                if (loopsSelection) {
+                if (autoAdvances && onAutoAdvance != null) {
+                    activePlayer.pause()
+                    onAutoAdvance()
+                    break
+                } else if (autoAdvances) {
                     activePlayer.seekTo(startMs)
                     activePlayer.play()
                 } else {

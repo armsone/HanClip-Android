@@ -622,7 +622,13 @@ fun EditorRoute(
                     onToggleSegmentMode = { viewModel.toggleVideoSegmentMode(clip.id) },
                     onToggleLivePhotoMode = { viewModel.toggleLivePhotoMode(clip.id) },
                     onResetSegments = { viewModel.resetVideoSegments(clip.id) },
-                    onPreviewClip = { previewClipID = clip.id },
+                    onPreviewClip = {
+                        if (clip.isVideoSegmentParent) {
+                            previewClipID = clip.id
+                        } else {
+                            trimmingClipID = clip.id
+                        }
+                    },
                     onToggleSimilarPhotoGroup = { viewModel.toggleSimilarPhotoGroup(clip.id) },
                     onIncludeSimilarPhoto = { viewModel.includeSimilarPhoto(clip.id) },
                     onToggleVideoSegmentSelection = { viewModel.toggleVideoSegmentSelection(clip.id) },
@@ -981,6 +987,14 @@ fun EditorRoute(
                     clip = clip,
                     palette = palette,
                     onDismiss = { trimmingClipID = null },
+                    onFirst = trimmingClips.firstOrNull()
+                        ?.takeIf { first -> first.id != clip.id && trimmingClips.size > 1 }
+                        ?.let { first ->
+                            { startSeconds, durationSeconds ->
+                                viewModel.updateVideoTrim(clip.id, startSeconds, durationSeconds)
+                                trimmingClipID = first.id
+                            }
+                        },
                     onPrevious = trimmingClips.getOrNull(trimmingClipIndex - 1)?.let { previous ->
                         { startSeconds, durationSeconds ->
                             viewModel.updateVideoTrim(clip.id, startSeconds, durationSeconds)
@@ -3996,14 +4010,16 @@ private fun ClipPreviewDialog(
                     clip = clip,
                     playbackMode = playbackMode,
                     onPlaybackEnded = {
-                        if (
+                        when (
                             nextClipIndexOnPlaybackEnded(
                                 mode = playbackMode,
                                 currentIndex = position - 1,
                                 clipCount = total
-                            ) != null
+                            )
                         ) {
-                            onNext?.invoke()
+                            0 -> onFirst?.invoke()
+                            null -> Unit
+                            else -> onNext?.invoke()
                         }
                     },
                     modifier = Modifier

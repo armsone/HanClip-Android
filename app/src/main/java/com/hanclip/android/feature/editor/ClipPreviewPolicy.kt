@@ -13,5 +13,5 @@ internal fun nextClipIndexOnPlaybackEnded(
 ): Int? {
     if (mode != ClipPreviewPlaybackMode.AutoNext) return null
     if (currentIndex !in 0 until clipCount) return null
-    return (currentIndex + 1).takeIf { it < clipCount }
+    return if (currentIndex + 1 < clipCount) currentIndex + 1 else 0
 }

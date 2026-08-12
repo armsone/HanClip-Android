@@ -6,10 +6,10 @@ import org.junit.Test
 
 class ClipPreviewPolicyTest {
     @Test
-    fun `auto next advances except at final clip`() {
+    fun `auto next advances and loops to first clip`() {
         assertEquals(1, nextClipIndexOnPlaybackEnded(ClipPreviewPlaybackMode.AutoNext, 0, 3))
         assertEquals(2, nextClipIndexOnPlaybackEnded(ClipPreviewPlaybackMode.AutoNext, 1, 3))
-        assertNull(nextClipIndexOnPlaybackEnded(ClipPreviewPlaybackMode.AutoNext, 2, 3))
+        assertEquals(0, nextClipIndexOnPlaybackEnded(ClipPreviewPlaybackMode.AutoNext, 2, 3))
     }
 
     @Test
