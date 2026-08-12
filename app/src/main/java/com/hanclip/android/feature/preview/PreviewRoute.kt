@@ -71,6 +71,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -100,6 +101,7 @@ import com.hanclip.android.feature.editor.FullScreenDialogSystemBars
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -1050,13 +1052,29 @@ private fun FullscreenPreviewDialog(
     }
     var isLooping by remember { mutableStateOf(true) }
     var isFillMode by remember { mutableStateOf(false) }
+    var hasManualAspectModeSelection by remember { mutableStateOf(false) }
     var verticalDragPx by remember { mutableFloatStateOf(0f) }
     var zoomScale by remember { mutableFloatStateOf(1f) }
     var zoomOffset by remember { mutableStateOf(Offset.Zero) }
     var areControlsVisible by remember { mutableStateOf(true) }
+    val manualAspectModeSelection by rememberUpdatedState(hasManualAspectModeSelection)
     val dismissThresholdPx = with(LocalDensity.current) { 120.dp.toPx() }
     DisposableEffect(player) {
-        onDispose { player.release() }
+        val listener = object : Player.Listener {
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                if (!manualAspectModeSelection && videoSize.width > 0 && videoSize.height > 0) {
+                    isFillMode = videoSize.width > videoSize.height
+                }
+            }
+        }
+        player.addListener(listener)
+        player.videoSize.takeIf { it.width > 0 && it.height > 0 }?.let { videoSize ->
+            isFillMode = videoSize.width > videoSize.height
+        }
+        onDispose {
+            player.removeListener(listener)
+            player.release()
+        }
     }
     DisposableEffect(context) {
         val activity = context.findActivity()
@@ -1124,6 +1142,7 @@ private fun FullscreenPreviewDialog(
             val viewportHeightPx = with(LocalDensity.current) {
                 maxHeight.toPx()
             }
+            val isLandscapeViewport = maxWidth > maxHeight
             fun clampZoomOffset(offset: Offset, scale: Float): Offset {
                 val maximumX = viewportWidthPx * (scale - 1f).coerceAtLeast(0f) / 2f
                 val maximumY = viewportHeightPx * (scale - 1f).coerceAtLeast(0f) / 2f
@@ -1178,7 +1197,9 @@ private fun FullscreenPreviewDialog(
                 ) {
                     ExportedVideoPlayerView(
                         player = player,
-                        resizeMode = if (isFillMode) {
+                        resizeMode = if (
+                            isFillMode && (hasManualAspectModeSelection || isLandscapeViewport)
+                        ) {
                             AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                         } else {
                             AspectRatioFrameLayout.RESIZE_MODE_FIT
@@ -1224,6 +1245,7 @@ private fun FullscreenPreviewDialog(
                     }
                     FullscreenCircleButton(
                         onClick = {
+                            hasManualAspectModeSelection = true
                             isFillMode = !isFillMode
                             areControlsVisible = true
                         },
