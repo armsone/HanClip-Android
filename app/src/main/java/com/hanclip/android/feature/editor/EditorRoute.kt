@@ -1060,6 +1060,11 @@ fun EditorRoute(
                             }
                         )
                     },
+                    onMakeMovie = {
+                        trimmingClipID = null
+                        clipPreviewAutoAdvanceEnabled = false
+                        beginMovieExport()
+                    },
                     onApplyTrim = { startSeconds, durationSeconds ->
                         viewModel.updateVideoTrim(
                             id = clip.id,

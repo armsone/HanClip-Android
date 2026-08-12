@@ -2,6 +2,7 @@ package com.hanclip.android.feature.editor
 
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -107,6 +108,7 @@ fun VideoTrimSheet(
     onAutoNext: ((startSeconds: Double, durationSeconds: Double) -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
     bottomThumbnailStrip: (@Composable (startSeconds: Double, durationSeconds: Double) -> Unit)? = null,
+    onMakeMovie: () -> Unit,
     onApplyTrim: (startSeconds: Double, durationSeconds: Double) -> Unit
 ) {
     FullScreenDialogSystemBars(palette.solidPanel)
@@ -137,6 +139,14 @@ fun VideoTrimSheet(
             startSeconds = max(0.0, sourceDuration - durationSeconds)
         }
     }
+    LaunchedEffect(startSeconds, durationSeconds) {
+        onApplyTrim(startSeconds, durationSeconds)
+    }
+    fun dismissSavingSelection() {
+        onApplyTrim(startSeconds, durationSeconds)
+        onDismiss()
+    }
+    BackHandler(onBack = ::dismissSavingSelection)
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -158,7 +168,7 @@ fun VideoTrimSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(modifier = Modifier.clickable(onClickLabel = "편집 닫기", onClick = onDismiss)) {
+                Box(modifier = Modifier.clickable(onClickLabel = "편집 닫기", onClick = ::dismissSavingSelection)) {
                     HanClipBrandCapsule(palette)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -168,7 +178,7 @@ fun VideoTrimSheet(
                     }) {
                         Icon(Icons.Outlined.Refresh, contentDescription = "편집 초기화", tint = palette.text)
                     }
-                    IconButton(onClick = onDismiss) {
+                    IconButton(onClick = ::dismissSavingSelection) {
                         Icon(Icons.Outlined.Close, contentDescription = "닫기", tint = palette.text)
                     }
                 }
@@ -338,13 +348,14 @@ fun VideoTrimSheet(
                         onClick = {
                             onApplyTrim(startSeconds, durationSeconds)
                             onDismiss()
+                            onMakeMovie()
                         },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = palette.primary,
                             contentColor = Color.White
                         )
                     ) {
-                        Text("선택 구간 적용")
+                        Text("만들기")
                     }
                 }
             }
