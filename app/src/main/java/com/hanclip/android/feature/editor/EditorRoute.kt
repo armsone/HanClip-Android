@@ -242,6 +242,7 @@ fun EditorRoute(
     var reopenQuickAfterSettings by rememberSaveable { mutableStateOf(false) }
     var showPermissionSettingsAction by remember { mutableStateOf(false) }
     var resumeCalendarAfterSettings by rememberSaveable { mutableStateOf(false) }
+    var resumeMusicAfterBrowser by rememberSaveable { mutableStateOf(false) }
     var quickDurationShownProjectId by rememberSaveable { mutableStateOf<String?>(null) }
     var quickTargetDurationSeconds by rememberSaveable { mutableStateOf(1.0) }
     var pendingExportAfterNotificationPermission by rememberSaveable { mutableStateOf(false) }
@@ -348,13 +349,20 @@ fun EditorRoute(
 
     DisposableEffect(lifecycleOwner, context) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event != Lifecycle.Event.ON_RESUME || !resumeCalendarAfterSettings) {
-                return@LifecycleEventObserver
-            }
-            resumeCalendarAfterSettings = false
-            if (context.hasFullGalleryAccess()) {
-                showPermissionSettingsAction = false
-                isCalendarPickerVisible = true
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (resumeCalendarAfterSettings) {
+                    resumeCalendarAfterSettings = false
+                    if (context.hasFullGalleryAccess()) {
+                        showPermissionSettingsAction = false
+                        isCalendarPickerVisible = true
+                    }
+                }
+                if (resumeMusicAfterBrowser) {
+                    resumeMusicAfterBrowser = false
+                    if (musicSettingsSnapshot != null) {
+                        isMusicSettingsSheetVisible = true
+                    }
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -1229,7 +1237,7 @@ fun EditorRoute(
                     },
                     onOpenBrowser = {
                         isMusicSettingsSheetVisible = false
-                        reopenQuickAfterSettings = false
+                        resumeMusicAfterBrowser = true
                         onOpenBrowser()
                     },
                     onMusicEnabledChange = viewModel::updateBackgroundMusicEnabled,
