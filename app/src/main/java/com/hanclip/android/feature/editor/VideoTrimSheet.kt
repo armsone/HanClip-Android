@@ -31,6 +31,7 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.PlayCircle
+import androidx.compose.material.icons.outlined.SmartDisplay
 import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.SkipNext
@@ -69,6 +70,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -172,14 +174,14 @@ fun VideoTrimSheet(
                     HanClipBrandCapsule(palette)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = ::dismissSavingSelection) {
+                        Icon(Icons.Outlined.Close, contentDescription = "닫기", tint = palette.text)
+                    }
                     IconButton(onClick = {
                         startSeconds = initialStartSeconds
                         durationSeconds = initialDurationSeconds
                     }) {
                         Icon(Icons.Outlined.Refresh, contentDescription = "편집 초기화", tint = palette.text)
-                    }
-                    IconButton(onClick = ::dismissSavingSelection) {
-                        Icon(Icons.Outlined.Close, contentDescription = "닫기", tint = palette.text)
                     }
                 }
             }
@@ -189,16 +191,16 @@ fun VideoTrimSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    Icons.Outlined.PlayCircle,
+                    Icons.Outlined.SmartDisplay,
                     contentDescription = null,
-                    tint = palette.subText,
+                    tint = palette.subText.copy(alpha = 0.78f),
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(Modifier.width(7.dp))
                 Text(
                     "편집",
-                    color = palette.text,
-                    style = MaterialTheme.typography.labelLarge,
+                    color = palette.subText.copy(alpha = 0.78f),
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Black
                 )
             }
