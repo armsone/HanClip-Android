@@ -768,7 +768,7 @@ private fun RecentMonthNavigation(
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = onPrevious, modifier = Modifier.size(34.dp)) {
+        IconButton(onClick = onPrevious, modifier = Modifier.size(48.dp)) {
             Icon(
                 Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
                 contentDescription = "이전 달",
@@ -788,7 +788,7 @@ private fun RecentMonthNavigation(
                 style = MaterialTheme.typography.bodyMedium
             )
         }
-        IconButton(onClick = onNext, modifier = Modifier.size(34.dp)) {
+        IconButton(onClick = onNext, modifier = Modifier.size(48.dp)) {
             Icon(
                 Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                 contentDescription = "다음 달",

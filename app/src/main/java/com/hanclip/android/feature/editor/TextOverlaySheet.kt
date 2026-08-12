@@ -362,18 +362,22 @@ fun TextOverlaySheet(
                 }
             }
 
-            Surface(
+            Box(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
-                    .width(48.dp)
-                    .height(26.dp)
+                    .size(48.dp)
                     .clickable { showAdvancedFonts = !showAdvancedFonts },
-                shape = RoundedCornerShape(13.dp),
-                color = palette.secondary.copy(alpha = 0.08f),
-                border = BorderStroke(1.dp, palette.secondary.copy(alpha = 0.14f))
+                contentAlignment = Alignment.Center
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(if (showAdvancedFonts) "⌃" else "⌄", color = palette.subText, fontWeight = FontWeight.Black)
+                Surface(
+                    modifier = Modifier.width(48.dp).height(26.dp),
+                    shape = RoundedCornerShape(13.dp),
+                    color = palette.secondary.copy(alpha = 0.08f),
+                    border = BorderStroke(1.dp, palette.secondary.copy(alpha = 0.14f))
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(if (showAdvancedFonts) "⌃" else "⌄", color = palette.subText, fontWeight = FontWeight.Black)
+                    }
                 }
             }
 
@@ -1422,10 +1426,11 @@ private fun PositionPicker(
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(34.dp)
+                                .height(48.dp)
+                                .clickable { onSelect(position) }
+                                .padding(vertical = 7.dp)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(if (isSelected) palette.primary else palette.panel)
-                                .clickable { onSelect(position) },
+                                .background(if (isSelected) palette.primary else palette.panel),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(

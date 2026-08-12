@@ -2268,7 +2268,7 @@ private fun ImportActionRow(
             OutlinedButton(
                 modifier = Modifier
                     .weight(1f)
-                    .height(46.dp),
+                    .height(48.dp),
                 onClick = onPickVideos,
                 colors = ButtonDefaults.outlinedButtonColors(
                     containerColor = palette.secondary,
@@ -2282,7 +2282,7 @@ private fun ImportActionRow(
             OutlinedButton(
                 modifier = Modifier
                     .weight(1f)
-                    .height(46.dp),
+                    .height(48.dp),
                 onClick = onPickCalendar,
                 border = BorderStroke(1.dp, palette.border),
                 colors = ButtonDefaults.outlinedButtonColors(
@@ -2299,7 +2299,7 @@ private fun ImportActionRow(
             OutlinedButton(
                 modifier = Modifier
                     .weight(1f)
-                    .height(46.dp),
+                    .height(48.dp),
                 onClick = onPickFiles,
                 border = BorderStroke(1.dp, palette.border),
                 colors = ButtonDefaults.outlinedButtonColors(
@@ -2314,7 +2314,7 @@ private fun ImportActionRow(
             OutlinedButton(
                 modifier = Modifier
                     .weight(1f)
-                    .height(46.dp),
+                    .height(48.dp),
                 onClick = onAiCut,
                 border = BorderStroke(1.dp, palette.border),
                 colors = ButtonDefaults.outlinedButtonColors(
@@ -2585,7 +2585,7 @@ private fun ReorderTile(
                 IconButton(
                     onClick = onMoveUp,
                     enabled = canMoveUp,
-                    modifier = Modifier.size(25.dp)
+                    modifier = Modifier.size(48.dp)
                 ) {
                     Icon(
                         Icons.Outlined.KeyboardArrowUp,
@@ -2597,7 +2597,7 @@ private fun ReorderTile(
                 IconButton(
                     onClick = onMoveDown,
                     enabled = canMoveDown,
-                    modifier = Modifier.size(25.dp)
+                    modifier = Modifier.size(48.dp)
                 ) {
                     Icon(
                         Icons.Outlined.KeyboardArrowDown,
@@ -2606,7 +2606,7 @@ private fun ReorderTile(
                         modifier = Modifier.size(18.dp)
                     )
                 }
-                IconButton(onClick = onDelete, modifier = Modifier.size(25.dp)) {
+                IconButton(onClick = onDelete, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Outlined.Delete, contentDescription = "삭제", tint = Color.White, modifier = Modifier.size(16.dp))
                 }
             }
@@ -3561,13 +3561,13 @@ private fun CompactClipRow(
             }
             if (isReorderMode) {
                 Column {
-                    IconButton(onClick = onMoveUp, modifier = Modifier.size(28.dp)) {
+                    IconButton(onClick = onMoveUp, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Outlined.KeyboardArrowUp, contentDescription = "위로")
                     }
-                    IconButton(onClick = onMoveDown, modifier = Modifier.size(28.dp)) {
+                    IconButton(onClick = onMoveDown, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = "아래로")
                     }
-                    IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+                    IconButton(onClick = onDelete, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Outlined.Delete, contentDescription = "삭제", tint = palette.secondary)
                     }
                 }
@@ -3846,14 +3846,14 @@ private fun ClipRow(
                 }
                 Column {
                     if (isReorderMode) {
-                        IconButton(onClick = onMoveUp, modifier = Modifier.size(36.dp)) {
+                        IconButton(onClick = onMoveUp, modifier = Modifier.size(48.dp)) {
                             Icon(Icons.Outlined.KeyboardArrowUp, contentDescription = "위로", tint = palette.text)
                         }
-                        IconButton(onClick = onMoveDown, modifier = Modifier.size(36.dp)) {
+                        IconButton(onClick = onMoveDown, modifier = Modifier.size(48.dp)) {
                             Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = "아래로", tint = palette.text)
                         }
                     }
-                    IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = onDelete, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Outlined.Delete, contentDescription = "삭제", tint = palette.secondary)
                     }
                 }
