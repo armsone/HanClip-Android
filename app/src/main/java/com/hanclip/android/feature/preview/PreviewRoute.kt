@@ -97,6 +97,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.viewinterop.AndroidView
@@ -856,9 +857,25 @@ private fun SaveOptionsSheet(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Outlined.Download, contentDescription = null, tint = palette.primary)
-                    Box(Modifier.width(8.dp))
-                    Text("개봉", color = palette.text, fontWeight = FontWeight.Bold)
+                    Surface(
+                        modifier = Modifier.size(18.dp),
+                        shape = RoundedCornerShape(5.dp),
+                        color = palette.secondary.copy(alpha = 0.10f)
+                    ) {
+                        Icon(
+                            Icons.Outlined.Download,
+                            contentDescription = null,
+                            tint = palette.primary.copy(alpha = 0.72f),
+                            modifier = Modifier.padding(4.dp)
+                        )
+                    }
+                    Box(Modifier.width(7.dp))
+                    Text(
+                        "개봉",
+                        color = palette.text.copy(alpha = 0.76f),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Black
+                    )
                 }
                 Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     Column(
