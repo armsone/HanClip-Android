@@ -31,6 +31,26 @@ import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
 
+internal data class ImportedClipPlayback(
+    val livePhotoMode: LivePhotoMode,
+    val durationSeconds: Double
+)
+
+internal fun initialImportedClipPlayback(
+    motionDurationSeconds: Double?,
+    fallbackDurationSeconds: Double
+): ImportedClipPlayback {
+    val fallback = fallbackDurationSeconds.takeIf(Double::isFinite)?.coerceAtLeast(0.1) ?: 0.1
+    val motion = motionDurationSeconds
+        ?.takeIf { it.isFinite() && it > 0.0 }
+        ?.coerceAtLeast(0.1)
+    return if (motion != null) {
+        ImportedClipPlayback(LivePhotoMode.Motion, motion)
+    } else {
+        ImportedClipPlayback(LivePhotoMode.Still, fallback)
+    }
+}
+
 object MediaImportReader {
     fun isMotionPhoto(context: Context, uri: Uri): Boolean {
         return runCatching {
@@ -83,17 +103,21 @@ object MediaImportReader {
             }
             val selectedDuration = min(defaultDurationSeconds, sourceDuration ?: defaultDurationSeconds)
             val peak = analysis?.peakTimeSeconds ?: ((sourceDuration ?: selectedDuration) / 2.0)
+            val initialPlayback = initialImportedClipPlayback(
+                motionDurationSeconds = motionPhoto?.durationSeconds,
+                fallbackDurationSeconds = selectedDuration
+            )
 
             ClipItem(
             id = UUID.randomUUID().toString(),
             sourceUri = motionPhoto?.videoUri ?: localSourceUri,
             thumbnailUri = localSourceUri,
-            durationSeconds = max(0.1, selectedDuration),
+            durationSeconds = initialPlayback.durationSeconds,
             photoDurationSeconds = defaultDurationSeconds,
             livePhotoDurationSeconds = motionPhoto?.durationSeconds,
             livePhotoStillUri = localSourceUri.takeIf { motionPhoto != null },
             isLivePhoto = motionPhoto != null,
-            livePhotoMode = LivePhotoMode.Still,
+            livePhotoMode = initialPlayback.livePhotoMode,
             mediaKind = when {
                 isVideo -> ClipMediaKind.Video
                 motionPhoto != null -> ClipMediaKind.LivePhoto
