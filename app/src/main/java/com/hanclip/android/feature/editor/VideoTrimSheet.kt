@@ -508,7 +508,7 @@ private fun TrimDurationPresetButton(
     onClick: () -> Unit
 ) {
     OutlinedButton(
-        modifier = modifier.height(36.dp),
+        modifier = modifier.height(48.dp),
         enabled = enabled,
         onClick = onClick,
         border = BorderStroke(1.dp, if (selected) palette.primary else palette.border),
@@ -533,7 +533,7 @@ private fun TrimAdjustButton(
     onClick: () -> Unit
 ) {
     OutlinedButton(
-        modifier = modifier.height(38.dp),
+        modifier = modifier.height(48.dp),
         enabled = enabled,
         onClick = onClick,
         border = BorderStroke(1.dp, palette.border),
