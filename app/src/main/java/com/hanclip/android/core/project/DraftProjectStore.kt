@@ -41,6 +41,7 @@ data class DraftProject(
     val backgroundMusicUri: Uri?,
     val backgroundMusicTitle: String? = null,
     val backgroundMusicSampleId: String? = null,
+    val backgroundMusicEnabled: Boolean = backgroundMusicUri != null || backgroundMusicSampleId != null,
     val backgroundMusicVolume: Double = 0.35,
     val originalAudioVolume: Double = 1.0,
     val similarPhotoRepresentativeInterval: Int = 6,
@@ -104,6 +105,7 @@ private fun DraftProject.toJson(): JSONObject {
         .put("backgroundMusicUri", backgroundMusicUri?.toString())
         .put("backgroundMusicTitle", backgroundMusicTitle)
         .put("backgroundMusicSampleId", backgroundMusicSampleId)
+        .put("backgroundMusicEnabled", backgroundMusicEnabled)
         .put("backgroundMusicVolume", backgroundMusicVolume)
         .put("originalAudioVolume", originalAudioVolume)
         .put("similarPhotoRepresentativeInterval", similarPhotoRepresentativeInterval)
@@ -155,6 +157,11 @@ private fun JSONObject.toDraftProject(): DraftProject {
             .takeIf { it.isNotBlank() && it != "null" },
         backgroundMusicSampleId = optString("backgroundMusicSampleId")
             .takeIf { it.isNotBlank() && it != "null" },
+        backgroundMusicEnabled = optBoolean(
+            "backgroundMusicEnabled",
+            optString("backgroundMusicUri").let { it.isNotBlank() && it != "null" } ||
+                optString("backgroundMusicSampleId").let { it.isNotBlank() && it != "null" }
+        ),
         backgroundMusicVolume = optDouble("backgroundMusicVolume", 0.35).coerceIn(0.0, 1.0),
         originalAudioVolume = optDouble("originalAudioVolume", 1.0).coerceIn(0.0, 1.0),
         similarPhotoRepresentativeInterval = optInt("similarPhotoRepresentativeInterval", 6)

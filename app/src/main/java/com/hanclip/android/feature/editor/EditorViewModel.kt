@@ -71,6 +71,7 @@ data class EditorUiState(
     val backgroundMusicUri: Uri? = null,
     val backgroundMusicTitle: String? = null,
     val backgroundMusicSampleId: String? = null,
+    val backgroundMusicEnabled: Boolean = false,
     val backgroundMusicVolume: Double = 0.35,
     val originalAudioVolume: Double = 1.0,
     val similarPhotoRepresentativeInterval: Int = 6,
@@ -458,7 +459,7 @@ class EditorViewModel : ViewModel() {
                     renderHeight = renderSize.second,
                     frameRate = OutputQualityPreset.Standard.frameRate,
                     watermarkSettings = state.watermarkSettings,
-                    backgroundMusicUri = state.backgroundMusicUri,
+                    backgroundMusicUri = state.backgroundMusicUri.takeIf { state.backgroundMusicEnabled },
                     backgroundMusicVolume = state.backgroundMusicVolume,
                     originalAudioVolume = state.originalAudioVolume,
                     backgroundMusicLoopsToFillVideo = state.backgroundMusicLoopsToFillVideo,
@@ -529,8 +530,9 @@ class EditorViewModel : ViewModel() {
                         ) state.watermarkSettings.normalizedEndingInfoCardDuration else 0.0,
                     outputAspectRatio = state.outputAspectRatio,
                     outputQualityPreset = actualOutputQualityPreset,
-                    hasBackgroundMusic = state.backgroundMusicUri != null ||
-                        state.backgroundMusicSampleId != null,
+                    hasBackgroundMusic = state.backgroundMusicEnabled && (
+                        state.backgroundMusicUri != null || state.backgroundMusicSampleId != null
+                    ),
                     hasWatermark = state.watermarkSettings.shouldRender,
                     hasTextOverlay = state.watermarkSettings.shouldRenderText,
                     hasLogoOverlay = state.watermarkSettings.logoEnabled
@@ -826,6 +828,7 @@ class EditorViewModel : ViewModel() {
                 backgroundMusicUri = storedUri,
                 backgroundMusicTitle = displayNameForUri(appContext, uri),
                 backgroundMusicSampleId = null,
+                backgroundMusicEnabled = true,
                 backgroundMusicVolume = 0.35,
                 alertMessage = "배경 음악을 MP4 완성본에 적용했습니다."
             )
@@ -838,6 +841,7 @@ class EditorViewModel : ViewModel() {
                 backgroundMusicUri = sampleBackgroundMusicUri(context.applicationContext, sample),
                 backgroundMusicTitle = sample.title,
                 backgroundMusicSampleId = sample.id,
+                backgroundMusicEnabled = true,
                 backgroundMusicVolume = 0.35,
                 alertMessage = "${sample.title} 음악을 MP4 완성본에 적용했습니다."
             )
@@ -847,6 +851,16 @@ class EditorViewModel : ViewModel() {
     fun updateBackgroundMusicVolume(volume: Double) {
         _uiState.update {
             it.copy(backgroundMusicVolume = volume.coerceIn(0.0, 1.0))
+        }
+    }
+
+    fun updateBackgroundMusicEnabled(enabled: Boolean) {
+        _uiState.update { state ->
+            state.copy(
+                backgroundMusicEnabled = enabled && (
+                    state.backgroundMusicUri != null || state.backgroundMusicSampleId != null
+                )
+            )
         }
     }
 
@@ -874,6 +888,7 @@ class EditorViewModel : ViewModel() {
                 backgroundMusicUri = null,
                 backgroundMusicTitle = null,
                 backgroundMusicSampleId = null,
+                backgroundMusicEnabled = false,
                 backgroundMusicVolume = 0.35,
                 alertMessage = "MP4 완성본에서 배경 음악을 제거했습니다."
             )
@@ -884,6 +899,7 @@ class EditorViewModel : ViewModel() {
         uri: Uri?,
         title: String?,
         sampleId: String?,
+        enabled: Boolean,
         musicVolume: Double,
         originalAudioVolume: Double,
         loopsToFillVideo: Boolean,
@@ -895,6 +911,7 @@ class EditorViewModel : ViewModel() {
                 backgroundMusicUri = uri,
                 backgroundMusicTitle = title,
                 backgroundMusicSampleId = sampleId,
+                backgroundMusicEnabled = enabled && (uri != null || sampleId != null),
                 backgroundMusicVolume = musicVolume,
                 originalAudioVolume = originalAudioVolume,
                 backgroundMusicLoopsToFillVideo = loopsToFillVideo,
@@ -928,7 +945,8 @@ class EditorViewModel : ViewModel() {
             outputAspectRatio = state.outputAspectRatio ?: existingSummary?.outputAspectRatio,
             outputQualityPreset = existingSummary?.outputQualityPreset ?: state.outputQualityPreset,
             hasBackgroundMusic = existingSummary?.hasBackgroundMusic ?: (
-                state.backgroundMusicUri != null || state.backgroundMusicSampleId != null
+                state.backgroundMusicEnabled &&
+                    (state.backgroundMusicUri != null || state.backgroundMusicSampleId != null)
             ),
             hasWatermark = existingSummary?.hasWatermark ?: state.watermarkSettings.shouldRender,
             hasTextOverlay = existingSummary?.hasTextOverlay ?: state.watermarkSettings.shouldRenderText,
@@ -1025,6 +1043,7 @@ class EditorViewModel : ViewModel() {
                 backgroundMusicUri = draft.backgroundMusicUri,
                 backgroundMusicTitle = draft.backgroundMusicTitle,
                 backgroundMusicSampleId = draft.backgroundMusicSampleId,
+                backgroundMusicEnabled = draft.backgroundMusicEnabled,
                 backgroundMusicVolume = draft.backgroundMusicVolume,
                 originalAudioVolume = draft.originalAudioVolume,
                 similarPhotoRepresentativeInterval = draft.similarPhotoRepresentativeInterval,
@@ -1065,6 +1084,7 @@ class EditorViewModel : ViewModel() {
                 backgroundMusicUri = project.backgroundMusicUri,
                 backgroundMusicTitle = project.backgroundMusicTitle,
                 backgroundMusicSampleId = project.backgroundMusicSampleId,
+                backgroundMusicEnabled = project.backgroundMusicEnabled,
                 backgroundMusicVolume = project.backgroundMusicVolume,
                 originalAudioVolume = project.originalAudioVolume,
                 similarPhotoRepresentativeInterval = project.similarPhotoRepresentativeInterval,
@@ -1186,6 +1206,7 @@ class EditorViewModel : ViewModel() {
         backgroundMusicUri = backgroundMusicUri,
         backgroundMusicTitle = backgroundMusicTitle,
         backgroundMusicSampleId = backgroundMusicSampleId,
+        backgroundMusicEnabled = backgroundMusicEnabled,
         backgroundMusicVolume = backgroundMusicVolume,
         originalAudioVolume = originalAudioVolume,
         similarPhotoRepresentativeInterval = similarPhotoRepresentativeInterval,
@@ -2157,6 +2178,7 @@ class EditorViewModel : ViewModel() {
             backgroundMusicUri = sampleMusic?.let { sampleBackgroundMusicUri(null, it) },
             backgroundMusicTitle = sampleMusic?.title,
             backgroundMusicSampleId = sampleMusic?.id,
+            backgroundMusicEnabled = sampleMusic != null,
             backgroundMusicVolume = 0.35,
             originalAudioVolume = 1.0,
             similarPhotoRepresentativeInterval = similarPhotoRepresentativeInterval

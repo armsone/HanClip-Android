@@ -179,6 +179,7 @@ private data class MusicSettingsSnapshot(
     val uri: Uri?,
     val title: String?,
     val sampleId: String?,
+    val enabled: Boolean,
     val musicVolume: Double,
     val originalAudioVolume: Double,
     val loopsToFillVideo: Boolean,
@@ -272,6 +273,7 @@ fun EditorRoute(
                 uri = state.backgroundMusicUri,
                 title = state.backgroundMusicTitle,
                 sampleId = state.backgroundMusicSampleId,
+                enabled = state.backgroundMusicEnabled,
                 musicVolume = state.backgroundMusicVolume,
                 originalAudioVolume = state.originalAudioVolume,
                 loopsToFillVideo = state.backgroundMusicLoopsToFillVideo,
@@ -490,7 +492,7 @@ fun EditorRoute(
                     palette = palette,
                     hasTextOverlay = state.watermarkSettings.shouldRenderText,
                     hasLogoOverlay = state.watermarkSettings.logoEnabled,
-                    hasMusic = state.backgroundMusicUri != null,
+                    hasMusic = state.backgroundMusicEnabled && state.backgroundMusicUri != null,
                     hasEnding = state.watermarkSettings.includesEndingInfoCard,
                     endingDuration = state.watermarkSettings.normalizedEndingInfoCardDuration,
                     endingThemeTitle = state.watermarkSettings.endingInfoCardTheme.title,
@@ -671,7 +673,9 @@ fun EditorRoute(
                 qualityTitle = state.outputQualityPreset.displayTitle,
                 hasTextOverlay = state.watermarkSettings.shouldRenderText,
                 hasLogoOverlay = state.watermarkSettings.logoEnabled,
-                hasMusic = state.backgroundMusicUri != null || state.backgroundMusicSampleId != null,
+                hasMusic = state.backgroundMusicEnabled && (
+                    state.backgroundMusicUri != null || state.backgroundMusicSampleId != null
+                ),
                 selectedRatio = state.outputAspectRatio,
                 onSelectRatio = { ratio -> viewModel.selectAspectRatio(context, ratio) },
                 onClose = ::requestBackHome,
@@ -942,7 +946,7 @@ fun EditorRoute(
                 endingInfoDuration = state.watermarkSettings.normalizedEndingInfoCardDuration,
                 endingThemeTitle = state.watermarkSettings.endingInfoCardTheme.title,
                 musicTitle = state.backgroundMusicTitle,
-                musicEnabled = state.backgroundMusicUri != null && state.backgroundMusicVolume > 0.001,
+                musicEnabled = state.backgroundMusicEnabled && state.backgroundMusicUri != null,
                 selectedRatio = state.outputAspectRatio,
                 palette = palette,
                 onTargetDurationChange = { quickTargetDurationSeconds = it.coerceAtLeast(0.2) },
@@ -958,7 +962,7 @@ fun EditorRoute(
                         reopenQuickAfterSettings = true
                         openMusicSettings()
                     } else {
-                        viewModel.updateBackgroundMusicVolume(if (enabled) 0.35 else 0.0)
+                        viewModel.updateBackgroundMusicEnabled(enabled)
                     }
                 },
                 onSelectRatio = { viewModel.selectAspectRatio(context, it) },
@@ -1181,6 +1185,7 @@ fun EditorRoute(
                             uri = snapshot.uri,
                             title = snapshot.title,
                             sampleId = snapshot.sampleId,
+                            enabled = snapshot.enabled,
                             musicVolume = snapshot.musicVolume,
                             originalAudioVolume = snapshot.originalAudioVolume,
                             loopsToFillVideo = snapshot.loopsToFillVideo,
@@ -1207,6 +1212,7 @@ fun EditorRoute(
                     currentTitle = state.backgroundMusicTitle,
                     currentUri = state.backgroundMusicUri,
                     currentSampleId = state.backgroundMusicSampleId,
+                    musicEnabled = state.backgroundMusicEnabled,
                     musicVolume = state.backgroundMusicVolume,
                     originalAudioVolume = state.originalAudioVolume,
                     loopsToFillVideo = state.backgroundMusicLoopsToFillVideo,
@@ -1226,9 +1232,7 @@ fun EditorRoute(
                         reopenQuickAfterSettings = false
                         onOpenBrowser()
                     },
-                    onRemove = {
-                        viewModel.removeBackgroundMusic()
-                    },
+                    onMusicEnabledChange = viewModel::updateBackgroundMusicEnabled,
                     onMusicVolumeChange = viewModel::updateBackgroundMusicVolume,
                     onOriginalAudioVolumeChange = viewModel::updateOriginalAudioVolume,
                     onLoopingChange = viewModel::updateBackgroundMusicLooping,
@@ -1666,7 +1670,8 @@ private fun ExportConfirmationDialog(
     val aspectRatioText = state.outputAspectRatio?.let(::outputRatioChipText)
         ?: "자동 원본 비율 ${estimatedRenderSize.first}x${estimatedRenderSize.second}"
     val musicText = when {
-        state.backgroundMusicUri != null || state.backgroundMusicSampleId != null ->
+        state.backgroundMusicEnabled &&
+            (state.backgroundMusicUri != null || state.backgroundMusicSampleId != null) ->
             state.backgroundMusicTitle ?: "음악 적용"
         else -> "음악 없음"
     }
@@ -1677,7 +1682,8 @@ private fun ExportConfirmationDialog(
         else -> "자막 없음"
     }
     val audioMixText = when {
-        state.backgroundMusicUri != null || state.backgroundMusicSampleId != null ->
+        state.backgroundMusicEnabled &&
+            (state.backgroundMusicUri != null || state.backgroundMusicSampleId != null) ->
             "배경 ${percentText(state.backgroundMusicVolume)} · 원본 ${percentText(state.originalAudioVolume)}"
         state.renderableClips.any { it.mediaKind == ClipMediaKind.Video } ->
             "원본 ${percentText(state.originalAudioVolume)}"

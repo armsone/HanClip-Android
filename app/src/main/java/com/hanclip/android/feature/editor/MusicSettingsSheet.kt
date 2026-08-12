@@ -74,6 +74,7 @@ fun MusicSettingsSheet(
     currentTitle: String?,
     currentUri: Uri?,
     currentSampleId: String?,
+    musicEnabled: Boolean,
     musicVolume: Double,
     originalAudioVolume: Double,
     loopsToFillVideo: Boolean,
@@ -84,7 +85,7 @@ fun MusicSettingsSheet(
     onUseSample: (BackgroundMusicSample) -> Unit,
     onPickFile: () -> Unit,
     onOpenBrowser: () -> Unit,
-    onRemove: () -> Unit,
+    onMusicEnabledChange: (Boolean) -> Unit,
     onMusicVolumeChange: (Double) -> Unit,
     onOriginalAudioVolumeChange: (Double) -> Unit,
     onLoopingChange: (Boolean) -> Unit,
@@ -264,19 +265,19 @@ fun MusicSettingsSheet(
                             horizontalArrangement = Arrangement.End
                         ) {
                             OutlinedButton(
-                                onClick = {},
+                                onClick = { onMusicEnabledChange(true) },
                                 shape = RoundedCornerShape(8.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = palette.primary,
-                                    contentColor = Color.White
+                                    containerColor = if (musicEnabled) palette.primary else palette.chip,
+                                    contentColor = if (musicEnabled) Color.White else palette.text
                                 )
                             ) { Text("사용") }
                             OutlinedButton(
-                                onClick = onRemove,
+                                onClick = { onMusicEnabledChange(false) },
                                 shape = RoundedCornerShape(8.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = palette.chip,
-                                    contentColor = palette.text
+                                    containerColor = if (!musicEnabled) palette.primary else palette.chip,
+                                    contentColor = if (!musicEnabled) Color.White else palette.text
                                 )
                             ) { Text("안함") }
                         }
@@ -341,11 +342,6 @@ fun MusicSettingsSheet(
                 }
             }
 
-            Text(
-                "받은 음악은 Downloads/HanClip 폴더에서 `음악 파일 불러오기`로 적용합니다.",
-                color = palette.subText,
-                style = MaterialTheme.typography.bodySmall
-            )
             Spacer(Modifier.height(6.dp))
         }
     }
