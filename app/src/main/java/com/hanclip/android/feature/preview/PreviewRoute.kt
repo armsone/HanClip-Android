@@ -261,7 +261,7 @@ fun PreviewRoute(
             }.onSuccess {
                 preferredShareUri = targetUri
                 onSavedMovie(targetUri)
-                message = "파일 저장 완료 · 방금 저장한 MP4를 바로 공유할 수 있습니다."
+                message = "선택한 위치에 개봉했습니다."
             }.onFailure {
                 message = "파일 저장에 실패했습니다. 저장 위치 권한을 확인해 주세요."
             }
@@ -425,7 +425,6 @@ fun PreviewRoute(
     if (showSaveOptions) {
         SaveOptionsSheet(
             palette = palette,
-            fileName = pendingMovieFileName,
             albumName = albumName,
             onAlbumNameChange = { albumName = it },
             onDismiss = { showSaveOptions = false },
@@ -785,7 +784,6 @@ private fun PreviewActionRow(
 @Composable
 private fun SaveOptionsSheet(
     palette: HanClipPalette,
-    fileName: String,
     albumName: String,
     onAlbumNameChange: (String) -> Unit,
     onDismiss: () -> Unit,
@@ -928,15 +926,6 @@ private fun SaveOptionsSheet(
                                 Icon(Icons.Outlined.FolderOpen, contentDescription = null)
                                 Text("파일 앱으로 개봉", fontWeight = FontWeight.Bold)
                             }
-                            Text(
-                                fileName,
-                                modifier = Modifier.fillMaxWidth(),
-                                color = palette.subText,
-                                style = MaterialTheme.typography.labelSmall,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
                             }
                         }
                         OutlinedButton(
