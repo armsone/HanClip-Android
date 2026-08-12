@@ -322,6 +322,7 @@ fun AiShotRoute(
     var discardCurrentRecording by remember { mutableStateOf(false) }
     var pendingSaveCount by remember { mutableIntStateOf(0) }
     var lensFacing by remember { mutableIntStateOf(CameraSelector.LENS_FACING_BACK) }
+    var pendingLensFacing by remember { mutableStateOf<Int?>(null) }
     var sensitivity by remember { mutableStateOf(AiShotPreferenceStore.loadSensitivity(context)) }
     var shotLength by remember(projectId) {
         mutableStateOf(AiShotPreferenceStore.loadShotLength(context, projectId))
@@ -427,6 +428,10 @@ fun AiShotRoute(
                 activeShotLength = null
                 recordingRemainingSeconds = 0L
                 activeRecordingSeconds = shotLength.recordingSeconds
+                pendingLensFacing?.let { targetLensFacing ->
+                    pendingLensFacing = null
+                    lensFacing = targetLensFacing
+                }
                 if (event.hasError() || shouldDiscard || finalizedTrigger == null ||
                     finalizedTiming == null || finalizedSequence == null
                 ) {
@@ -761,15 +766,22 @@ fun AiShotRoute(
                     triggerTimeSeconds == null &&
                     recordingDurationNanos / 1_000_000_000.0 >= shotLength.beforeSeconds,
                 isShowingIntroSwing = isShowingIntroSwing,
+                isSwitchingCamera = pendingLensFacing != null,
                 onManualRecord = {
                     triggerClip("수동 클립 저장 중")
                 },
                 onSwitchCamera = {
-                    discardAndStopRollingRecording()
-                    lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) {
+                    val targetLensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) {
                         CameraSelector.LENS_FACING_FRONT
                     } else {
                         CameraSelector.LENS_FACING_BACK
+                    }
+                    if (triggerTimeSeconds != null) {
+                        pendingLensFacing = targetLensFacing
+                    } else {
+                        statusText = "전환 중"
+                        discardAndStopRollingRecording()
+                        lensFacing = targetLensFacing
                     }
                 }
             )
@@ -974,6 +986,7 @@ private fun AiShotFloatingControls(
     isRecording: Boolean,
     isReadyForTrigger: Boolean,
     isShowingIntroSwing: Boolean,
+    isSwitchingCamera: Boolean,
     onManualRecord: () -> Unit,
     onSwitchCamera: () -> Unit
 ) {
@@ -1151,6 +1164,7 @@ private fun AiShotFloatingControls(
                 icon = { Icon(Icons.Outlined.Cameraswitch, contentDescription = null) },
                 title = lensLabel,
                 contentDescription = "카메라 전환, 현재 $lensLabel",
+                enabled = !isSwitchingCamera,
                 onClick = onSwitchCamera
             )
         }
@@ -1207,10 +1221,12 @@ private fun FloatingSideButton(
     icon: @Composable () -> Unit,
     title: String,
     contentDescription: String,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     Button(
         onClick = onClick,
+        enabled = enabled,
         modifier = Modifier
             .width(116.dp)
             .height(52.dp)
