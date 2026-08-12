@@ -30,4 +30,16 @@ class RecentMediaFilterPolicyTest {
         assertTrue(RecentMediaFilter.All.includes(RecentMediaFilter.LivePhoto))
         assertTrue(RecentMediaFilter.All.includes(RecentMediaFilter.Video))
     }
+
+    @Test
+    fun `switching sort mode preserves direction and reselecting reverses it`() {
+        assertEquals(
+            MediaSortOrder.AddedOldest,
+            MediaSortOrder.TakenOldest.selectingMode(targetUsesAddedDate = true)
+        )
+        assertEquals(
+            MediaSortOrder.TakenNewest,
+            MediaSortOrder.TakenOldest.selectingMode(targetUsesAddedDate = false)
+        )
+    }
 }

@@ -468,6 +468,7 @@ fun CalendarMediaPickerSheet(
                         selectedCount = selectedUris.size,
                         currentFilter = recentFilter,
                         currentSort = sortOrder,
+                        hasDurationFilter = videoDurationFilter != null,
                         isTodaySelectionArmed = isTodaySelectionArmed,
                         canClear = selectedUris.isNotEmpty(),
                         onFilterChange = {
@@ -646,11 +647,18 @@ internal enum class RecentMediaFilter(
     }
 }
 
-private enum class MediaSortOrder(val label: String, val usesAddedDate: Boolean, val ascending: Boolean) {
+internal enum class MediaSortOrder(val label: String, val usesAddedDate: Boolean, val ascending: Boolean) {
     TakenNewest("날짜순 ↓", false, false),
     TakenOldest("날짜순 ↑", false, true),
     AddedNewest("추가순 ↓", true, false),
-    AddedOldest("추가순 ↑", true, true)
+    AddedOldest("추가순 ↑", true, true);
+
+    fun selectingMode(targetUsesAddedDate: Boolean): MediaSortOrder {
+        val targetAscending = if (usesAddedDate == targetUsesAddedDate) !ascending else ascending
+        return entries.first {
+            it.usesAddedDate == targetUsesAddedDate && it.ascending == targetAscending
+        }
+    }
 }
 
 private enum class VideoDurationComparison(val title: String) {
@@ -992,6 +1000,7 @@ private fun RecentDayActions(
     selectedCount: Int,
     currentFilter: RecentMediaFilter,
     currentSort: MediaSortOrder,
+    hasDurationFilter: Boolean,
     isTodaySelectionArmed: Boolean,
     canClear: Boolean,
     onFilterChange: (RecentMediaFilter) -> Unit,
@@ -1018,7 +1027,9 @@ private fun RecentDayActions(
             ) {
                 RecentMediaFilter.MenuEntries.forEach { filter ->
                     val selected = currentFilter.includes(filter)
+                    val enabled = filter == RecentMediaFilter.All || !hasDurationFilter
                     DropdownMenuItem(
+                        enabled = enabled,
                         modifier = Modifier.semantics {
                             this.selected = selected
                         },
@@ -1036,8 +1047,8 @@ private fun RecentDayActions(
                     }
                 )
                 listOf(
-                    if (currentSort == MediaSortOrder.TakenNewest) MediaSortOrder.TakenOldest else MediaSortOrder.TakenNewest,
-                    if (currentSort == MediaSortOrder.AddedNewest) MediaSortOrder.AddedOldest else MediaSortOrder.AddedNewest
+                    currentSort.selectingMode(targetUsesAddedDate = false),
+                    currentSort.selectingMode(targetUsesAddedDate = true)
                 ).forEach { order ->
                     DropdownMenuItem(
                         text = { Text(order.label) },
@@ -1598,8 +1609,8 @@ private fun CalendarMediaStrip(
                         containerColor = palette.solidPanel
                     ) {
                         listOf(
-                            if (sortOrder == MediaSortOrder.TakenNewest) MediaSortOrder.TakenOldest else MediaSortOrder.TakenNewest,
-                            if (sortOrder == MediaSortOrder.AddedNewest) MediaSortOrder.AddedOldest else MediaSortOrder.AddedNewest
+                            sortOrder.selectingMode(targetUsesAddedDate = false),
+                            sortOrder.selectingMode(targetUsesAddedDate = true)
                         ).forEach { candidate ->
                             DropdownMenuItem(
                                 text = { Text(candidate.label) },
