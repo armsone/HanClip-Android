@@ -136,7 +136,7 @@ data class HanClipPalette(
 private val AutomaticDarkPalette = HanClipPalette(
     primary = Color(0xFF67E8F9),
     secondary = Color(0xFF527387),
-    background = Brush.verticalGradient(listOf(Color(0xFF353835), Color(0xFF373A36))),
+    background = Brush.verticalGradient(listOf(Color(0xFF353834), Color(0xFF373A36))),
     text = Color.White,
     subText = Color(0xA8FFFFFF),
     solidPanel = Color(0xFF373A36),
