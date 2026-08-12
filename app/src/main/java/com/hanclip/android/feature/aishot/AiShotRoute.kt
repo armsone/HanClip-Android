@@ -900,9 +900,15 @@ private fun AiShotTopBar(
                         modifier = Modifier.size(18.dp)
                     )
                 } else {
-                    Icon(statusIcon, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Icon(statusIcon, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                 }
-                Text(if (isReady) "AiShot" else statusText, color = Color.White, fontWeight = FontWeight.Bold)
+                Text(
+                    if (isReady) "AiShot" else statusText,
+                    color = Color.White,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
             }
         }
         Surface(
@@ -975,7 +981,9 @@ private fun AiShotBottomPanel(
                     capturePhase.title,
                     color = statusColor,
                     fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.labelMedium
+                    fontSize = 12.sp,
+                    modifier = Modifier.width(42.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End
                 )
             }
             Row(
@@ -986,12 +994,12 @@ private fun AiShotBottomPanel(
                 Icon(
                     Icons.Outlined.GraphicEq,
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = Color.White.copy(alpha = 0.78f),
                     modifier = Modifier.size(18.dp)
                 )
                 Text(
                     "감도",
-                    color = Color.White,
+                    color = Color.White.copy(alpha = 0.78f),
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.labelMedium
                 )
@@ -1126,8 +1134,9 @@ private fun AiShotFloatingControls(
                 .fillMaxWidth(0.90f)
                 .height(56.dp)
                 .offset(y = if (isPrecisionZoomVisible) (-46).dp else 0.dp)
-                .background(Color.Black.copy(alpha = 0.34f), CircleShape)
-                .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape)
+                .padding(vertical = 5.dp)
+                .background(Color.Black.copy(alpha = 0.32f), CircleShape)
+                .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape)
                 .pointerInput(minimumZoomRatio, maximumZoomRatio, zoomOctaveWidthPx) {
                     var startZoom = latestZoomRatio
                     var totalDragX = 0f
