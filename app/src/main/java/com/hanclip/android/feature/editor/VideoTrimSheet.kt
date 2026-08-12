@@ -98,6 +98,7 @@ fun VideoTrimSheet(
     onPrevious: ((startSeconds: Double, durationSeconds: Double) -> Unit)? = null,
     onNext: ((startSeconds: Double, durationSeconds: Double) -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
+    bottomThumbnailStrip: (@Composable (startSeconds: Double, durationSeconds: Double) -> Unit)? = null,
     onApplyTrim: (startSeconds: Double, durationSeconds: Double) -> Unit
 ) {
     FullScreenDialogSystemBars(palette.solidPanel)
@@ -246,6 +247,8 @@ fun VideoTrimSheet(
                     durationSeconds = nextDuration
                 }
             )
+
+            bottomThumbnailStrip?.invoke(startSeconds, durationSeconds)
 
             Row(
                 modifier = Modifier.fillMaxWidth(),

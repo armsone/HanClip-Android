@@ -248,12 +248,20 @@ fun EditorRoute(
     val pendingDeleteClip = state.clips.firstOrNull { it.id == pendingDeleteClipID }
     val previewClips = state.renderableClips
     val previewClipIndex = previewClips.indexOfFirst { it.id == previewClipID }
-    val trimmingClips = state.renderableClips.filter { clip ->
-        clip.mediaKind == ClipMediaKind.Video ||
-            (clip.mediaKind == ClipMediaKind.LivePhoto &&
-                clip.livePhotoMode == com.hanclip.android.core.model.LivePhotoMode.Motion)
+    val trimmingClipIndex = previewClips.indexOfFirst { it.id == trimmingClipID }
+    fun openClipFromTrim(target: ClipItem) {
+        if (
+            target.mediaKind == ClipMediaKind.Video ||
+            (target.mediaKind == ClipMediaKind.LivePhoto &&
+                target.livePhotoMode == com.hanclip.android.core.model.LivePhotoMode.Motion)
+        ) {
+            previewClipID = null
+            trimmingClipID = target.id
+        } else {
+            trimmingClipID = null
+            previewClipID = target.id
+        }
     }
-    val trimmingClipIndex = trimmingClips.indexOfFirst { it.id == trimmingClipID }
     fun openMusicSettings() {
         if (musicSettingsSnapshot == null) {
             musicSettingsSnapshot = MusicSettingsSnapshot(
@@ -995,29 +1003,41 @@ fun EditorRoute(
                     clip = clip,
                     palette = palette,
                     onDismiss = { trimmingClipID = null },
-                    onFirst = trimmingClips.firstOrNull()
-                        ?.takeIf { first -> first.id != clip.id && trimmingClips.size > 1 }
+                    onFirst = previewClips.firstOrNull()
+                        ?.takeIf { first -> first.id != clip.id && previewClips.size > 1 }
                         ?.let { first ->
                             { startSeconds, durationSeconds ->
                                 viewModel.updateVideoTrim(clip.id, startSeconds, durationSeconds)
-                                trimmingClipID = first.id
+                                openClipFromTrim(first)
                             }
                         },
-                    onPrevious = trimmingClips.getOrNull(trimmingClipIndex - 1)?.let { previous ->
+                    onPrevious = previewClips.getOrNull(trimmingClipIndex - 1)?.let { previous ->
                         { startSeconds, durationSeconds ->
                             viewModel.updateVideoTrim(clip.id, startSeconds, durationSeconds)
-                            trimmingClipID = previous.id
+                            openClipFromTrim(previous)
                         }
                     },
-                    onNext = trimmingClips.getOrNull(trimmingClipIndex + 1)?.let { next ->
+                    onNext = previewClips.getOrNull(trimmingClipIndex + 1)?.let { next ->
                         { startSeconds, durationSeconds ->
                             viewModel.updateVideoTrim(clip.id, startSeconds, durationSeconds)
-                            trimmingClipID = next.id
+                            openClipFromTrim(next)
                         }
                     },
                     onDelete = {
                         trimmingClipID = null
                         pendingDeleteClipID = clip.id
+                    },
+                    bottomThumbnailStrip = { startSeconds, durationSeconds ->
+                        VideoTrimThumbnailStrip(
+                            clips = previewClips,
+                            selectedClipId = clip.id,
+                            palette = palette,
+                            onSelect = { selectedId ->
+                                viewModel.updateVideoTrim(clip.id, startSeconds, durationSeconds)
+                                previewClips.firstOrNull { it.id == selectedId }
+                                    ?.let(::openClipFromTrim)
+                            }
+                        )
                     },
                     onApplyTrim = { startSeconds, durationSeconds ->
                         viewModel.updateVideoTrim(
@@ -1219,6 +1239,53 @@ fun EditorRoute(
                             deselectionScopeUris = deselectionScopeUris
                         )
                     }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun VideoTrimThumbnailStrip(
+    clips: List<ClipItem>,
+    selectedClipId: String,
+    palette: HanClipPalette,
+    onSelect: (String) -> Unit
+) {
+    val listState = rememberLazyListState()
+    val selectedIndex = clips.indexOfFirst { it.id == selectedClipId }
+    LaunchedEffect(selectedClipId, clips) {
+        if (selectedIndex >= 0) listState.animateScrollToItem(selectedIndex)
+    }
+    LazyRow(
+        modifier = Modifier.fillMaxWidth(),
+        state = listState,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 2.dp)
+    ) {
+        itemsIndexed(clips, key = { _, item -> item.id }) { index, item ->
+            val selected = item.id == selectedClipId
+            Box(
+                modifier = Modifier
+                    .size(if (selected) 62.dp else 58.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .then(
+                        if (selected) Modifier.border(3.dp, palette.primary, RoundedCornerShape(10.dp))
+                        else Modifier.border(1.dp, palette.border, RoundedCornerShape(10.dp))
+                    )
+                    .clickable(onClickLabel = "${index + 1}번째 영상 편집") { onSelect(item.id) }
+            ) {
+                ClipThumbnail(item, Modifier.matchParentSize())
+                Text(
+                    text = "${index + 1}",
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(4.dp)
+                        .background(Color.Black.copy(alpha = 0.68f), CircleShape)
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
