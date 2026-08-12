@@ -87,6 +87,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -105,6 +106,8 @@ import androidx.core.content.ContextCompat
 import com.hanclip.android.R
 import com.hanclip.android.core.safety.orderedCaptureValues
 import com.hanclip.android.core.theme.HanClipSystemBars
+import com.hanclip.android.core.theme.HanClipThemeStore
+import com.hanclip.android.core.theme.currentPalette
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -271,6 +274,7 @@ fun AiShotRoute(
 ) {
     HanClipSystemBars(Color.Black)
     val context = LocalContext.current
+    val palette = HanClipThemeStore.load(context).currentPalette
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     val cameraExecutor = remember(context) { ContextCompat.getMainExecutor(context) }
@@ -737,6 +741,7 @@ fun AiShotRoute(
         ) {
             AiShotTopBar(
                 statusText = statusText,
+                accentColor = palette.secondary,
                 onClose = {
                     if (capturedUris.isEmpty()) {
                         didHandOffCapturedUris = false
@@ -751,6 +756,8 @@ fun AiShotRoute(
             AiShotBottomPanel(
                 level = level,
                 sensitivity = sensitivity,
+                accentColor = palette.secondary,
+                accentForeground = Color.White,
                 onSensitivityChange = { sensitivity = it },
                 capturePhase = capturePhase
             )
@@ -824,6 +831,7 @@ fun AiShotRoute(
 @Composable
 private fun AiShotTopBar(
     statusText: String,
+    accentColor: Color,
     onClose: () -> Unit
 ) {
     val isReady = statusText.isEmpty()
@@ -833,11 +841,11 @@ private fun AiShotTopBar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
-            color = if (isReady) Color(0xFF0B5B66).copy(alpha = 0.72f) else Color(0xFF4F1F24).copy(alpha = 0.78f),
+            color = if (isReady) accentColor.copy(alpha = 0.24f) else Color(0xFF4F1F24).copy(alpha = 0.78f),
             shape = RoundedCornerShape(999.dp),
             border = androidx.compose.foundation.BorderStroke(
                 1.dp,
-                if (isReady) Color(0xFF2FC6D2).copy(alpha = 0.72f) else Color(0xFFE05257).copy(alpha = 0.58f)
+                if (isReady) accentColor.copy(alpha = 0.72f) else Color(0xFFE05257).copy(alpha = 0.58f)
             )
         ) {
             Row(
@@ -851,6 +859,7 @@ private fun AiShotTopBar(
                     Image(
                         painter = painterResource(R.drawable.aishot_icon),
                         contentDescription = null,
+                        colorFilter = ColorFilter.tint(accentColor),
                         modifier = Modifier.size(18.dp)
                     )
                 } else {
@@ -861,18 +870,18 @@ private fun AiShotTopBar(
         }
         Surface(
             modifier = Modifier.height(40.dp),
-            color = Color.Transparent,
+            color = Color.Black.copy(alpha = 0.52f),
             shape = RoundedCornerShape(999.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE6525F).copy(alpha = 0.68f)),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE05257).copy(alpha = 0.58f)),
             onClick = onClose
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 13.dp),
+                modifier = Modifier.padding(horizontal = 15.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                Icon(Icons.Outlined.Close, contentDescription = null, tint = Color(0xFFE6525F), modifier = Modifier.size(19.dp))
-                Text("닫기", color = Color.White, fontWeight = FontWeight.Bold)
+                Icon(Icons.Outlined.Close, contentDescription = null, tint = Color(0xFFE05257), modifier = Modifier.size(14.dp))
+                Text("닫기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -882,18 +891,20 @@ private fun AiShotTopBar(
 private fun AiShotBottomPanel(
     level: Double,
     sensitivity: ShotSensitivity,
+    accentColor: Color,
+    accentForeground: Color,
     onSensitivityChange: (ShotSensitivity) -> Unit,
     capturePhase: AiShotCapturePhase
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color.Black.copy(alpha = 0.62f),
-        shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.18f))
+        color = Color.Black.copy(alpha = 0.66f),
+        shape = RoundedCornerShape(12.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -930,7 +941,7 @@ private fun AiShotBottomPanel(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Icon(
                     Icons.Outlined.GraphicEq,
@@ -944,20 +955,65 @@ private fun AiShotBottomPanel(
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.labelMedium
                 )
-                listOf(
-                    ShotSensitivity.Loud,
-                    ShotSensitivity.Normal,
-                    ShotSensitivity.Quiet,
-                    ShotSensitivity.Auto
-                ).forEach {
-                    DarkFilterChip(
-                        text = it.title,
-                        selected = sensitivity == it,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onSensitivityChange(it) }
-                    )
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(Color.White.copy(alpha = 0.07f), RoundedCornerShape(8.dp))
+                        .padding(2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    listOf(
+                        ShotSensitivity.Loud,
+                        ShotSensitivity.Normal,
+                        ShotSensitivity.Quiet,
+                        ShotSensitivity.Auto
+                    ).forEach {
+                        AiShotSensitivityButton(
+                            text = it.title,
+                            selected = sensitivity == it,
+                            accentColor = accentColor,
+                            accentForeground = accentForeground,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onSensitivityChange(it) }
+                        )
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun AiShotSensitivityButton(
+    text: String,
+    selected: Boolean,
+    accentColor: Color,
+    accentForeground: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier.semantics { this.selected = selected },
+        shape = RoundedCornerShape(6.dp),
+        color = if (selected) accentColor else Color.Transparent,
+        border = if (selected) {
+            androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.24f))
+        } else {
+            null
+        }
+    ) {
+        Box(
+            modifier = Modifier.height(27.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text,
+                color = if (selected) accentForeground else Color.White.copy(alpha = 0.72f),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
         }
     }
 }
