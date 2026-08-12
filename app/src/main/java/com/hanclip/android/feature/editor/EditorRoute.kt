@@ -1061,6 +1061,10 @@ fun EditorRoute(
                     viewModel.removeClip(clip.id)
                     previewClipID = nextClipId
                 },
+                onMakeMovie = {
+                    previewClipID = null
+                    beginMovieExport()
+                },
                 onDismiss = { previewClipID = null }
             )
         }
@@ -3970,6 +3974,7 @@ private fun ClipPreviewDialog(
     onSelectClip: (String) -> Unit,
     onEdit: (() -> Unit)?,
     onDelete: () -> Unit,
+    onMakeMovie: () -> Unit,
     onDismiss: () -> Unit
 ) {
     var isDeleteConfirmationVisible by remember(clip.id) { mutableStateOf(false) }
@@ -3977,6 +3982,9 @@ private fun ClipPreviewDialog(
     val previewThumbnailState = rememberLazyListState()
     val hasPlayableMedia = clip.mediaKind == ClipMediaKind.Video ||
         clip.livePhotoMode == com.hanclip.android.core.model.LivePhotoMode.Motion
+    val previewBackgroundColor = if (hasPlayableMedia) Color.Black else palette.solidPanel
+    val previewText = if (hasPlayableMedia) Color.White else palette.text
+    val previewSubText = if (hasPlayableMedia) Color.White.copy(alpha = 0.72f) else palette.subText
     LaunchedEffect(clip.id, playbackMode, hasPlayableMedia, position, total) {
         if (!hasPlayableMedia && playbackMode == ClipPreviewPlaybackMode.AutoNext) {
             delay((clip.durationSeconds.coerceAtLeast(0.1) * 1000).toLong())
@@ -4004,11 +4012,15 @@ private fun ClipPreviewDialog(
             decorFitsSystemWindows = false
         )
     ) {
-        FullScreenDialogSystemBars(Color.Black)
-        Surface(color = Color.Black) {
+        FullScreenDialogSystemBars(previewBackgroundColor)
+        Surface(color = previewBackgroundColor) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .then(
+                        if (hasPlayableMedia) Modifier.background(Color.Black)
+                        else Modifier.background(palette.background)
+                    )
                     .statusBarsPadding()
                     .navigationBarsPadding()
                     .padding(14.dp),
@@ -4021,23 +4033,23 @@ private fun ClipPreviewDialog(
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text(
-                            text = if (clip.isVideoSegmentParent) "원본 영상 미리보기" else "클립 미리보기",
-                            color = Color.White,
+                            text = if (clip.isVideoSegmentParent) "모클립 편집" else "편집",
+                            color = previewText,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = clipPreviewSubtitle(clip, childSegmentCount),
-                            color = Color.White.copy(alpha = 0.72f),
+                            text = "$position / $total",
+                            color = previewSubText,
                             style = MaterialTheme.typography.bodySmall,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Outlined.Close, contentDescription = "닫기", tint = Color.White)
+                        Icon(Icons.Outlined.Close, contentDescription = "닫기", tint = previewText)
                     }
                 }
                 ClipPreviewPlayer(
@@ -4063,7 +4075,10 @@ private fun ClipPreviewDialog(
                             else Modifier.aspectRatio(1f)
                         )
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Color.Black)
+                        .background(
+                            if (hasPlayableMedia) Color.Black
+                            else palette.secondary.copy(alpha = 0.12f)
+                        )
                 )
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
@@ -4142,13 +4157,13 @@ private fun ClipPreviewDialog(
                                 Text("삭제", color = Color(0xFFE45D42))
                             }
                             Button(
-                                onClick = onDismiss,
+                                onClick = onMakeMovie,
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = palette.primary,
                                     contentColor = Color.White
                                 )
                             ) {
-                                Text("확인")
+                                Text("만들기")
                             }
                         }
                         Row(
@@ -4328,7 +4343,8 @@ private fun ClipPreviewPlayer(
             ClipThumbnail(
                 clip = clip,
                 modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Fit
+                contentScale = ContentScale.Fit,
+                overlayAlpha = 0f
             )
         } else {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -4632,7 +4648,8 @@ private fun formatClipSeconds(seconds: Double): String {
 private fun ClipThumbnail(
     clip: ClipItem,
     modifier: Modifier,
-    contentScale: ContentScale = ContentScale.Crop
+    contentScale: ContentScale = ContentScale.Crop,
+    overlayAlpha: Float = 0.18f
 ) {
     val context = LocalContext.current
     val thumbnail by produceState<Bitmap?>(initialValue = null, clip.thumbnailUri, clip.mediaKind) {
@@ -4652,10 +4669,12 @@ private fun ClipThumbnail(
             contentScale = contentScale,
             modifier = modifier
         )
-        Box(
-            modifier = modifier
-                .background(Color.Black.copy(alpha = 0.18f))
-        )
+        if (overlayAlpha > 0f) {
+            Box(
+                modifier = modifier
+                    .background(Color.Black.copy(alpha = overlayAlpha))
+            )
+        }
     }
 }
 
