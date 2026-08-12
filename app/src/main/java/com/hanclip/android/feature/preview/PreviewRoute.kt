@@ -285,7 +285,7 @@ fun PreviewRoute(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(modifier = Modifier.clickable(onClickLabel = "다시 편집", onClick = onEdit)) {
-                HanClipBrandCapsule()
+                HanClipBrandCapsule(palette)
             }
             Surface(
                 modifier = Modifier.size(54.dp),
@@ -835,7 +835,7 @@ private fun SaveOptionsSheet(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(modifier = Modifier.clickable(onClickLabel = "개봉 화면 닫기", onClick = onDismiss)) {
-                        HanClipBrandCapsule()
+                        HanClipBrandCapsule(palette)
                     }
                     Surface(
                         modifier = Modifier.size(58.dp),
