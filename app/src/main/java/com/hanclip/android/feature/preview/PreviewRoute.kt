@@ -327,40 +327,58 @@ fun PreviewRoute(
             )
         }
         Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-            Surface(
-                modifier = Modifier.fillMaxWidth().aspectRatio(1f),
-                shape = RoundedCornerShape(26.dp),
-                color = Color.Black,
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.38f)),
-                shadowElevation = 8.dp
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    if (exportedVideoUri != null) {
-                        ExportedVideoPlayer(
-                            uri = exportedVideoUri,
-                            onPlayerChanged = { inlinePreviewPlayer = it }
-                        )
-                        IconButton(
-                            onClick = {
-                                inlinePreviewPlayer?.let { player ->
-                                    fullscreenStartPositionMs = player.currentPosition
-                                    player.pause()
-                                }
-                                showFullscreenPreview = true
-                            },
-                            modifier = Modifier.align(Alignment.TopEnd).padding(10.dp)
-                        ) {
-                            Icon(Icons.Outlined.Fullscreen, contentDescription = "전체 화면", tint = Color.White)
+                Surface(
+                    modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+                    shape = RoundedCornerShape(26.dp),
+                    color = Color.Black,
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.38f)),
+                    shadowElevation = 8.dp
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        if (exportedVideoUri != null) {
+                            ExportedVideoPlayer(
+                                uri = exportedVideoUri,
+                                onPlayerChanged = { inlinePreviewPlayer = it }
+                            )
+                            Surface(
+                                onClick = {
+                                    inlinePreviewPlayer?.let { player ->
+                                        fullscreenStartPositionMs = player.currentPosition
+                                        player.pause()
+                                    }
+                                    showFullscreenPreview = true
+                                },
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(12.dp)
+                                    .size(42.dp),
+                                shape = RoundedCornerShape(999.dp),
+                                color = palette.solidPanel.copy(alpha = 0.72f),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.38f)),
+                                shadowElevation = 5.dp
+                            ) {
+                                Icon(
+                                    Icons.Outlined.Fullscreen,
+                                    contentDescription = "시사회 전체 화면",
+                                    tint = palette.text,
+                                    modifier = Modifier.padding(11.dp)
+                                )
+                            }
+                        } else {
+                            Icon(
+                                imageVector = Icons.Outlined.PlayCircle,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.height(72.dp)
+                            )
                         }
-                    } else {
-                        Icon(
-                            imageVector = Icons.Outlined.PlayCircle,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.height(72.dp)
-                        )
                     }
                 }
+                PersistentPreviewProgress(inlinePreviewPlayer, palette)
             }
         }
         PreviewActionRow(
@@ -442,6 +460,36 @@ fun PreviewRoute(
     }
     if (isSavingVideo) {
         SavingMovieDialog(palette)
+    }
+}
+
+@Composable
+private fun PersistentPreviewProgress(player: Player?, palette: HanClipPalette) {
+    var progress by remember(player) { mutableFloatStateOf(0f) }
+    LaunchedEffect(player) {
+        val activePlayer = player ?: return@LaunchedEffect
+        while (true) {
+            val duration = activePlayer.duration
+            progress = if (duration > 0L) {
+                (activePlayer.currentPosition.toFloat() / duration).coerceIn(0f, 1f)
+            } else {
+                0f
+            }
+            delay(100L)
+        }
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(4.dp)
+            .background(palette.text.copy(alpha = 0.22f), RoundedCornerShape(999.dp))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(progress)
+                .height(4.dp)
+                .background(palette.primary, RoundedCornerShape(999.dp))
+        )
     }
 }
 
