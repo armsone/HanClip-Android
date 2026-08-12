@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -1389,76 +1390,77 @@ internal fun FullscreenPreviewDialog(
                     )
                 }
                 if (areControlsVisible) {
-                    title?.takeIf(String::isNotBlank)?.let { safeTitle ->
-                        Surface(
-                            modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .padding(18.dp)
-                                .widthIn(max = 220.dp),
-                            shape = RoundedCornerShape(50),
-                            color = Color.Black.copy(alpha = 0.52f),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.22f))
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .fillMaxWidth()
+                            .padding(18.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        FullscreenCircleButton(
+                            onClick = onClose,
+                            contentDescription = title?.takeIf(String::isNotBlank)
+                                ?.let { "$it 닫기" } ?: "동영상 닫기"
                         ) {
+                            Icon(Icons.Outlined.Close, contentDescription = null, tint = Color.White)
+                        }
+                        title?.takeIf(String::isNotBlank)?.let { safeTitle ->
                             Text(
                                 text = safeTitle,
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                                modifier = Modifier.widthIn(max = 220.dp),
                                 color = Color.White,
-                                fontWeight = FontWeight.Bold,
+                                fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
+                        Spacer(Modifier.weight(1f))
+                        if (onShare != null) {
+                            FullscreenCircleButton(
+                                onClick = onShare,
+                                contentDescription = "동영상 공유"
+                            ) {
+                                Icon(Icons.Outlined.IosShare, contentDescription = null, tint = Color.White)
+                            }
+                        }
                     }
                     Row(
                         modifier = Modifier
-                            .align(Alignment.TopEnd)
+                            .align(Alignment.BottomEnd)
                             .padding(18.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                    if (showsLoopControl) {
-                        FullscreenCircleButton(
-                            onClick = {
-                                isLooping = !isLooping
-                                areControlsVisible = true
-                            },
-                            active = isLooping,
-                            contentDescription = if (isLooping) "반복 재생 끄기" else "반복 재생 켜기"
-                        ) {
-                            Icon(Icons.Outlined.Repeat, contentDescription = null, tint = Color.White)
+                        if (showsLoopControl) {
+                            FullscreenCircleButton(
+                                onClick = {
+                                    isLooping = !isLooping
+                                    areControlsVisible = true
+                                },
+                                active = isLooping,
+                                contentDescription = if (isLooping) "반복 재생 끄기" else "반복 재생 켜기"
+                            ) {
+                                Icon(Icons.Outlined.Repeat, contentDescription = null, tint = Color.White)
+                            }
+                        }
+                        if (shouldShowFullscreenAspectToggle(viewportWidthPx, viewportHeightPx)) {
+                            FullscreenCircleButton(
+                                onClick = {
+                                    hasManualAspectModeSelection = true
+                                    isFillMode = !isFillMode
+                                    areControlsVisible = true
+                                },
+                                active = isFillMode,
+                                contentDescription = if (isFillMode) "화면에 맞추기" else "화면 채우기"
+                            ) {
+                                Icon(
+                                    if (isFillMode) Icons.Outlined.FullscreenExit else Icons.Outlined.Fullscreen,
+                                    contentDescription = null,
+                                    tint = Color.White
+                                )
+                            }
                         }
                     }
-                    if (shouldShowFullscreenAspectToggle(viewportWidthPx, viewportHeightPx)) {
-                        FullscreenCircleButton(
-                            onClick = {
-                                hasManualAspectModeSelection = true
-                                isFillMode = !isFillMode
-                                areControlsVisible = true
-                            },
-                            active = isFillMode,
-                            contentDescription = if (isFillMode) "화면에 맞추기" else "화면 채우기"
-                        ) {
-                            Icon(
-                                if (isFillMode) Icons.Outlined.FullscreenExit else Icons.Outlined.Fullscreen,
-                                contentDescription = null,
-                                tint = Color.White
-                            )
-                        }
-                    }
-                    if (onShare != null) {
-                        FullscreenCircleButton(
-                            onClick = onShare,
-                            contentDescription = "공유"
-                        ) {
-                            Icon(Icons.Outlined.IosShare, contentDescription = null, tint = Color.White)
-                        }
-                    }
-                    FullscreenCircleButton(
-                        onClick = onClose,
-                        contentDescription = "닫기"
-                    ) {
-                        Icon(Icons.Outlined.Close, contentDescription = null, tint = Color.White)
-                    }
-                }
                 }
                 if (!areControlsVisible) {
                     Box(
