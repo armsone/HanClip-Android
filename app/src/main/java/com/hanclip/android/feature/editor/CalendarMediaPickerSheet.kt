@@ -1344,14 +1344,14 @@ private fun CalendarMonthGrid(
         }
         LazyVerticalGrid(
             columns = GridCells.Fixed(7),
-            modifier = Modifier.height((rowCount * 42).dp),
+            modifier = Modifier.height((rowCount * 48).dp),
             userScrollEnabled = false,
             verticalArrangement = Arrangement.spacedBy(0.dp),
             horizontalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             items(days) { date ->
                 if (date == null) {
-                    Spacer(Modifier.height(42.dp))
+                    Spacer(Modifier.height(48.dp))
                 } else {
                     CalendarDayCell(
                         palette = palette,
