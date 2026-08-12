@@ -2333,12 +2333,15 @@ private fun QuickDurationDialog(
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(28.dp),
-                        color = palette.panel,
-                        border = BorderStroke(1.dp, palette.border)
+                        color = palette.panel.copy(alpha = 0.90f),
+                        border = BorderStroke(1.dp, palette.secondary.copy(alpha = 0.32f)),
+                        shadowElevation = 5.dp
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(5.dp),
-                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 5.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             QuickRatioChoice(
                                 label = "첫\n사진",
