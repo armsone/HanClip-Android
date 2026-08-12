@@ -57,6 +57,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.SmartDisplay
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.KeyboardReturn
@@ -74,6 +75,7 @@ import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
@@ -652,7 +654,6 @@ fun OnlineMusicBrowserRoute(
                 favorites = favorites,
                 maxPanelHeight = (maxHeight - 90.dp).coerceAtLeast(136.dp),
                 palette = palette,
-                onDismiss = { isFavoritePanelVisible = false },
                 onManage = { isFavoriteManagerVisible = true },
                 onOpen = { favorite ->
                     addressText = favorite
@@ -746,29 +747,32 @@ private fun BrowserFavoritesFloatingPanel(
     favorites: List<String>,
     maxPanelHeight: androidx.compose.ui.unit.Dp,
     palette: com.hanclip.android.core.theme.HanClipPalette,
-    onDismiss: () -> Unit,
     onManage: () -> Unit,
     onOpen: (String) -> Unit,
     onRemove: (String) -> Unit,
     onMakeHome: (String) -> Unit
 ) {
     val listState = rememberLazyListState()
-    val desiredHeight = 64.dp + if (favorites.isEmpty()) 72.dp else (58 * favorites.size).dp
+    val desiredHeight = if (favorites.isEmpty()) {
+        112.dp
+    } else {
+        (53 + 16 + favorites.size * 50 + (favorites.size - 1).coerceAtLeast(0) * 4).dp
+    }
     val panelHeight = minOf(desiredHeight, maxPanelHeight)
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .height(panelHeight),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
         color = palette.solidPanel,
-        border = BorderStroke(1.dp, palette.border),
-        shadowElevation = 16.dp
+        border = BorderStroke(1.dp, palette.secondary.copy(alpha = 0.22f)),
+        shadowElevation = 14.dp
     ) {
         Column {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(64.dp)
+                    .height(53.dp)
                     .padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -777,27 +781,26 @@ private fun BrowserFavoritesFloatingPanel(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(Icons.Outlined.Bookmark, contentDescription = null, tint = palette.primary)
+                    Icon(
+                        Icons.Filled.Bookmark,
+                        contentDescription = null,
+                        tint = palette.text,
+                        modifier = Modifier.size(16.dp)
+                    )
                     Text(
-                        "즐겨찾기 ${favorites.size}개",
+                        "즐겨찾기",
                         color = palette.text,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Black
                     )
                 }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    OutlinedButton(onClick = onManage) {
-                        Text("관리")
-                    }
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            Icons.Outlined.Close,
-                            contentDescription = "즐겨찾기 닫기",
-                            tint = palette.text
-                        )
-                    }
+                IconButton(onClick = onManage, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        Icons.Outlined.Tune,
+                        contentDescription = "즐겨찾기 편집",
+                        tint = palette.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
             Box(
@@ -825,6 +828,7 @@ private fun BrowserFavoritesFloatingPanel(
                             BrowserFavoriteRow(
                                 favorite = favorite,
                                 isHome = favorite == favorites.firstOrNull(),
+                                palette = palette,
                                 onOpen = { onOpen(favorite) },
                                 onRemove = { onRemove(favorite) },
                                 onMakeHome = { onMakeHome(favorite) }
@@ -1143,39 +1147,62 @@ private fun enqueueBrowserDownload(
 private fun BrowserFavoriteRow(
     favorite: String,
     isHome: Boolean,
+    palette: com.hanclip.android.core.theme.HanClipPalette,
     onOpen: () -> Unit,
     onMakeHome: () -> Unit,
     onRemove: () -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(50.dp)
+            .background(palette.panel.copy(alpha = 0.84f), androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+            .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Icon(
-            Icons.Outlined.Public,
-            contentDescription = "짧게 눌러 삭제, 길게 눌러 홈페이지 지정",
-            modifier = Modifier.combinedClickable(
-                onClick = onRemove,
-                onLongClick = onMakeHome,
-                onLongClickLabel = "홈페이지로 지정"
-            )
-        )
-        Button(
-            modifier = Modifier.weight(1f),
-            onClick = onOpen,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (isHome) Color(0xFF0B7A4E) else Color.White,
-                contentColor = if (isHome) Color.White else Color(0xFF14221A)
-            )
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .combinedClickable(
+                    onClick = onRemove,
+                    onLongClick = onMakeHome,
+                    onLongClickLabel = "홈페이지로 지정"
+                )
+                .semantics { contentDescription = "${browserFavoriteTitle(favorite)} 삭제" },
+            contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = browserFavoriteTitle(favorite),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Icon(Icons.Outlined.Public, contentDescription = null, tint = palette.primary, modifier = Modifier.size(18.dp))
         }
-        if (isHome) Icon(Icons.Outlined.Home, contentDescription = "홈페이지")
+        Surface(
+            modifier = Modifier.weight(1f).fillMaxHeight(),
+            onClick = onOpen,
+            color = Color.Transparent
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = browserFavoriteTitle(favorite),
+                        color = palette.text,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = favorite,
+                        color = palette.subText,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (isHome) {
+                    Icon(Icons.Outlined.Home, contentDescription = "홈페이지", tint = palette.primary, modifier = Modifier.size(14.dp))
+                }
+            }
+        }
     }
 }
 
