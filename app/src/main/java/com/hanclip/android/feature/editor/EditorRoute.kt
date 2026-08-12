@@ -3865,10 +3865,15 @@ private fun CompactClipRow(
 
 private fun clipCompactTimeText(clip: ClipItem, childSegmentCount: Int): String {
     val source = clip.sourceDurationSeconds ?: clip.durationSeconds
-    return if (clip.isVideoSegmentParent) {
-        "원본 ${formatClipSeconds(source)} · 자동 컷 ${childSegmentCount}개"
-    } else {
-        "${formatClipSeconds(clip.durationSeconds)} / 전체 ${formatClipSeconds(source)}"
+    return when {
+        clip.isVideoSegmentParent ->
+            "원본 ${formatClipSeconds(source)} · 자동 컷 ${childSegmentCount}개"
+        !clip.isSimilarPhotoGroupParent &&
+            clip.mediaKind != ClipMediaKind.Video &&
+            clip.livePhotoMode != com.hanclip.android.core.model.LivePhotoMode.Motion ->
+            "%.1f초".format(clip.durationSeconds)
+        else ->
+            "${formatClipSeconds(clip.durationSeconds)} / 전체 ${formatClipSeconds(source)}"
     }
 }
 
@@ -4918,7 +4923,7 @@ private fun ClipInfoChip(
 }
 
 private fun formatClipSeconds(seconds: Double): String {
-    val totalTenths = (seconds * 10).toInt().coerceAtLeast(0)
+    val totalTenths = (seconds * 10).roundToInt().coerceAtLeast(0)
     val minutes = totalTenths / 600
     val remaining = (totalTenths % 600) / 10.0
     return "%d:%04.1f".format(minutes, remaining)
