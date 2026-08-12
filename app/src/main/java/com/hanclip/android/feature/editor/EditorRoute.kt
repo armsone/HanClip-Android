@@ -80,6 +80,7 @@ import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material.icons.outlined.MovieCreation
+import androidx.compose.material.icons.outlined.MotionPhotosOn
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Tune
@@ -3235,7 +3236,7 @@ private fun ProjectControls(
                     CompactChoice("적용", true, palette, onApplyDuration)
                 }
                 SettingDivider(palette)
-                CompactSettingRow(Icons.Outlined.RadioButtonChecked, "모션포토", palette) {
+                CompactSettingRow(Icons.Outlined.MotionPhotosOn, "모션포토", palette) {
                     CompactChoice(
                         "사진",
                         !livePhotosUseMotion,
@@ -3243,7 +3244,7 @@ private fun ProjectControls(
                         onClick = { onSetLivePhotoMotion(false) }
                     )
                     CompactChoice(
-                        "Live",
+                        "영상",
                         livePhotosUseMotion,
                         palette,
                         onClick = { onSetLivePhotoMotion(true) },
