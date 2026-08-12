@@ -62,6 +62,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.hanclip.android.core.model.BackgroundMusicSample
 import com.hanclip.android.core.theme.HanClipPalette
+import kotlin.math.roundToInt
 
 private val MusicPrimary = Color(0xFF0B7A4E)
 private val MusicText = Color(0xFF14221A)
@@ -435,7 +436,7 @@ private fun MusicVolumePanel(
         ) {
             Text(title, color = palette.text, fontWeight = FontWeight.SemiBold)
             Text(
-                "${(value.coerceIn(0.0, 1.0) * 100).toInt()}%",
+                "${(value.coerceIn(0.0, 1.0) * 100).roundToInt()}%",
                 color = palette.subText,
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.bodySmall
