@@ -58,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -67,6 +68,8 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -829,13 +832,28 @@ internal fun EndingInfoCardPreview(
             }
         )
     }
+    val previewDates = stops.map { it.dateText }.filter { it.isNotBlank() }
+    val previewPeriod = when {
+        previewDates.isEmpty() -> "촬영 기간 없음"
+        previewDates.first() == previewDates.last() -> previewDates.first()
+        else -> "${previewDates.first()}부터 ${previewDates.last()}"
+    }
+    val previewRoute = stops.joinToString("에서 ") { stop ->
+        listOf(stop.location, stop.dateText).filter { it.isNotBlank() }.joinToString(" ")
+    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(230.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(Brush.linearGradient(listOf(colors[0], colors[1])))
-            .padding(16.dp),
+            .padding(16.dp)
+            .clearAndSetSemantics {
+                contentDescription = buildString {
+                    append("${theme.title} 엔딩 미리보기, $previewPeriod")
+                    if (previewRoute.isNotBlank()) append(", $previewRoute")
+                }
+            },
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -1440,6 +1458,10 @@ private fun PositionPicker(
                                     role = Role.RadioButton,
                                     onClick = { onSelect(position) }
                                 )
+                                .semantics {
+                                    contentDescription =
+                                        "자막 위치, 위에서 ${position.gridRow + 1}번째, 왼쪽에서 ${position.gridColumn + 1}번째"
+                                }
                                 .padding(vertical = 7.dp)
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(if (isSelected) palette.primary else palette.panel),

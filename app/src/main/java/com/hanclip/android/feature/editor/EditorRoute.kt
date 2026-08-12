@@ -115,6 +115,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -4213,6 +4215,10 @@ private fun ClipPreviewWaveform(
         modifier = Modifier
             .fillMaxWidth()
             .height(44.dp)
+            .semantics {
+                contentDescription =
+                    "오디오 파형, 선택 구간 ${formatClipSeconds(selectedStart)}부터 ${formatClipSeconds(selectedStart + selectedDuration)}, 타격점 ${peaks.size}개"
+            }
     ) {
         val selectedStartX = (selectedStart / sourceDuration).toFloat() * size.width
         val selectedEndX = ((selectedStart + selectedDuration) / sourceDuration)

@@ -114,6 +114,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -129,6 +130,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.onLongClick
@@ -975,14 +977,18 @@ private fun ThemeSelectionDialog(
                     style = MaterialTheme.typography.titleMedium
                 )
                 ThemePaletteSummary(selectedMode)
+                val reorderableModes = orderedModes.filter { it in HanClipThemeMode.customModes }
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     orderedModes.forEach { mode ->
+                        val reorderIndex = reorderableModes.indexOf(mode)
                         ThemeSelectionRow(
                             mode = mode,
                             selected = mode == selectedMode,
                             textColor = selectedPalette.text,
                             onClick = { onSelect(mode) },
                             canReorder = mode in HanClipThemeMode.customModes,
+                            canMoveUp = reorderIndex > 0,
+                            canMoveDown = reorderIndex in 0 until reorderableModes.lastIndex,
                             onMove = { direction -> onMoveCustomTheme(mode, direction) }
                         )
                     }
@@ -1086,6 +1092,8 @@ private fun ThemeSelectionRow(
     textColor: Color,
     onClick: () -> Unit,
     canReorder: Boolean,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
     onMove: (Int) -> Unit
 ) {
     val palette = mode.currentPalette
@@ -1097,6 +1105,32 @@ private fun ThemeSelectionRow(
             .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(16.dp))
             .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .then(
+                if (canReorder) {
+                    Modifier.semantics {
+                        customActions = listOf(
+                            if (canMoveUp) {
+                                CustomAccessibilityAction("테마 위로 이동") {
+                                    onMove(-1)
+                                    true
+                                }
+                            } else {
+                                null
+                            },
+                            if (canMoveDown) {
+                                CustomAccessibilityAction("테마 아래로 이동") {
+                                    onMove(1)
+                                    true
+                                }
+                            } else {
+                                null
+                            }
+                        ).filterNotNull()
+                    }
+                } else {
+                    Modifier
+                }
+            )
             .padding(horizontal = 4.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -1541,6 +1575,10 @@ private fun CopyrightWatermarkCard(
                                         role = Role.RadioButton,
                                         onClick = { onChange(settings.copy(copyrightPosition = position)) }
                                     )
+                                    .semantics {
+                                        contentDescription =
+                                            "카피라이터 로고 위치, 위에서 ${position.gridRow + 1}번째, 왼쪽에서 ${position.gridColumn + 1}번째"
+                                    }
                                     .padding(vertical = 7.dp)
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(

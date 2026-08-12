@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -325,6 +326,10 @@ private fun ImpactWaveform(
         modifier = Modifier
             .fillMaxWidth()
             .height(64.dp)
+            .semantics {
+                contentDescription =
+                    "오디오 파형, 선택 구간 ${"%.1f".format(startSeconds)}초부터 ${"%.1f".format(startSeconds + durationSeconds)}초, 타격점 ${peaks.size}개"
+            }
     ) {
         val safeDuration = sourceDuration.coerceAtLeast(0.1)
         val selectedStartX = (startSeconds / safeDuration).toFloat() * size.width
