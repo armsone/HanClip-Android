@@ -21,11 +21,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Remove
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,6 +61,9 @@ fun EndingInfoSettingsSheet(
             EndingInfoStop("Philippines Clark", "8. 9.")
         )
     }
+    LaunchedEffect(draft) {
+        onApply(draft)
+    }
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = palette.solidPanel
@@ -79,9 +81,9 @@ fun EndingInfoSettingsSheet(
             FullScreenSettingsHeader(
                 title = "엔딩",
                 titleIcon = Icons.Outlined.Map,
-                resetDescription = "엔딩 설정 되돌리기",
+                resetDescription = null,
                 palette = palette,
-                onReset = { draft = settings },
+                onReset = null,
                 onDismiss = onDismiss
             )
             EndingUsageControl(
@@ -128,22 +130,6 @@ fun EndingInfoSettingsSheet(
                     settings = draft,
                     palette = palette,
                     onChange = { draft = it }
-                )
-            }
-            Button(
-                onClick = {
-                    onApply(draft)
-                    onDismiss()
-                },
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = palette.primary,
-                    contentColor = Color.White
-                )
-            ) {
-                Text(
-                    if (draft.includesEndingInfoCard) "엔딩 설정 적용" else "엔딩 사용 안함 적용",
-                    fontWeight = FontWeight.Bold
                 )
             }
         }
@@ -224,7 +210,7 @@ private fun EndingThemePicker(
                 )
             ) {
                 Column(
-                    modifier = Modifier.height(48.dp),
+                    modifier = Modifier.height(38.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
@@ -244,7 +230,7 @@ private fun EndingDurationControl(
     onIncrease: () -> Unit
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth().height(52.dp),
+        modifier = Modifier.fillMaxWidth().height(44.dp),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
         color = palette.chip,
         border = BorderStroke(1.dp, palette.border)
@@ -287,7 +273,7 @@ private data class EndingCaptionPreset(
 private val EndingCaptionPresets = listOf(
     EndingCaptionPreset("가독성", "pretendard", "#FFFFFF", "#000000", WatermarkFontSize.Large, 0.50),
     EndingCaptionPreset("러블리", "ddulgi_mayo", "#FF6FAE", "#7A3FFF", WatermarkFontSize.Large, 0.50),
-    EndingCaptionPreset("강력한", "tenada", "#FFE600", "#000000", WatermarkFontSize.ExtraLarge, 0.50),
+    EndingCaptionPreset("강력햐", "tenada", "#FFE600", "#000000", WatermarkFontSize.ExtraLarge, 0.50),
     EndingCaptionPreset("청량", "gowun_dodum", "#FFFFFF", "#18A8FF", WatermarkFontSize.Large, 0.50),
     EndingCaptionPreset("여행", "gowun_batang", "#FFF3D6", "#3F6F63", WatermarkFontSize.Large, 0.50),
     EndingCaptionPreset("시네마", "black_han_sans", "#F8F3E7", "#141414", WatermarkFontSize.ExtraLarge, 0.50),

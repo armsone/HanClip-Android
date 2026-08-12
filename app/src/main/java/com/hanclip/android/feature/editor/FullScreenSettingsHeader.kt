@@ -112,9 +112,9 @@ internal fun FullScreenDialogSystemBars(
 internal fun FullScreenSettingsHeader(
     title: String,
     titleIcon: ImageVector,
-    resetDescription: String,
+    resetDescription: String?,
     palette: HanClipPalette,
-    onReset: () -> Unit,
+    onReset: (() -> Unit)?,
     onResetLongPress: (() -> Unit)? = null,
     onSave: (() -> Unit)? = null,
     onDismiss: () -> Unit
@@ -123,13 +123,15 @@ internal fun FullScreenSettingsHeader(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        SettingsHeaderCircleButton(
-            icon = Icons.AutoMirrored.Outlined.Undo,
-            description = resetDescription,
-            palette = palette,
-            onClick = onReset,
-            onLongClick = onResetLongPress
-        )
+        if (resetDescription != null && onReset != null) {
+            SettingsHeaderCircleButton(
+                icon = Icons.AutoMirrored.Outlined.Undo,
+                description = resetDescription,
+                palette = palette,
+                onClick = onReset,
+                onLongClick = onResetLongPress
+            )
+        }
         Spacer(Modifier.weight(1f))
         SettingsHeaderCircleButton(
             icon = Icons.Outlined.Close,
