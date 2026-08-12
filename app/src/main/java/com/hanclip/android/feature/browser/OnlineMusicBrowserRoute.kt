@@ -941,7 +941,7 @@ private fun BrowserDetectedVideoPanel(
             Text("영상", color = palette.text, fontWeight = FontWeight.Black)
             Spacer(Modifier.weight(1f))
             Button(onClick = onDownload, shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)) {
-                Text("받기")
+                Text("다운")
             }
             OutlinedButton(onClick = onPreview, shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)) {
                 Text("보기")
