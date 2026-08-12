@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
@@ -523,12 +524,12 @@ fun HomeRoute(
             Spacer(Modifier.height(84.dp))
         }
         }
-        Surface(
+        Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
                 .padding(bottom = 8.dp)
-                .size(44.dp)
+                .size(48.dp)
                 .combinedClickable(
                     onClick = { showSettingsInfo = true },
                     onLongClick = {
@@ -540,14 +541,18 @@ fun HomeRoute(
                 .semantics(mergeDescendants = true) {
                     contentDescription = "카피라이터 설정, 길게 눌러 음악 브라우저 열기"
                 },
-            shape = CircleShape,
-            color = palette.secondary.copy(alpha = 0.18f).compositeOver(palette.solidPanel),
-            border = BorderStroke(1.dp, palette.primary.copy(alpha = 0.42f)),
-            shadowElevation = 7.dp
+            contentAlignment = Alignment.Center
         ) {
-            Box(contentAlignment = Alignment.Center) {
+            Surface(
+                modifier = Modifier.size(44.dp),
+                shape = CircleShape,
+                color = palette.secondary.copy(alpha = 0.18f).compositeOver(palette.solidPanel),
+                border = BorderStroke(1.dp, palette.primary.copy(alpha = 0.42f)),
+                shadowElevation = 7.dp
+            ) {
                 Text(
                     "i",
+                    modifier = Modifier.wrapContentSize(Alignment.Center),
                     color = palette.primary,
                     fontFamily = FontFamily.Serif,
                     fontSize = 18.sp,
@@ -1517,13 +1522,14 @@ private fun CopyrightWatermarkCard(
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(34.dp)
+                                    .height(48.dp)
+                                    .clickable { onChange(settings.copy(copyrightPosition = position)) }
+                                    .padding(vertical = 7.dp)
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(
                                         if (settings.copyrightPosition == position) palette.secondary.copy(alpha = 0.28f)
                                         else palette.panel.copy(alpha = 0.68f)
-                                    )
-                                    .clickable { onChange(settings.copy(copyrightPosition = position)) },
+                                    ),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Surface(
@@ -1565,16 +1571,21 @@ private fun CopyrightSegment(
     palette: HanClipPalette,
     onClick: () -> Unit
 ) {
-    Surface(
+    Box(
         modifier = Modifier
-            .height(34.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
-        color = if (selected) palette.primary else palette.secondary.copy(alpha = 0.14f)
+            .height(48.dp)
+            .clickable(onClick = onClick)
+            .padding(vertical = 7.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Box(modifier = Modifier.padding(horizontal = 14.dp), contentAlignment = Alignment.Center) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            shape = RoundedCornerShape(18.dp),
+            color = if (selected) palette.primary else palette.secondary.copy(alpha = 0.14f)
+        ) {
             Text(
                 text,
+                modifier = Modifier.wrapContentSize(Alignment.Center).padding(horizontal = 14.dp),
                 color = if (selected) Color.White else palette.primary,
                 fontWeight = FontWeight.Bold,
                 fontSize = 12.sp
@@ -1645,17 +1656,22 @@ private fun SleepPreventionInfoCard(
                 horizontalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 SleepPreventionMode.entries.forEach { option ->
-                    Surface(
+                    Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height(38.dp)
-                            .clickable { onChange(option) },
-                        shape = RoundedCornerShape(19.dp),
-                        color = if (mode == option) palette.panel else Color.Transparent
+                            .height(48.dp)
+                            .clickable { onChange(option) }
+                            .padding(vertical = 5.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
+                        Surface(
+                            modifier = Modifier.fillMaxSize(),
+                            shape = RoundedCornerShape(19.dp),
+                            color = if (mode == option) palette.panel else Color.Transparent
+                        ) {
                             Text(
                                 option.title,
+                                modifier = Modifier.wrapContentSize(Alignment.Center),
                                 color = if (mode == option) palette.text else palette.subText,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp
@@ -2812,24 +2828,30 @@ private fun DraftProjectRow(
                 EditableProjectThumbnailStrip(summary, maxFrames = 8, frameWidth = 18, frameHeight = 18)
             }
             if (summary.preset == MoviePreset.AiShot) {
-                Surface(
-                    modifier = Modifier.size(34.dp),
-                    shape = CircleShape,
-                    color = Color.Transparent,
-                    onClick = onClick
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clickable(onClick = onClick),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier.background(
-                            Brush.linearGradient(listOf(palette.primary, palette.secondary))
-                        ),
-                        contentAlignment = Alignment.Center
+                    Surface(
+                        modifier = Modifier.size(34.dp),
+                        shape = CircleShape,
+                        color = Color.Transparent
                     ) {
-                        Image(
-                            painter = painterResource(R.drawable.aishot_icon),
-                            contentDescription = "AiShot 계속",
-                            colorFilter = ColorFilter.tint(Color.White),
-                            modifier = Modifier.padding(8.dp)
-                        )
+                        Box(
+                            modifier = Modifier.background(
+                                Brush.linearGradient(listOf(palette.primary, palette.secondary))
+                            ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Image(
+                                painter = painterResource(R.drawable.aishot_icon),
+                                contentDescription = "AiShot 계속",
+                                colorFilter = ColorFilter.tint(Color.White),
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
                     }
                 }
             } else {
@@ -3235,7 +3257,7 @@ private fun CompactSavedMovieIconButton(
 ) {
     IconButton(
         onClick = onClick,
-        modifier = Modifier.size(32.dp)
+        modifier = Modifier.size(48.dp)
     ) {
         icon()
     }
