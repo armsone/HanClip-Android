@@ -2369,7 +2369,7 @@ private fun QuickDurationDialog(
                         shape = RoundedCornerShape(47.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = palette.primary)
                     ) {
-                        Text("이 시간으로 만들기", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                        Text("이 시간으로 만들기", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     }
                 }
             }
