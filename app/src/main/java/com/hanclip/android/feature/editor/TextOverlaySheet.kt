@@ -194,8 +194,9 @@ fun TextOverlaySheet(
                 .then(if (fullScreen) Modifier.background(palette.background) else Modifier)
                 .verticalScroll(scrollState)
                 .navigationBarsPadding()
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 20.dp)
+                .padding(top = 18.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             if (fullScreen) {
                 FullScreenSettingsHeader(
@@ -267,7 +268,7 @@ fun TextOverlaySheet(
                     Surface(
                         modifier = Modifier
                             .weight(1f)
-                            .height(48.dp)
+                            .height(21.dp)
                             .selectable(
                                 selected = selected,
                                 role = Role.RadioButton,
@@ -288,7 +289,7 @@ fun TextOverlaySheet(
                                     hasUserEditedCaptionText = !insertion.replacedBasicText
                                 }
                             ),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(999.dp),
                         color = if (selected) palette.primary.copy(alpha = 0.13f) else palette.panel,
                         border = BorderStroke(1.dp, if (selected) palette.primary.copy(alpha = 0.30f) else palette.border)
                     ) {
@@ -296,7 +297,7 @@ fun TextOverlaySheet(
                             Text(
                                 label,
                                 color = palette.primary,
-                                fontSize = 11.sp,
+                                fontSize = 10.5.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -304,6 +305,7 @@ fun TextOverlaySheet(
                 }
             }
 
+            if (draft.isEnabled) {
             OutlinedTextField(
                 value = captionTextFieldValue,
                 onValueChange = { value ->
@@ -721,6 +723,7 @@ fun TextOverlaySheet(
                     palette = palette,
                     onSelect = { draft = draft.copy(position = it) }
                 )
+            }
             }
 
             if (false) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
