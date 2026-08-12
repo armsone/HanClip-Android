@@ -279,7 +279,7 @@ private val EndingCaptionPresets = listOf(
     EndingCaptionPreset("시네마", "black_han_sans", "#F8F3E7", "#141414", WatermarkFontSize.ExtraLarge, 0.50),
     EndingCaptionPreset("데일리", "do_hyeon", "#FFFFFF", "#FF7A3D", WatermarkFontSize.Large, 0.50),
     EndingCaptionPreset("감성", "gowun_batang", "#FFE9F0", "#6E5BFF", WatermarkFontSize.Normal, 0.50),
-    EndingCaptionPreset("그린골프", "do_hyeon", "#FFFFFF", "#10B85A", WatermarkFontSize.Large, 0.50),
+    EndingCaptionPreset("그린골프", "do_hyeon", "#FFFFFF", "#10B85A", WatermarkFontSize.ExtraLarge, 0.50),
     EndingCaptionPreset("매거진", "paperlogy_bold", "#FFF4D6", "#D94A32", WatermarkFontSize.ExtraLarge, 0.55),
     EndingCaptionPreset("스포츠", "paperlogy_bold", "#D8FF3E", "#10223A", WatermarkFontSize.ExtraLarge, 0.70),
     EndingCaptionPreset("클린", "nexon_lv1_gothic", "#FFFFFF", "#1B4D89", WatermarkFontSize.Large, 0.35),
@@ -308,7 +308,8 @@ private fun EndingCaptionPresetGrid(
                     val selected = settings.fontName == preset.fontName &&
                         settings.textColorHex.equals(preset.textColor, true) &&
                         settings.shadowColorHex.equals(preset.shadowColor, true) &&
-                        settings.fontSize == preset.fontSize
+                        settings.fontSize == preset.fontSize &&
+                        kotlin.math.abs(settings.shadowOpacity - preset.shadowOpacity) < 0.001
                     Surface(
                         modifier = Modifier
                             .weight(1f)

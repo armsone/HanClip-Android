@@ -1890,7 +1890,7 @@ private enum class CaptionStylePreset(
         previewTextColorHex = "#FFFFFF",
         shadowColorHex = "#000000",
         fontSize = WatermarkFontSize.Large,
-        shadowOpacity = 0.45
+        shadowOpacity = 0.5
     ),
     Lovely(
         title = "러블리",
@@ -1900,7 +1900,7 @@ private enum class CaptionStylePreset(
         fontSize = WatermarkFontSize.Large
     ),
     Strong(
-        title = "강력한",
+        title = "강력햐",
         fontName = "tenada",
         previewTextColorHex = "#FFE600",
         shadowColorHex = "#000000",
@@ -1918,18 +1918,14 @@ private enum class CaptionStylePreset(
         fontName = "gowun_batang",
         previewTextColorHex = "#FFF3D6",
         shadowColorHex = "#3F6F63",
-        fontSize = WatermarkFontSize.Large,
-        lineSpacing = WatermarkLineSpacing.Wide,
-        lineSpacingScale = WatermarkLineSpacing.Wide.scale
+        fontSize = WatermarkFontSize.Large
     ),
     Cinema(
         title = "시네마",
         fontName = "black_han_sans",
         previewTextColorHex = "#F8F3E7",
         shadowColorHex = "#141414",
-        fontSize = WatermarkFontSize.ExtraLarge,
-        lineSpacing = WatermarkLineSpacing.Tight,
-        lineSpacingScale = WatermarkLineSpacing.Tight.scale
+        fontSize = WatermarkFontSize.ExtraLarge
     ),
     Daily(
         title = "데일리",
