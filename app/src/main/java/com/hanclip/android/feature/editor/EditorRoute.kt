@@ -289,6 +289,11 @@ fun EditorRoute(
 
     fun openCalendarPicker(title: String = "사진첩 날짜별") {
         mediaPickerTitle = title
+        if (context.hasFullGalleryAccess()) {
+            showPermissionSettingsAction = false
+            isCalendarPickerVisible = true
+            return
+        }
         val missingPermissions = calendarMediaPermissions()
             .filter { permission ->
                 ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED
