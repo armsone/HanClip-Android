@@ -181,8 +181,8 @@ fun EditorRoute(
     var trimmingClipID by rememberSaveable { mutableStateOf<String?>(null) }
     var photoDurationClipID by rememberSaveable { mutableStateOf<String?>(null) }
     var previewClipID by rememberSaveable { mutableStateOf<String?>(null) }
-    var isTextOverlaySheetVisible by remember { mutableStateOf(false) }
-    var isEndingInfoSettingsSheetVisible by remember { mutableStateOf(false) }
+    var isTextOverlaySheetVisible by rememberSaveable { mutableStateOf(false) }
+    var isEndingInfoSettingsSheetVisible by rememberSaveable { mutableStateOf(false) }
     var isMusicSettingsSheetVisible by rememberSaveable { mutableStateOf(false) }
     var isCalendarPickerVisible by rememberSaveable { mutableStateOf(false) }
     var mediaPickerTitle by rememberSaveable { mutableStateOf("날짜별") }

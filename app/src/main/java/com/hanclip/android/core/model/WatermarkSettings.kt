@@ -1,5 +1,7 @@
 package com.hanclip.android.core.model
 
+import java.io.Serializable
+
 enum class WatermarkPosition(val gridColumn: Int, val gridRow: Int) {
     TopLeading(0, 0),
     TopQuarterLeading(1, 0),
@@ -140,7 +142,11 @@ data class WatermarkSettings(
     val endingInfoCardDuration: Double = 2.0,
     val endingInfoCardTheme: EndingInfoCardTheme = EndingInfoCardTheme.Caption,
     val endingInfoCardVariation: Int = 0
-) {
+) : Serializable {
+    private companion object {
+        private const val serialVersionUID = 1L
+    }
+
     val shouldRenderText: Boolean
         get() = isEnabled && text.isNotBlank()
 

@@ -52,6 +52,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -113,7 +114,7 @@ fun TextOverlaySheet(
     if (fullScreen) FullScreenDialogSystemBars(palette.solidPanel)
     val context = LocalContext.current
     val scrollState = rememberScrollState()
-    var draft by remember(settings) { mutableStateOf(settings) }
+    var draft by rememberSaveable(settings) { mutableStateOf(settings) }
     var activeCaptionPreset by remember { mutableStateOf<CaptionStylePreset?>(null) }
     var captionPresetAppearances by remember(context) {
         mutableStateOf(loadCaptionPresetAppearances(context))

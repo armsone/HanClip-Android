@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -51,7 +52,7 @@ fun EndingInfoSettingsSheet(
     onApply: (WatermarkSettings) -> Unit
 ) {
     FullScreenDialogSystemBars(palette.solidPanel)
-    var draft by remember(settings) { mutableStateOf(settings) }
+    var draft by rememberSaveable(settings) { mutableStateOf(settings) }
     val previewStops = stops.ifEmpty {
         listOf(
             EndingInfoStop("서울", "8. 7."),
