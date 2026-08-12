@@ -732,7 +732,9 @@ private fun RecentPickerHeader(
             )
         ) { Text("취소", fontWeight = FontWeight.Bold) }
         Row(
-            modifier = Modifier.clickable(onClick = onShowCalendar),
+            modifier = Modifier
+                .height(48.dp)
+                .clickable(onClick = onShowCalendar),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("사진", color = palette.text, fontWeight = FontWeight.Black)

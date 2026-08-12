@@ -1378,6 +1378,7 @@ private fun ColorSwatchChip(
 ) {
     Surface(
         modifier = Modifier
+            .height(48.dp)
             .clip(RoundedCornerShape(16.dp))
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
@@ -1609,7 +1610,9 @@ private fun CaptionColorButton(
     onClick: () -> Unit
 ) {
     Row(
-        modifier = Modifier.clickable(onClick = onClick),
+        modifier = Modifier
+            .height(48.dp)
+            .clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
