@@ -567,7 +567,10 @@ fun EditorRoute(
                     childSegmentCount = childSegmentCount,
                     isSimilarPhotoGroupExpanded = clip.similarPhotoGroupId in state.expandedSimilarPhotoGroupIds,
                     onClick = {
-                        if (clip.mediaKind == ClipMediaKind.Video) {
+                        if (
+                            clip.mediaKind == ClipMediaKind.Video ||
+                            clip.livePhotoMode == com.hanclip.android.core.model.LivePhotoMode.Motion
+                        ) {
                             trimmingClipID = clip.id
                         } else {
                             photoDurationClipID = clip.id
@@ -986,7 +989,10 @@ fun EditorRoute(
                 } else null,
                 onEdit = {
                     previewClipID = null
-                    if (clip.mediaKind == ClipMediaKind.Video) {
+                    if (
+                        clip.mediaKind == ClipMediaKind.Video ||
+                        clip.livePhotoMode == com.hanclip.android.core.model.LivePhotoMode.Motion
+                    ) {
                         trimmingClipID = clip.id
                     } else {
                         photoDurationClipID = clip.id

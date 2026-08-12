@@ -1150,7 +1150,11 @@ class EditorViewModel : ViewModel() {
             val safeDuration = durationSeconds.coerceIn(0.1, 30.0)
             state.copy(
                 clips = state.clips.map { clip ->
-                    if (clip.id == id && clip.mediaKind != ClipMediaKind.Video) {
+                    if (
+                        clip.id == id &&
+                        clip.mediaKind != ClipMediaKind.Video &&
+                        clip.livePhotoMode != LivePhotoMode.Motion
+                    ) {
                         clip.copy(
                             durationSeconds = safeDuration,
                             photoDurationSeconds = safeDuration,
@@ -1170,7 +1174,10 @@ class EditorViewModel : ViewModel() {
         _uiState.update { state ->
             state.copy(
                 clips = state.clips.map { clip ->
-                    if (clip.id != id || clip.mediaKind != ClipMediaKind.Video) {
+                    val usesVideoTimeline = clip.mediaKind == ClipMediaKind.Video ||
+                        (clip.mediaKind == ClipMediaKind.LivePhoto &&
+                            clip.livePhotoMode == LivePhotoMode.Motion)
+                    if (clip.id != id || !usesVideoTimeline) {
                         clip
                     } else {
                         val sourceDuration = clip.sourceDurationSeconds ?: clip.durationSeconds
@@ -1198,7 +1205,11 @@ class EditorViewModel : ViewModel() {
                 clips = state.clips.map { clip ->
                     if (clip.id != id) {
                         clip
-                    } else if (clip.mediaKind == ClipMediaKind.Video) {
+                    } else if (
+                        clip.mediaKind == ClipMediaKind.Video ||
+                        (clip.mediaKind == ClipMediaKind.LivePhoto &&
+                            clip.livePhotoMode == LivePhotoMode.Motion)
+                    ) {
                         val sourceDuration = clip.sourceDurationSeconds ?: clip.durationSeconds
                         val center = clip.trimStartSeconds + clip.durationSeconds / 2.0
                         val newDuration = min(sourceDuration, max(0.1, clip.durationSeconds + deltaSeconds))

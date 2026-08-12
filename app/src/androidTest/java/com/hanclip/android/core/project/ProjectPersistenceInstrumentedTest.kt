@@ -298,6 +298,40 @@ class ProjectPersistenceInstrumentedTest {
     }
 
     @Test
+    fun motionPhotoVideoModeAcceptsBoundedTrimWithoutChangingClipIdentity() {
+        val projectId = "test-${UUID.randomUUID()}"
+        EditableProjectStore.upsert(
+            context,
+            sampleProject(projectId, defaultDurationSeconds = 4.0).copy(
+                clips = listOf(
+                    ClipItem(
+                        id = "motion-clip",
+                        sourceUri = Uri.parse("sample://motion.mp4"),
+                        livePhotoStillUri = Uri.parse("sample://motion.jpg"),
+                        isLivePhoto = true,
+                        livePhotoMode = LivePhotoMode.Motion,
+                        mediaKind = ClipMediaKind.LivePhoto,
+                        durationSeconds = 2.5,
+                        livePhotoDurationSeconds = 5.0,
+                        sourceDurationSeconds = 5.0
+                    )
+                )
+            )
+        )
+        val viewModel = EditorViewModel()
+        assertEquals(true, viewModel.openEditableProject(context, projectId))
+
+        viewModel.updateVideoTrim("motion-clip", startSeconds = 1.5, durationSeconds = 2.0)
+
+        val trimmed = viewModel.uiState.value.clips.single()
+        assertEquals("motion-clip", trimmed.id)
+        assertEquals(LivePhotoMode.Motion, trimmed.livePhotoMode)
+        assertEquals(1.5, trimmed.trimStartSeconds, 0.0)
+        assertEquals(2.0, trimmed.durationSeconds, 0.0)
+        assertEquals(5.0, trimmed.sourceDurationSeconds ?: 0.0, 0.0)
+    }
+
+    @Test
     fun malformedPrimaryMetadataFallsBackToPreviousVerifiedBackup() {
         val projectId = "test-${UUID.randomUUID()}"
         val first = sampleProject(projectId, defaultDurationSeconds = 3.0)
