@@ -1156,7 +1156,7 @@ private fun FullscreenPreviewDialog(
     }
     LaunchedEffect(areControlsVisible, zoomScale, isPlayerPlaying, isScrubbing) {
         if (areControlsVisible && zoomScale <= 1.01f && isPlayerPlaying && !isScrubbing) {
-            delay(2_600)
+            delay(FullscreenControlsHideDelayMillis)
             if (isPlayerPlaying && !isScrubbing) areControlsVisible = false
         }
     }
@@ -1419,6 +1419,8 @@ internal enum class FullscreenPlaybackTapAction {
     Play,
     ReplayFromStart
 }
+
+internal const val FullscreenControlsHideDelayMillis = 3_000L
 
 internal fun fullscreenPlaybackTapAction(
     isPlaying: Boolean,
