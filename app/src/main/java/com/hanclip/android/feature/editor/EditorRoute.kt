@@ -628,6 +628,7 @@ fun EditorRoute(
                 }
             }
             gridItemsIndexed(state.visibleClips, key = { _, clip -> clip.id }) { _, clip ->
+                val durationStepSeconds = clipDurationStepSeconds(clip)
                 val displayPosition = state.clips
                     .takeWhile { it.id != clip.id }
                     .count { it.isRenderableClip }
@@ -650,8 +651,12 @@ fun EditorRoute(
                             previewClipID = clip.id
                         }
                     },
-                    onDecreaseDuration = { viewModel.adjustClipDuration(clip.id, -0.1) },
-                    onIncreaseDuration = { viewModel.adjustClipDuration(clip.id, 0.1) },
+                    onDecreaseDuration = {
+                        viewModel.adjustClipDuration(clip.id, -durationStepSeconds)
+                    },
+                    onIncreaseDuration = {
+                        viewModel.adjustClipDuration(clip.id, durationStepSeconds)
+                    },
                     onMoveUp = { viewModel.moveClipUp(clip.id) },
                     onMoveDown = { viewModel.moveClipDown(clip.id) },
                     onDelete = { pendingDeleteClipID = clip.id },
@@ -3848,8 +3853,10 @@ private fun CompactClipRow(
                     palette = palette,
                     onDecrease = onDecreaseDuration,
                     onIncrease = onIncreaseDuration,
-                    canDecrease = clip.durationSeconds > 0.1,
-                    canIncrease = clip.durationSeconds < clipMaximumDuration(clip)
+                    canDecrease = clip.durationSeconds - clipDurationStepSeconds(clip) >= 0.1,
+                    canIncrease = clip.durationSeconds + clipDurationStepSeconds(clip) <=
+                        clipMaximumDuration(clip) + 0.0001,
+                    stepSeconds = clipDurationStepSeconds(clip)
                 )
             }
         }
@@ -3871,24 +3878,66 @@ private fun CompactDurationStepper(
     onDecrease: () -> Unit,
     onIncrease: () -> Unit,
     canDecrease: Boolean,
-    canIncrease: Boolean
+    canIncrease: Boolean,
+    stepSeconds: Double
 ) {
     Surface(
+        modifier = Modifier.size(width = 68.dp, height = 20.dp),
         shape = RoundedCornerShape(50),
-        color = palette.chip,
-        border = BorderStroke(1.dp, palette.border)
+        color = palette.chip.copy(alpha = 0.30f),
+        border = BorderStroke(0.8.dp, palette.border.copy(alpha = 0.24f))
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onDecrease, enabled = canDecrease, modifier = Modifier.size(48.dp)) {
-                Icon(Icons.Outlined.Remove, contentDescription = "시간 줄이기", modifier = Modifier.size(18.dp))
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = onDecrease,
+                enabled = canDecrease,
+                modifier = Modifier.size(width = 33.5.dp, height = 20.dp)
+            ) {
+                Icon(
+                    Icons.Outlined.Remove,
+                    contentDescription = if (stepSeconds == 1.0) {
+                        "클립 시간을 1초 줄이기"
+                    } else {
+                        "클립 시간을 0.1초 줄이기"
+                    },
+                    modifier = Modifier.size(15.dp),
+                    tint = palette.subText.copy(alpha = if (canDecrease) 0.54f else 0.18f)
+                )
             }
-            Box(Modifier.width(1.dp).height(22.dp).background(palette.border))
-            IconButton(onClick = onIncrease, enabled = canIncrease, modifier = Modifier.size(48.dp)) {
-                Icon(Icons.Outlined.Add, contentDescription = "시간 늘리기", modifier = Modifier.size(18.dp))
+            Box(Modifier.width(1.dp).height(11.dp).background(palette.subText.copy(alpha = 0.20f)))
+            IconButton(
+                onClick = onIncrease,
+                enabled = canIncrease,
+                modifier = Modifier.size(width = 33.5.dp, height = 20.dp)
+            ) {
+                Icon(
+                    Icons.Outlined.Add,
+                    contentDescription = if (stepSeconds == 1.0) {
+                        "클립 시간을 1초 늘리기"
+                    } else {
+                        "클립 시간을 0.1초 늘리기"
+                    },
+                    modifier = Modifier.size(15.dp),
+                    tint = palette.subText.copy(alpha = if (canIncrease) 0.54f else 0.18f)
+                )
             }
         }
     }
 }
+
+private fun clipDurationStepSeconds(clip: ClipItem): Double =
+    if (
+        clip.mediaKind == ClipMediaKind.Video ||
+        (clip.mediaKind == ClipMediaKind.LivePhoto &&
+            clip.livePhotoMode == com.hanclip.android.core.model.LivePhotoMode.Motion)
+    ) {
+        1.0
+    } else {
+        0.1
+    }
 
 private fun clipMaximumDuration(clip: ClipItem): Double =
     if (
