@@ -15,6 +15,7 @@ import com.hanclip.android.core.model.OutputQualityPreset
 import com.hanclip.android.core.model.VideoSegmentMode
 import com.hanclip.android.core.model.WatermarkSettings
 import com.hanclip.android.core.model.WatermarkPlatform
+import com.hanclip.android.core.model.WatermarkFontSize
 import com.hanclip.android.core.media.MediaImportReader
 import com.hanclip.android.core.media.CaptionTypefaceLoader
 import com.hanclip.android.feature.editor.EditorViewModel
@@ -85,6 +86,11 @@ class ProjectPersistenceInstrumentedTest {
         assertEquals(1, migrated?.schemaVersion)
         assertEquals(VideoSegmentMode.Multiple, migrated?.defaultVideoSegmentMode)
         assertEquals(listOf("legacy-photo"), migrated?.clips?.map(ClipItem::id))
+        assertEquals("poppins", migrated?.watermarkSettings?.fontName)
+        assertEquals("#FFE45C", migrated?.watermarkSettings?.textColorHex)
+        assertEquals(0.75, migrated?.watermarkSettings?.shadowOpacity)
+        assertEquals("#642BFF", migrated?.watermarkSettings?.shadowColorHex)
+        assertEquals(WatermarkFontSize.ExtraLarge, migrated?.watermarkSettings?.fontSize)
     }
 
     @Test
