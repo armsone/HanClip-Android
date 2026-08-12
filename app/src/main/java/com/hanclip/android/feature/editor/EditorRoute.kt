@@ -281,6 +281,11 @@ fun EditorRoute(
                 fadeInEnabled = state.backgroundMusicFadeInEnabled,
                 fadeOutEnabled = state.backgroundMusicFadeOutEnabled
             )
+            if (!state.backgroundMusicEnabled &&
+                (state.backgroundMusicUri != null || state.backgroundMusicSampleId != null)
+            ) {
+                viewModel.updateBackgroundMusicEnabled(true)
+            }
         }
         isMusicSettingsSheetVisible = true
     }
