@@ -334,7 +334,7 @@ private fun BulkCompressionButton(
     onClick: () -> Unit
 ) {
     Surface(
-        modifier = modifier.height(38.dp),
+        modifier = modifier.height(48.dp),
         shape = RoundedCornerShape(11.dp),
         color = palette.primary.copy(alpha = 0.10f),
         border = BorderStroke(1.dp, palette.primary.copy(alpha = 0.30f)),
@@ -632,7 +632,7 @@ private fun CollectionMovieCard(
         ) {
             Text(
                 text = movie.title,
-                modifier = Modifier.fillMaxWidth().padding(top = 34.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 44.dp),
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
@@ -659,7 +659,7 @@ private fun CollectionMovieCard(
         }
         IconButton(
             onClick = { showActions = true },
-            modifier = Modifier.align(Alignment.TopEnd).size(38.dp)
+            modifier = Modifier.align(Alignment.TopEnd).size(48.dp)
         ) {
             Icon(Icons.Outlined.MoreVert, contentDescription = "컬렉션 메뉴", tint = Color.White)
         }
