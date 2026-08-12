@@ -147,7 +147,11 @@ class EditorViewModel : ViewModel() {
         _uiState.value = presetInitialState(context.applicationContext, preset)
     }
 
-    fun addPickedMedia(context: Context, uris: List<Uri>) {
+    fun addPickedMedia(
+        context: Context,
+        uris: List<Uri>,
+        onFinished: (consumePendingItems: Boolean) -> Unit = {}
+    ) {
         if (uris.isEmpty()) {
             _uiState.update {
                 it.copy(
@@ -155,6 +159,7 @@ class EditorViewModel : ViewModel() {
                     undoDeleteMessage = null
                 )
             }
+            onFinished(true)
             return
         }
 
@@ -174,6 +179,7 @@ class EditorViewModel : ViewModel() {
                     undoDeleteMessage = null
                 )
             }
+            onFinished(true)
             return
         }
 
@@ -289,6 +295,7 @@ class EditorViewModel : ViewModel() {
                     )
                 }
             }
+            onFinished(true)
             } catch (cancelled: CancellationException) {
                 imported.forEach { clip ->
                     MediaImportReader.discardUncommittedClipFiles(appContext, clip)
@@ -303,6 +310,7 @@ class EditorViewModel : ViewModel() {
                         alertMessage = "미디어 가져오기를 취소했습니다. 기존 클립과 설정은 그대로 유지됩니다."
                     )
                 }
+                onFinished(false)
             } finally {
                 importJob = null
             }

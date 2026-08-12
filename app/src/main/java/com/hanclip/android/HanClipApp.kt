@@ -21,6 +21,7 @@ import com.hanclip.android.core.navigation.HanClipQuickAction
 import com.hanclip.android.core.settings.SleepPreventionMode
 import com.hanclip.android.core.settings.SleepPreventionStore
 import com.hanclip.android.core.model.MoviePreset
+import com.hanclip.android.core.media.SharedInboxStore
 import com.hanclip.android.core.project.DraftProjectStore
 import com.hanclip.android.core.project.EditableProjectPinResult
 import com.hanclip.android.core.project.EditableProjectStore
@@ -60,7 +61,11 @@ fun HanClipApp(
     var sleepPreventionMode by remember { mutableStateOf(SleepPreventionStore.load(context)) }
     var handledSharedSignature by remember { mutableStateOf("") }
     var handledBrowserFavoritesSignature by remember { mutableStateOf("") }
-    var pendingSharedCount by remember { mutableStateOf(sharedMediaUris.size) }
+    var pendingSharedCount by remember { mutableStateOf(SharedInboxStore.pendingUris(context).size) }
+    var sharedInboxCopyCurrent by remember { mutableStateOf(0) }
+    var sharedInboxCopyTotal by remember { mutableStateOf(0) }
+    var isSharedInboxVisible by remember { mutableStateOf(pendingSharedCount > 0) }
+    var shouldAddSharedInboxToExistingProject by remember { mutableStateOf(false) }
     var pendingEditorImportAction by remember { mutableStateOf<EditorImportAction?>(null) }
     var exportedMovieSummaries by remember { mutableStateOf<List<ExportedMovieSummary>>(emptyList()) }
     var previewHistorySummary by remember { mutableStateOf<ExportedMovieSummary?>(null) }
@@ -102,26 +107,60 @@ fun HanClipApp(
         }
         if (sharedMediaUris.isNotEmpty() && signature != handledSharedSignature) {
             handledSharedSignature = signature
-            pendingSharedCount = sharedMediaUris.size
-            navController.navigate(HanClipDestination.Editor.routeFor(MoviePreset.NewMovie))
-            val audioUris = sharedMediaUris.filter { uri ->
-                context.contentResolver.getType(uri).orEmpty().startsWith("audio/")
+            val existingCount = SharedInboxStore.pendingUris(context).size
+            sharedInboxCopyCurrent = 0
+            sharedInboxCopyTotal = sharedMediaUris.size
+            pendingSharedCount = existingCount + sharedMediaUris.size
+            isSharedInboxVisible = true
+            try {
+                val addedCount = SharedInboxStore.append(context, sharedMediaUris) { completed, total ->
+                    sharedInboxCopyCurrent = completed
+                    sharedInboxCopyTotal = total
+                }
+                pendingSharedCount = SharedInboxStore.pendingUris(context).size
+                if (addedCount == 0) {
+                    Toast.makeText(context, "공유 파일을 복사하지 못했습니다.", Toast.LENGTH_LONG).show()
+                }
+            } finally {
+                sharedInboxCopyCurrent = 0
+                sharedInboxCopyTotal = 0
+                pendingSharedCount = SharedInboxStore.pendingUris(context).size
+                if (pendingSharedCount == 0) isSharedInboxVisible = false
+                onSharedMediaHandled()
             }
-            val visualUris = sharedMediaUris - audioUris.toSet()
-            audioUris.firstOrNull()?.let { audioUri ->
-                editorViewModel.setBackgroundMusic(context, audioUri)
+        }
+    }
+
+    fun clearSharedInbox() {
+        SharedInboxStore.clear(context)
+        pendingSharedCount = 0
+        isSharedInboxVisible = false
+        shouldAddSharedInboxToExistingProject = false
+    }
+
+    fun importSharedInboxIntoCurrentProject() {
+        val pendingUris = SharedInboxStore.pendingUris(context)
+        if (pendingUris.isEmpty()) {
+            clearSharedInbox()
+            return
+        }
+        val audioUris = pendingUris.filter { uri ->
+            val extension = uri.lastPathSegment.orEmpty().substringAfterLast('.', "")
+            extension.lowercase() in setOf("mp3", "m4a", "aac", "wav", "flac", "ogg")
+        }
+        val visualUris = pendingUris - audioUris.toSet()
+        audioUris.firstOrNull()?.let { editorViewModel.setBackgroundMusic(context, it) }
+        if (visualUris.isEmpty()) {
+            clearSharedInbox()
+            Toast.makeText(context, "공유한 음악을 배경음악으로 적용했습니다.", Toast.LENGTH_LONG).show()
+        } else {
+            editorViewModel.addPickedMedia(context, visualUris) { consumePendingItems ->
+                if (consumePendingItems) clearSharedInbox()
+                else {
+                    pendingSharedCount = SharedInboxStore.pendingUris(context).size
+                    isSharedInboxVisible = true
+                }
             }
-            if (visualUris.isNotEmpty()) {
-                editorViewModel.addPickedMedia(context, visualUris)
-            } else if (audioUris.isNotEmpty()) {
-                Toast.makeText(
-                    context,
-                    "공유한 음악을 배경음악으로 적용했습니다. 기본 사진첩에서 사진이나 영상을 선택해 주세요.",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-            pendingSharedCount = 0
-            onSharedMediaHandled()
         }
     }
 
@@ -259,7 +298,21 @@ fun HanClipApp(
                 recentlySavedMovieUriString = editorState.recentlySavedMovieUriString,
                 hasDraftProject = hasDraftProject,
                 editableProjectSummaries = editableDraftProjectSummaries,
-                sharedInboxCount = pendingSharedCount,
+                sharedInboxCount = if (isSharedInboxVisible) pendingSharedCount else 0,
+                sharedInboxCopyCurrent = sharedInboxCopyCurrent,
+                sharedInboxCopyTotal = sharedInboxCopyTotal,
+                onCreateMovieFromSharedInbox = {
+                    shouldAddSharedInboxToExistingProject = false
+                    editorViewModel.startNewPreset(context, MoviePreset.NewMovie)
+                    navController.navigate(HanClipDestination.Editor.routeFor(MoviePreset.NewMovie))
+                    importSharedInboxIntoCurrentProject()
+                },
+                onAddSharedInboxToMovie = {
+                    shouldAddSharedInboxToExistingProject = true
+                    isSharedInboxVisible = false
+                },
+                onClearSharedInbox = ::clearSharedInbox,
+                onCancelSharedInboxCopy = onSharedMediaHandled,
                 sleepPreventionMode = sleepPreventionMode,
                 watermarkSettings = editorState.watermarkSettings,
                 onStartPreset = { preset ->
@@ -302,6 +355,10 @@ fun HanClipApp(
                     if (draft != null) {
                         editorViewModel.openEditableProject(context, draft.projectId)
                         navController.navigate(HanClipDestination.Editor.routeFor(draft.preset))
+                        if (shouldAddSharedInboxToExistingProject) {
+                            shouldAddSharedInboxToExistingProject = false
+                            importSharedInboxIntoCurrentProject()
+                        }
                     } else {
                         navController.navigate(HanClipDestination.Editor.route)
                     }
@@ -311,6 +368,10 @@ fun HanClipApp(
                     previewCollectionMovie = null
                     if (editorViewModel.openEditableProject(context, summary.projectId)) {
                         navController.navigate(HanClipDestination.Editor.routeFor(summary.preset))
+                        if (shouldAddSharedInboxToExistingProject) {
+                            shouldAddSharedInboxToExistingProject = false
+                            importSharedInboxIntoCurrentProject()
+                        }
                     }
                 },
                 onRemoveEditableProject = { summary ->

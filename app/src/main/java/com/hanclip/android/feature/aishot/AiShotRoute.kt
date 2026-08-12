@@ -236,6 +236,9 @@ fun AiShotRoute(
     var hasPermissions by remember {
         mutableStateOf(context.hasAiShotPermissions())
     }
+    var isLifecycleResumed by remember {
+        mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+    }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { grants ->
@@ -245,8 +248,14 @@ fun AiShotRoute(
 
     DisposableEffect(lifecycleOwner, context) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                hasPermissions = context.hasAiShotPermissions()
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    hasPermissions = context.hasAiShotPermissions()
+                    isLifecycleResumed = true
+                }
+                Lifecycle.Event.ON_PAUSE,
+                Lifecycle.Event.ON_STOP -> isLifecycleResumed = false
+                else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -412,6 +421,13 @@ fun AiShotRoute(
         recording?.stop()
     }
 
+    LaunchedEffect(isLifecycleResumed) {
+        if (!isLifecycleResumed && recording != null) {
+            statusText = "촬영 일시 정지"
+            discardAndStopRollingRecording()
+        }
+    }
+
     LaunchedEffect(recording, isRollingRecordingActive, shotLength) {
         if (recording == null || !isRollingRecordingActive || triggerTimeSeconds != null) {
             return@LaunchedEffect
@@ -520,8 +536,8 @@ fun AiShotRoute(
         onDispose { listener.disable() }
     }
 
-    LaunchedEffect(videoCapture, recording) {
-        if (hasPermissions && videoCapture != null && recording == null) {
+    LaunchedEffect(videoCapture, recording, hasPermissions, isLifecycleResumed) {
+        if (hasPermissions && isLifecycleResumed && videoCapture != null && recording == null) {
             delay(350L)
             startRollingRecording()
         }

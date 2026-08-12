@@ -26,6 +26,7 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -97,6 +98,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -189,6 +191,12 @@ fun HomeRoute(
     hasDraftProject: Boolean,
     editableProjectSummaries: List<DraftProjectSummary>,
     sharedInboxCount: Int,
+    sharedInboxCopyCurrent: Int,
+    sharedInboxCopyTotal: Int,
+    onCreateMovieFromSharedInbox: () -> Unit,
+    onAddSharedInboxToMovie: () -> Unit,
+    onClearSharedInbox: () -> Unit,
+    onCancelSharedInboxCopy: () -> Unit,
     sleepPreventionMode: SleepPreventionMode,
     watermarkSettings: WatermarkSettings,
     onStartPreset: (MoviePreset) -> Unit,
@@ -453,12 +461,6 @@ fun HomeRoute(
                 onOpenFiles = onOpenFiles
             )
             Spacer(Modifier.height(8.dp))
-        }
-        if (sharedInboxCount > 0) {
-            item(key = "shared-inbox") {
-                SharedInboxBanner(sharedInboxCount, palette)
-                Spacer(Modifier.height(8.dp))
-            }
         }
         item(key = "preset-grid") {
             PresetGrid(onStartPreset, palette, presetColumnCount)
@@ -827,6 +829,18 @@ fun HomeRoute(
                 beginCollectionCompression(movie, option)
             },
             onDismiss = { collectionCompressionCandidate = null }
+        )
+    }
+    if (sharedInboxCount > 0) {
+        SharedInboxDialog(
+            count = sharedInboxCount,
+            copyCurrent = sharedInboxCopyCurrent,
+            copyTotal = sharedInboxCopyTotal,
+            palette = palette,
+            onCreateMovie = onCreateMovieFromSharedInbox,
+            onAddToMovie = onAddSharedInboxToMovie,
+            onClear = onClearSharedInbox,
+            onCancelCopy = onCancelSharedInboxCopy
         )
     }
 }
@@ -1936,6 +1950,7 @@ private fun importantInfoIcon(title: String): ImageVector = when (title) {
     "카피라이터" -> Icons.Outlined.Info
     "워터마크" -> Icons.Outlined.Badge
     "첫 화면" -> Icons.Outlined.Home
+    "공유 파일" -> Icons.Outlined.IosShare
     "영화 프리셋" -> Icons.Outlined.GridView
     "영상 시간 필터" -> Icons.Outlined.Timelapse
     "사진 정렬" -> Icons.Outlined.SwapHoriz
@@ -1992,6 +2007,7 @@ private fun importantInfoItems(): List<Pair<String, String>> = listOf(
     "카피라이터" to "첫 화면 하단의 i 원형 플로팅 버튼입니다. 짧게 누르면 카피라이터 설정과 앱 정보를 보고, 길게 누르면 외부 음원을 받을 수 있는 HanClip 내부 브라우저를 바로 엽니다.",
     "로고" to "상단의 앱 심볼과 HanClip 글자 부분입니다. 화면에 따라 닫기, 첫 화면 이동, 테마 선택 같은 동작의 기준점이 됩니다.",
     "첫 화면" to "앱 실행 후 영화 프리셋과 저장된 영화 목록이 보이는 홈 화면입니다.",
+    "공유 파일" to "사진첩이나 다른 앱에서 HanClip으로 보낸 사진·영상·음악을 앱 내부 공유함에 먼저 안전하게 복사합니다. 복사가 끝나면 새 영화 제작, 저장된 영화에 추가, 비우기 중 하나를 선택할 수 있고 가져오기를 취소하면 대기 파일을 다시 사용할 수 있습니다.",
     "영화 프리셋" to "첫 화면 상단에서 새 영화, 퀵모드, AiShot, 여행 영화, 인생 영화, 골프 영화 중 원하는 설정으로 영화 제작을 시작하는 영역입니다.",
     "퀵모드" to "새 영화의 기본 설정에 음악을 켠 빠른 제작 기능입니다. 미디어를 고르면 30초, 45초, 1분, 2분, 3분, 5분, 추천시간 또는 최소시간을 고릅니다. 추천시간은 미디어당 1초, 최소시간은 미디어당 0.2초로 계산합니다. 선택한 미디어가 많으면 가능한 최소 시간으로 자동 보정하며, −와 +로 5초씩 조절할 수 있습니다. 같은 화면에서 자막·음악·엔딩·화면비와 미디어를 설정하고, 확정하면 목표 시간÷원본 미디어 수로 기본시간을 정해 영화를 만듭니다. hanclip://quick으로 바로 실행할 수 있습니다.",
     "여행 영화" to "기본시간 1초, 모션포토 영상, 영상 분할, 묶음사진 1/6 자동, 여행 서체와 여행의 설렘 음악을 적용합니다. 촬영 기간과 많이 촬영한 지역을 자막과 엔딩에 사용하며 보물지도 테마를 기본으로 준비합니다.",
@@ -2007,7 +2023,7 @@ private fun importantInfoItems(): List<Pair<String, String>> = listOf(
         감지 중, 감지 됨, 저장 중으로 상태를 보여주고 시끄러움, 일반, 조용함, 자동 감도를 선택합니다. 샷 시간은 짧게(앞뒤 1.5초), 일반(앞 2초·뒤 3초), 길게(앞뒤 5초) 중에서 고릅니다. 전면·후면 카메라, 기기 지원 범위의 연속 줌을 선택하고 필요한 순간에는 촬영 버튼으로 수동 클립도 남길 수 있습니다. 저장 결과는 1080×1440·30fps입니다.
     """.trimIndent(),
     "영화 목록" to "첫 화면에 저장된 일반 영화와 AiShot 영화가 한 목록에 표시됩니다. 왼쪽 숫자는 최대 10개 중 현재 저장 수이며, 각 행의 시간 앞 아이콘은 영화를 시작할 때 사용한 프리셋을 보여줍니다.",
-    "컬렉션" to "완성된 영화를 포스터 형태로 최대 30개까지 보관합니다. 기기 안에서 영상 여러 구간의 밝기·대비·선명도와 구도를 비교해 좋은 순간을 포스터로 고릅니다. 예전 방식으로 만든 포스터는 컬렉션을 열었을 때 한 번만 순서대로 다시 고르며 진행 상태를 표시합니다. 포스터를 길게 누른 뒤 썸네일 AI 재선택을 선택하면 디바이스 AI 후보 8개와 한클립 AI 후보 8개를 실제 제목·핀·제작·촬영·위치·재생시간이 적용된 모습으로 비교할 수 있습니다. 재생성은 앞서 본 장면과 다른 구간을 다시 찾습니다. 파일 용량 줄이기는 1080p 고화질, 720p 절약, 540p 최소 중 하나를 골라 예상 용량을 확인하고 원본보다 작은 경우에만 컬렉션 파일을 안전하게 바꿉니다. 선반 아래의 숨김 메뉴에서는 전체 영상을 720p 또는 540p로 일괄 변환하며 이미 해당 해상도 이하인 영상은 그대로 둡니다. 포스터 상단 중앙의 작은 구멍을 누르면 압정이 꽂히며 중요한 영화가 앞쪽에 고정되고, 다시 누르면 해제됩니다. 고정된 포스터의 메뉴에서 핀 앞으로·핀 뒤로를 선택해 순서를 바꿀 수 있습니다. 포스터를 열면 기기 방향에 맞춰 회전하는 전용 플레이어로 바로 재생합니다. 세로와 가로 모두 핀치로 확대·축소하고 확대 상태에서 한 손가락으로 화면을 이동하며 더블 탭하면 100% 크기로 돌아갑니다.",
+    "컬렉션" to "완성된 영화를 포스터 형태로 최대 30개까지 보관합니다. 기기 안에서 영상 여러 구간의 밝기·대비·선명도와 구도를 비교해 좋은 순간을 포스터로 고릅니다. 예전 방식으로 만든 포스터는 컬렉션을 열었을 때 한 번만 순서대로 다시 고르며 진행 상태를 표시합니다. 포스터를 길게 누른 뒤 썸네일 AI 재선택을 선택하면 디바이스 AI 후보 8개와 한클립 AI 후보 8개를 실제 제목·핀·제작·촬영·위치·재생시간이 적용된 모습으로 비교할 수 있습니다. 재생성은 앞서 본 장면과 다른 구간을 다시 찾습니다. 파일 용량 줄이기는 1080p 고화질, 720p 절약, 540p 최소 중 하나를 골라 예상 용량을 확인하고 원본보다 작은 경우에만 컬렉션 파일을 안전하게 바꿉니다. 선반 아래의 숨김 메뉴에서는 전체 영상을 720p 또는 540p로 일괄 변환하며 이미 해당 해상도 이하인 영상은 그대로 둡니다. 포스터 상단 중앙의 작은 구멍을 누르면 압정이 꽂히며 중요한 영화가 앞쪽에 고정되고, 다시 누르면 해제됩니다. 고정된 핀을 길게 끌어 다른 핀 위치에 놓으면 순서가 바뀝니다. 포스터를 열면 기기 방향에 맞춰 회전하는 전용 플레이어로 바로 재생합니다. 세로와 가로 모두 핀치로 확대·축소하고 확대 상태에서 한 손가락으로 화면을 이동하며 더블 탭하면 100% 크기로 돌아갑니다.",
     "테마 선택창" to "첫 화면 로고를 길게 눌렀을 때 테마를 직접 선택하는 플로팅 패널입니다. 로고를 짧게 누르면 테마가 순서대로 바뀝니다.",
     "첫 화면 이동 팝업" to "편집 중 로고를 눌렀을 때 저장 후 홈, 저장, 홈을 고르는 창입니다. 홈은 이번 편집에서 바꾼 내용을 저장하지 않고 이전 상태로 돌아갑니다.",
     "영화 화면" to "미디어를 선택한 후 기본 재생 시간, 화면 비율, 클립목록 등을 편집하는 화면입니다.",
@@ -2088,56 +2104,140 @@ private fun importantInfoItems(): List<Pair<String, String>> = listOf(
 )
 
 @Composable
-private fun SharedInboxBanner(
-    sharedInboxCount: Int,
-    palette: HanClipPalette
+private fun SharedInboxDialog(
+    count: Int,
+    copyCurrent: Int,
+    copyTotal: Int,
+    palette: HanClipPalette,
+    onCreateMovie: () -> Unit,
+    onAddToMovie: () -> Unit,
+    onClear: () -> Unit,
+    onCancelCopy: () -> Unit
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = palette.chip,
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, palette.border),
-        tonalElevation = 0.dp
+    val isCopying = copyTotal > 0 && copyCurrent < copyTotal
+    Dialog(
+        onDismissRequest = {},
+        properties = DialogProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false,
+            usePlatformDefaultWidth = false
+        )
     ) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = Color.Transparent
         ) {
-            Icon(
-                imageVector = Icons.Outlined.Collections,
-                contentDescription = null,
-                tint = palette.primary
-            )
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = "공유 파일 ${sharedInboxCount}개 대기",
-                    fontWeight = FontWeight.SemiBold,
-                    color = palette.text
-                )
-                Text(
-                    text = "기본 사진첩이나 다른 앱에서 보낸 파일을 바로 완성본으로 엽니다.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = palette.subText,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = palette.panel,
-                border = BorderStroke(1.dp, palette.border)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.linearGradient(
+                            listOf(palette.primary, palette.secondary, palette.primary)
+                        )
+                    )
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
-                Text(
-                    text = "연결됨",
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    color = palette.primary,
-                    fontWeight = FontWeight.SemiBold,
-                    style = MaterialTheme.typography.labelMedium,
-                    maxLines = 1
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Surface(
+                        modifier = Modifier.size(60.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        color = Color.White.copy(alpha = 0.95f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Collections,
+                            contentDescription = null,
+                            tint = palette.primary,
+                            modifier = Modifier.padding(14.dp)
+                        )
+                    }
+                    Text(
+                        text = if (isCopying) "공유 파일을 옮기는 중" else "공유파일 ${count}개 발견",
+                        color = Color.White,
+                        fontSize = 25.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+                if (isCopying) {
+                    val progress = copyCurrent.toFloat() / copyTotal.coerceAtLeast(1)
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = Color.White,
+                        trackColor = Color.White.copy(alpha = 0.22f)
+                    )
+                    Text(
+                        "$copyCurrent/${copyTotal}개 파일을 복사하는 중입니다.",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.weight(1f))
+                    OutlinedButton(
+                        onClick = onCancelCopy,
+                        modifier = Modifier.fillMaxWidth().height(54.dp),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.55f))
+                    ) { Text("닫기", color = Color.White) }
+                } else {
+                    Text(
+                        "새 영화를 만들거나 저장된 영화에 추가할 수 있습니다.",
+                        color = Color.White.copy(alpha = 0.86f),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        SharedInboxActionButton(
+                            title = "새 영화 제작",
+                            modifier = Modifier.weight(1f),
+                            onClick = onCreateMovie
+                        )
+                        SharedInboxActionButton(
+                            title = "영화에 추가",
+                            modifier = Modifier.weight(1f),
+                            onClick = onAddToMovie
+                        )
+                        SharedInboxActionButton(
+                            title = "비우기",
+                            modifier = Modifier.weight(1f),
+                            onClick = onClear
+                        )
+                    }
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun SharedInboxActionButton(
+    title: String,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier.height(58.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color.White.copy(alpha = 0.18f),
+            contentColor = Color.White
+        ),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.34f)),
+        contentPadding = PaddingValues(horizontal = 6.dp)
+    ) {
+        Text(
+            title,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
     }
 }
 

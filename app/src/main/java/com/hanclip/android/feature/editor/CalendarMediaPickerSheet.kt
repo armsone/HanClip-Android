@@ -81,6 +81,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.draw.clip
@@ -1541,10 +1542,28 @@ private fun CalendarMediaStrip(
     var dragSelects by remember { mutableStateOf(true) }
     var lastDraggedUri by remember { mutableStateOf<Uri?>(null) }
     var edgeDragDirection by remember { mutableIntStateOf(0) }
+    var edgeDragSpeedPxPerSecond by remember { mutableStateOf(0f) }
+    var dragPosition by remember { mutableStateOf<Offset?>(null) }
     var mediaColumnCount by rememberSaveable { mutableIntStateOf(5) }
+    val currentEdgeDragSpeedPxPerSecond by rememberUpdatedState(edgeDragSpeedPxPerSecond)
+    val currentDragPosition by rememberUpdatedState(dragPosition)
     LaunchedEffect(edgeDragDirection) {
         while (edgeDragDirection != 0) {
-            gridState.scrollBy(edgeDragDirection * 20f)
+            gridState.scrollBy(edgeDragDirection * currentEdgeDragSpeedPxPerSecond * 0.016f)
+            currentDragPosition?.let { position ->
+                val info = gridState.layoutInfo.visibleItemsInfo.firstOrNull { cell ->
+                    position.x >= cell.offset.x &&
+                        position.x < cell.offset.x + cell.size.width &&
+                        position.y >= cell.offset.y &&
+                        position.y < cell.offset.y + cell.size.height
+                }
+                val item = info?.let { itemByKey[it.key.toString()] }
+                if (item != null && item.uri != lastDraggedUri) {
+                    lastDraggedUri = item.uri
+                    val isSelected = item.uri in currentSelectedUris
+                    if (isSelected != dragSelects) currentOnToggle(item.uri)
+                }
+            }
             delay(16L)
         }
     }
@@ -1708,6 +1727,7 @@ private fun CalendarMediaStrip(
                                 detectDragGestures(
                                     onDragStart = { position ->
                                         onRecentUserScroll()
+                                        dragPosition = position
                                         mediaAt(position.x, position.y)?.let { item ->
                                             dragSelects = item.uri !in currentSelectedUris
                                             lastDraggedUri = item.uri
@@ -1717,19 +1737,31 @@ private fun CalendarMediaStrip(
                                     onDragEnd = {
                                         lastDraggedUri = null
                                         edgeDragDirection = 0
+                                        edgeDragSpeedPxPerSecond = 0f
+                                        dragPosition = null
                                     },
                                     onDragCancel = {
                                         lastDraggedUri = null
                                         edgeDragDirection = 0
+                                        edgeDragSpeedPxPerSecond = 0f
+                                        dragPosition = null
                                     },
                                     onDrag = { change, _ ->
                                         change.consume()
-                                        val edgePx = 72.dp.toPx()
+                                        dragPosition = change.position
+                                        val edgePx = 105.dp.toPx()
                                         edgeDragDirection = when {
                                             change.position.y < edgePx -> -1
                                             change.position.y > size.height - edgePx -> 1
                                             else -> 0
                                         }
+                                        val edgeProgress = when (edgeDragDirection) {
+                                            -1 -> ((edgePx - change.position.y) / edgePx)
+                                            1 -> ((change.position.y - (size.height - edgePx)) / edgePx)
+                                            else -> 0f
+                                        }.coerceIn(0f, 1f)
+                                        edgeDragSpeedPxPerSecond =
+                                            (120f + 1_180f * edgeProgress * edgeProgress).dp.toPx()
                                         mediaAt(change.position.x, change.position.y)?.let { item ->
                                             if (item.uri != lastDraggedUri) {
                                                 lastDraggedUri = item.uri

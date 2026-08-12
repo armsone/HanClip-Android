@@ -190,12 +190,6 @@ internal fun LazyListScope.movieCollectionItems(
                         movie = movie,
                         onOpen = { onOpen(movie) },
                         onTogglePin = { onTogglePin(movie) },
-                        onMovePinnedEarlier = pinnedMovies.indexOfFirst { it.id == movie.id }
-                            .takeIf { it > 0 }
-                            ?.let { index -> { onMovePinned(movie, pinnedMovies[index - 1]) } },
-                        onMovePinnedLater = pinnedMovies.indexOfFirst { it.id == movie.id }
-                            .takeIf { it >= 0 && it < pinnedMovies.lastIndex }
-                            ?.let { index -> { onMovePinned(movie, pinnedMovies[index + 1]) } },
                         onMovePinnedByOffset = { offset ->
                             val sourceIndex = pinnedMovies.indexOfFirst { it.id == movie.id }
                             if (sourceIndex >= 0) {
@@ -540,8 +534,6 @@ private fun CollectionMovieCard(
     movie: CollectedMovie,
     onOpen: () -> Unit,
     onTogglePin: () -> Unit,
-    onMovePinnedEarlier: (() -> Unit)?,
-    onMovePinnedLater: (() -> Unit)?,
     onMovePinnedByOffset: (Int) -> Unit,
     pinnedColumnCount: Int,
     onRename: (String) -> Unit,
@@ -773,20 +765,6 @@ private fun CollectionMovieCard(
                 leadingIcon = { Icon(Icons.Outlined.PushPin, contentDescription = null) },
                 onClick = { showActions = false; onTogglePin() }
             )
-            if (movie.isPinned) {
-                DropdownMenuItem(
-                    text = { Text("핀 앞으로") },
-                    leadingIcon = { Icon(Icons.AutoMirrored.Outlined.KeyboardArrowLeft, contentDescription = null) },
-                    enabled = onMovePinnedEarlier != null,
-                    onClick = { showActions = false; onMovePinnedEarlier?.invoke() }
-                )
-                DropdownMenuItem(
-                    text = { Text("핀 뒤로") },
-                    leadingIcon = { Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = null) },
-                    enabled = onMovePinnedLater != null,
-                    onClick = { showActions = false; onMovePinnedLater?.invoke() }
-                )
-            }
             DropdownMenuItem(
                 text = { Text("제목 수정") },
                 leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
