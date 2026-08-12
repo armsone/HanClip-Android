@@ -71,6 +71,26 @@ object MediaImportReader {
         }.getOrDefault(false)
     }
 
+    suspend fun createMotionPhotoPreview(context: Context, uri: Uri): Uri? =
+        withContext(Dispatchers.IO) {
+            val localImageUri = runCatching {
+                persistWorkingMedia(context, uri, resolvedMimeType(context, uri))
+            }.getOrNull() ?: return@withContext null
+            try {
+                extractMotionPhoto(localImageUri)?.videoUri
+            } finally {
+                workingMediaFile(localImageUri)?.delete()
+            }
+        }
+
+    fun discardMotionPhotoPreview(context: Context, uri: Uri?) {
+        val workingRoot = File(context.filesDir, "working-media").canonicalFile
+        val file = workingMediaFile(uri)?.canonicalFile ?: return
+        if (file.parentFile == workingRoot && file.name.startsWith("motion-")) {
+            runCatching { file.delete() }
+        }
+    }
+
     suspend fun makeClip(
         context: Context,
         uri: Uri,

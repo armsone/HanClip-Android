@@ -928,6 +928,17 @@ private fun CalendarMediaPreviewDialog(
 ) {
     val context = LocalContext.current
     val isVideo = item.kind == ClipMediaKind.Video
+    var motionPreviewUri by remember(item.uri) { mutableStateOf<Uri?>(null) }
+    LaunchedEffect(item.uri, item.kind) {
+        if (item.kind == ClipMediaKind.LivePhoto) {
+            motionPreviewUri = MediaImportReader.createMotionPhotoPreview(context, item.uri)
+        }
+    }
+    DisposableEffect(motionPreviewUri) {
+        val previewUri = motionPreviewUri
+        onDispose { MediaImportReader.discardMotionPhotoPreview(context, previewUri) }
+    }
+    val previewVideoUri = if (isVideo) item.uri else motionPreviewUri
     val thumbnail by produceState<Bitmap?>(null, item.uri, isVideo) {
         if (!isVideo) {
             value = MediaImportReader.loadThumbnailBitmap(
@@ -938,10 +949,10 @@ private fun CalendarMediaPreviewDialog(
             )
         }
     }
-    val player = remember(item.uri, isVideo) {
-        if (isVideo) {
+    val player = remember(previewVideoUri) {
+        if (previewVideoUri != null) {
             ExoPlayer.Builder(context).build().apply {
-                setMediaItem(MediaItem.fromUri(item.uri))
+                setMediaItem(MediaItem.fromUri(previewVideoUri))
                 repeatMode = Player.REPEAT_MODE_ALL
                 playWhenReady = true
                 prepare()
@@ -984,7 +995,7 @@ private fun CalendarMediaPreviewDialog(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            if (isVideo && player != null) {
+            if (player != null) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(0.70f).height(56.dp),
                     shape = RoundedCornerShape(18.dp),
@@ -1067,11 +1078,11 @@ private fun CalendarMediaPreviewDialog(
                     .fillMaxWidth(0.70f)
                     .aspectRatio(1f),
                 shape = RoundedCornerShape(18.dp),
-                color = if (isVideo) Color.Black else palette.solidPanel,
+                color = if (player != null) Color.Black else palette.solidPanel,
                 border = BorderStroke(1.25.dp, palette.border)
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    if (isVideo && player != null) {
+                    if (player != null) {
                         AndroidView(
                             factory = { viewContext ->
                                 PlayerView(viewContext).apply {
