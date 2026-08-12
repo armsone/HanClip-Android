@@ -34,6 +34,7 @@ import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -77,6 +78,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -85,6 +87,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -115,6 +119,7 @@ import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.sqrt
 
 private enum class ShotSensitivity(val title: String) {
@@ -174,6 +179,18 @@ internal fun zoomControlPositionToRatio(position: Float, minimum: Float, maximum
     if (minimum <= 0f || maximum <= minimum) return minimum
     val logRatio = ln(minimum) + position.coerceIn(0f, 1f) * (ln(maximum) - ln(minimum))
     return exp(logRatio).coerceIn(minimum, maximum)
+}
+
+internal fun zoomRatioAfterHorizontalDrag(
+    startRatio: Float,
+    dragDistancePx: Float,
+    octaveWidthPx: Float,
+    minimum: Float,
+    maximum: Float
+): Float {
+    if (octaveWidthPx <= 0f) return startRatio.coerceIn(minimum, maximum)
+    val octaveOffset = -dragDistancePx / octaveWidthPx
+    return (startRatio * 2f.pow(octaveOffset)).coerceIn(minimum, maximum)
 }
 
 private fun zoomRatioTitle(ratio: Float): String {
@@ -933,6 +950,8 @@ private fun AiShotFloatingControls(
 ) {
     var isPrecisionZoomVisible by remember { mutableStateOf(false) }
     var isPrecisionZoomInteracting by remember { mutableStateOf(false) }
+    val latestZoomRatio by rememberUpdatedState(zoomRatio)
+    val zoomOctaveWidthPx = with(LocalDensity.current) { 92.dp.toPx() }
     LaunchedEffect(isPrecisionZoomVisible, isPrecisionZoomInteracting, zoomRatio) {
         if (isPrecisionZoomVisible && !isPrecisionZoomInteracting) {
             delay(500)
@@ -951,6 +970,36 @@ private fun AiShotFloatingControls(
                 .height(56.dp)
                 .background(Color.Black.copy(alpha = 0.34f), CircleShape)
                 .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape)
+                .pointerInput(minimumZoomRatio, maximumZoomRatio, zoomOctaveWidthPx) {
+                    var startZoom = latestZoomRatio
+                    var totalDragX = 0f
+                    detectDragGestures(
+                        onDragStart = {
+                            startZoom = latestZoomRatio
+                            totalDragX = 0f
+                            isPrecisionZoomVisible = true
+                            isPrecisionZoomInteracting = true
+                        },
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            totalDragX += dragAmount.x
+                            val nextZoom = zoomRatioAfterHorizontalDrag(
+                                startRatio = startZoom,
+                                dragDistancePx = totalDragX,
+                                octaveWidthPx = zoomOctaveWidthPx,
+                                minimum = minimumZoomRatio,
+                                maximum = maximumZoomRatio
+                            )
+                            onZoomRatioChange(nextZoom)
+                        },
+                        onDragEnd = {
+                            isPrecisionZoomInteracting = false
+                        },
+                        onDragCancel = {
+                            isPrecisionZoomInteracting = false
+                        }
+                    )
+                }
                 .padding(horizontal = 8.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically

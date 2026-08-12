@@ -15,4 +15,10 @@ class AiShotZoomPolicyTest {
         assertEquals(4f, zoomControlPositionToRatio(0.75f, minimum, maximum), 0.0001f)
         assertEquals(8f, zoomControlPositionToRatio(1f, minimum, maximum), 0.0001f)
     }
+
+    @Test
+    fun horizontalDragUsesOneOctavePer92Pixels() {
+        assertEquals(2f, zoomRatioAfterHorizontalDrag(1f, -92f, 92f, 0.5f, 8f), 0.0001f)
+        assertEquals(0.5f, zoomRatioAfterHorizontalDrag(1f, 92f, 92f, 0.5f, 8f), 0.0001f)
+    }
 }
