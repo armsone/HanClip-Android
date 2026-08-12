@@ -70,6 +70,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.getValue
@@ -162,6 +163,8 @@ fun PreviewRoute(
     var message by remember { mutableStateOf<String?>(null) }
     var showSaveOptions by remember { mutableStateOf(false) }
     var showFullscreenPreview by remember { mutableStateOf(false) }
+    var fullscreenStartPositionMs by remember { mutableLongStateOf(0L) }
+    var inlinePreviewPlayer by remember { mutableStateOf<Player?>(null) }
     var isSavingVideo by remember { mutableStateOf(false) }
     var pendingMovieFileName by remember { mutableStateOf(VideoSaveShare.newMovieFileName(movieSummary.presetTitle)) }
     var albumName by remember { mutableStateOf("HanClip") }
@@ -311,9 +314,18 @@ fun PreviewRoute(
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     if (exportedVideoUri != null) {
-                        ExportedVideoPlayer(exportedVideoUri)
+                        ExportedVideoPlayer(
+                            uri = exportedVideoUri,
+                            onPlayerChanged = { inlinePreviewPlayer = it }
+                        )
                         IconButton(
-                            onClick = { showFullscreenPreview = true },
+                            onClick = {
+                                inlinePreviewPlayer?.let { player ->
+                                    fullscreenStartPositionMs = player.currentPosition
+                                    player.pause()
+                                }
+                                showFullscreenPreview = true
+                            },
                             modifier = Modifier.align(Alignment.TopEnd).padding(10.dp)
                         ) {
                             Icon(Icons.Outlined.Fullscreen, contentDescription = "전체 화면", tint = Color.White)
@@ -400,12 +412,16 @@ fun PreviewRoute(
         FullscreenPreviewDialog(
             uri = exportedVideoUri,
             title = movieSummary.presetTitle,
+            startPositionMs = fullscreenStartPositionMs,
             onShare = {
                 val shareUri = preferredShareUri ?: exportedVideoUri
                 runCatching { VideoSaveShare.shareVideo(context, shareUri) }
                     .onFailure { message = "공유 화면을 열지 못했습니다." }
             },
-            onClose = { showFullscreenPreview = false }
+            onClose = {
+                showFullscreenPreview = false
+                inlinePreviewPlayer?.play()
+            }
         )
     }
     if (isSavingVideo) {
@@ -1039,13 +1055,15 @@ private fun SaveDestinationCard(
 private fun FullscreenPreviewDialog(
     uri: Uri,
     title: String? = null,
+    startPositionMs: Long = 0L,
     onShare: (() -> Unit)? = null,
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
-    val player = remember(uri) {
+    val player = remember(uri, startPositionMs) {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(uri))
+            seekTo(startPositionMs.coerceAtLeast(0L))
             playWhenReady = true
             prepare()
         }
@@ -1358,11 +1376,15 @@ private fun SavingMovieDialog(palette: HanClipPalette) {
 
 @OptIn(UnstableApi::class)
 @Composable
-private fun ExportedVideoPlayer(uri: Uri) {
+private fun ExportedVideoPlayer(
+    uri: Uri,
+    onPlayerChanged: (Player?) -> Unit = {}
+) {
     ExportedVideoPlayer(
         uri = uri,
         repeatMode = Player.REPEAT_MODE_OFF,
-        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
+        onPlayerChanged = onPlayerChanged
     )
 }
 
@@ -1371,7 +1393,8 @@ private fun ExportedVideoPlayer(uri: Uri) {
 private fun ExportedVideoPlayer(
     uri: Uri,
     repeatMode: Int,
-    resizeMode: Int
+    resizeMode: Int,
+    onPlayerChanged: (Player?) -> Unit = {}
 ) {
     val context = LocalContext.current
     val player = remember(uri) {
@@ -1383,9 +1406,12 @@ private fun ExportedVideoPlayer(
         }
     }
     player.repeatMode = repeatMode
-    player.playWhenReady = true
     DisposableEffect(player) {
-        onDispose { player.release() }
+        onPlayerChanged(player)
+        onDispose {
+            onPlayerChanged(null)
+            player.release()
+        }
     }
     ExportedVideoPlayerView(player = player, resizeMode = resizeMode)
 }
