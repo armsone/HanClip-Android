@@ -52,6 +52,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -466,6 +468,7 @@ private fun SampleMusicButton(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .semantics { this.selected = selected }
                 .clickable(onClick = onClick)
                 .height(64.dp)
                 .padding(horizontal = 8.dp, vertical = 7.dp),
@@ -474,7 +477,7 @@ private fun SampleMusicButton(
         ) {
             Icon(
                 if (selected) Icons.Outlined.CheckCircle else Icons.Outlined.GraphicEq,
-                contentDescription = if (selected) "선택됨" else null,
+                contentDescription = null,
                 tint = if (selected) palette.primary else palette.subText,
                 modifier = Modifier.size(16.dp)
             )

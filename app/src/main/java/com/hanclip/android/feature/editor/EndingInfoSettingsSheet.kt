@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Map
@@ -34,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -175,10 +177,15 @@ private fun EndingSegment(
     onClick: () -> Unit
 ) {
     Surface(
-        modifier = modifier.padding(3.dp),
+        modifier = modifier
+            .padding(3.dp)
+            .selectable(
+                selected = selected,
+                role = Role.RadioButton,
+                onClick = onClick
+            ),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
-        color = if (selected) palette.primary else Color.Transparent,
-        onClick = onClick
+        color = if (selected) palette.primary else Color.Transparent
     ) {
         Text(
             text,
@@ -202,14 +209,19 @@ private fun EndingThemePicker(
     ) {
         EndingInfoCardTheme.entries.forEach { theme ->
             Surface(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .selectable(
+                        selected = selected == theme,
+                        role = Role.RadioButton,
+                        onClick = { onSelect(theme) }
+                    ),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(9.dp),
                 color = if (selected == theme) palette.primary.copy(alpha = 0.14f) else palette.solidPanel,
                 border = BorderStroke(
                     1.dp,
                     if (selected == theme) palette.primary.copy(alpha = 0.42f) else palette.border
-                ),
-                onClick = { onSelect(theme) }
+                )
             ) {
                 Column(
                     modifier = Modifier.height(48.dp),
@@ -312,24 +324,29 @@ private fun EndingCaptionPresetGrid(
                         settings.shadowColorHex.equals(preset.shadowColor, true) &&
                         settings.fontSize == preset.fontSize
                     Surface(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .selectable(
+                                selected = selected,
+                                role = Role.RadioButton,
+                                onClick = {
+                                    onChange(
+                                        settings.copy(
+                                            fontName = preset.fontName,
+                                            textColorHex = preset.textColor,
+                                            shadowEnabled = preset.shadowOpacity > 0,
+                                            shadowColorHex = preset.shadowColor,
+                                            shadowOpacity = preset.shadowOpacity,
+                                            fontSize = preset.fontSize,
+                                            lineSpacing = WatermarkLineSpacing.Normal,
+                                            lineSpacingScale = WatermarkLineSpacing.DefaultScale
+                                        )
+                                    )
+                                }
+                            ),
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(9.dp),
                         color = if (selected) palette.primary.copy(alpha = 0.14f) else palette.solidPanel,
-                        border = BorderStroke(1.dp, if (selected) palette.primary else palette.border),
-                        onClick = {
-                            onChange(
-                                settings.copy(
-                                    fontName = preset.fontName,
-                                    textColorHex = preset.textColor,
-                                    shadowEnabled = preset.shadowOpacity > 0,
-                                    shadowColorHex = preset.shadowColor,
-                                    shadowOpacity = preset.shadowOpacity,
-                                    fontSize = preset.fontSize,
-                                    lineSpacing = WatermarkLineSpacing.Normal,
-                                    lineSpacingScale = WatermarkLineSpacing.DefaultScale
-                                )
-                            )
-                        }
+                        border = BorderStroke(1.dp, if (selected) palette.primary else palette.border)
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),

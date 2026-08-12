@@ -50,6 +50,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -508,7 +510,9 @@ private fun TrimDurationPresetButton(
     onClick: () -> Unit
 ) {
     OutlinedButton(
-        modifier = modifier.height(48.dp),
+        modifier = modifier
+            .height(48.dp)
+            .semantics { this.selected = selected },
         enabled = enabled,
         onClick = onClick,
         border = BorderStroke(1.dp, if (selected) palette.primary else palette.border),

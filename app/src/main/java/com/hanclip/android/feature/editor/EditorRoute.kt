@@ -2164,11 +2164,16 @@ private fun QuickRatioChoice(
     onClick: () -> Unit
 ) {
     Surface(
-        modifier = modifier.height(48.dp),
+        modifier = modifier
+            .height(48.dp)
+            .selectable(
+                selected = selected,
+                role = Role.RadioButton,
+                onClick = onClick
+            ),
         shape = RoundedCornerShape(12.dp),
         color = if (selected) palette.primary.copy(alpha = 0.14f) else Color.Transparent,
-        border = BorderStroke(1.dp, if (selected) palette.primary else Color.Transparent),
-        onClick = onClick
+        border = BorderStroke(1.dp, if (selected) palette.primary else Color.Transparent)
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
