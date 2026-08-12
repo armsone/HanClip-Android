@@ -53,6 +53,7 @@ import androidx.compose.material.icons.outlined.FullscreenExit
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.Photo
+import androidx.compose.material.icons.outlined.PauseCircle
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material.icons.outlined.VideoFile
@@ -64,6 +65,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.ui.window.Dialog
@@ -124,7 +126,6 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
-import androidx.media3.ui.TimeBar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -1185,7 +1186,7 @@ internal fun FullscreenPreviewDialog(
     LaunchedEffect(player) {
         while (true) {
             val durationMs = player.duration
-            playbackProgress = if (durationMs > 0L) {
+            if (!isScrubbing) playbackProgress = if (durationMs > 0L) {
                 (player.currentPosition.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
             } else {
                 0f
@@ -1376,11 +1377,7 @@ internal fun FullscreenPreviewDialog(
                         } else {
                             AspectRatioFrameLayout.RESIZE_MODE_FIT
                         },
-                        controlsVisible = areControlsVisible,
-                        onScrubbingChanged = { scrubbing ->
-                            isScrubbing = scrubbing
-                            if (scrubbing) areControlsVisible = true
-                        }
+                        useController = false
                     )
                 }
                 if (areControlsVisible) {
@@ -1421,10 +1418,42 @@ internal fun FullscreenPreviewDialog(
                     }
                     Row(
                         modifier = Modifier
-                            .align(Alignment.BottomEnd)
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
                             .padding(18.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Slider(
+                            value = playbackProgress,
+                            onValueChange = { value ->
+                                isScrubbing = true
+                                playbackProgress = value
+                                areControlsVisible = true
+                            },
+                            onValueChangeFinished = {
+                                val durationMs = player.duration
+                                if (durationMs > 0L) {
+                                    player.seekTo((durationMs * playbackProgress).toLong())
+                                }
+                                isScrubbing = false
+                            },
+                            enabled = player.duration > 0L,
+                            modifier = Modifier.weight(1f)
+                        )
+                        FullscreenCircleButton(
+                            onClick = {
+                                if (player.isPlaying) player.pause() else player.play()
+                                areControlsVisible = true
+                            },
+                            contentDescription = if (isPlayerPlaying) "일시정지" else "재생"
+                        ) {
+                            Icon(
+                                if (isPlayerPlaying) Icons.Outlined.PauseCircle else Icons.Outlined.PlayCircle,
+                                contentDescription = null,
+                                tint = Color.White
+                            )
+                        }
                         if (showsLoopControl) {
                             FullscreenCircleButton(
                                 onClick = {
@@ -1616,33 +1645,16 @@ private fun ExportedVideoPlayer(
 private fun ExportedVideoPlayerView(
     player: Player,
     resizeMode: Int,
-    controlsVisible: Boolean? = null,
-    onScrubbingChanged: (Boolean) -> Unit = {}
+    useController: Boolean = true
 ) {
     AndroidView(
         factory = { viewContext ->
             PlayerView(viewContext).apply {
                 this.player = player
                 contentDescription = "시사회 재생 또는 일시정지"
-                useController = true
-                controllerShowTimeoutMs = if (controlsVisible == null) 3_000 else 0
+                this.useController = useController
+                controllerShowTimeoutMs = 3_000
                 this.resizeMode = resizeMode
-                (findViewById<View>(androidx.media3.ui.R.id.exo_progress) as? TimeBar)
-                    ?.addListener(object : TimeBar.OnScrubListener {
-                        override fun onScrubStart(timeBar: TimeBar, position: Long) {
-                            onScrubbingChanged(true)
-                        }
-
-                        override fun onScrubMove(timeBar: TimeBar, position: Long) = Unit
-
-                        override fun onScrubStop(
-                            timeBar: TimeBar,
-                            position: Long,
-                            canceled: Boolean
-                        ) {
-                            onScrubbingChanged(false)
-                        }
-                    })
                 layoutParams = FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
@@ -1652,12 +1664,8 @@ private fun ExportedVideoPlayerView(
         update = { view ->
             view.player = player
             view.resizeMode = resizeMode
-            if (controlsVisible == null) {
-                view.controllerShowTimeoutMs = 3_000
-            } else {
-                view.controllerShowTimeoutMs = 0
-                if (controlsVisible) view.showController() else view.hideController()
-            }
+            view.useController = useController
+            view.controllerShowTimeoutMs = 3_000
         },
         modifier = Modifier.fillMaxSize()
     )
