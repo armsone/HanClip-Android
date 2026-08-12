@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -2241,7 +2242,7 @@ private fun SharedInboxDialog(
             modifier = Modifier.fillMaxSize(),
             color = Color.Transparent
         ) {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
@@ -2250,7 +2251,14 @@ private fun SharedInboxDialog(
                         )
                     )
                     .statusBarsPadding()
-                    .navigationBarsPadding()
+                    .navigationBarsPadding(),
+                contentAlignment = Alignment.Center
+            ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth()
+                    .widthIn(max = 720.dp)
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
@@ -2324,6 +2332,7 @@ private fun SharedInboxDialog(
                         )
                     }
                 }
+            }
             }
         }
     }
