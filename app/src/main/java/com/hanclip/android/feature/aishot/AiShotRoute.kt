@@ -56,12 +56,20 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Cameraswitch
+import androidx.compose.material.icons.outlined.AspectRatio
+import androidx.compose.material.icons.outlined.Camera
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.FiberManualRecord
 import androidx.compose.material.icons.outlined.GraphicEq
+import androidx.compose.material.icons.outlined.GppBad
+import androidx.compose.material.icons.outlined.HourglassEmpty
+import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material.icons.outlined.SettingsVoice
+import androidx.compose.material.icons.outlined.SportsGolf
 import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.Warning
+import androidx.compose.material.icons.outlined.ZoomOut
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
@@ -853,6 +861,17 @@ private fun AiShotTopBar(
     onClose: () -> Unit
 ) {
     val isReady = statusText.isEmpty()
+    val statusIcon = when (statusText) {
+        "준비 중" -> Icons.Outlined.HourglassEmpty
+        "권한 필요" -> Icons.Outlined.GppBad
+        "전환 중", "카메라 전환 불가" -> Icons.Outlined.Cameraswitch
+        "줌 조절 불가" -> Icons.Outlined.ZoomOut
+        "3:4 설정 불가" -> Icons.Outlined.AspectRatio
+        "카메라 사용 불가" -> Icons.Outlined.Camera
+        "저장 불가" -> Icons.Outlined.Save
+        "시작 불가" -> Icons.Outlined.Warning
+        else -> Icons.Outlined.SportsGolf
+    }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -881,7 +900,7 @@ private fun AiShotTopBar(
                         modifier = Modifier.size(18.dp)
                     )
                 } else {
-                    Icon(Icons.Outlined.Timer, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Icon(statusIcon, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                 }
                 Text(if (isReady) "AiShot" else statusText, color = Color.White, fontWeight = FontWeight.Bold)
             }
