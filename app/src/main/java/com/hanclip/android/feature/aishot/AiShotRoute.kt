@@ -147,7 +147,7 @@ private enum class ShotLength(
         get() = ceil(fullSeconds).toLong()
 
     val timingDescription: String
-        get() = "타격 전 ${durationText(beforeSeconds)}초 · 후 ${durationText(afterSeconds)}초"
+        get() = "앞 ${durationText(beforeSeconds)}초 · 뒤 ${durationText(afterSeconds)}초"
 
     val totalDurationDescription: String
         get() = "${durationText(fullSeconds)}초"
@@ -163,10 +163,10 @@ private enum class ShotLength(
 
 private enum class ZoomPreset(val title: String, val ratio: Double) {
     Half(".5", 0.5),
-    One("1x", 1.0),
-    Two("2x", 2.0),
-    Four("4x", 4.0),
-    Eight("8x", 8.0)
+    One("1", 1.0),
+    Two("2", 2.0),
+    Four("4", 4.0),
+    Eight("8", 8.0)
 }
 
 internal fun zoomRatioToControlPosition(ratio: Float, minimum: Float, maximum: Float): Float {
@@ -1066,7 +1066,10 @@ private fun AiShotFloatingControls(
                         ),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
                     ) {
-                        Text(option.title, fontWeight = FontWeight.Bold)
+                        Text(
+                            if (selected && option != ZoomPreset.Half) "${option.title}x" else option.title,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
