@@ -46,6 +46,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -91,11 +92,11 @@ fun MusicSettingsSheet(
 ) {
     if (fullScreen) FullScreenDialogSystemBars(palette.solidPanel)
     val context = LocalContext.current
-    val initialMusicVolume = remember { musicVolume }
-    val initialOriginalAudioVolume = remember { originalAudioVolume }
-    val initialLoopsToFillVideo = remember { loopsToFillVideo }
-    val initialFadeInEnabled = remember { fadeInEnabled }
-    val initialFadeOutEnabled = remember { fadeOutEnabled }
+    val initialMusicVolume = rememberSaveable { musicVolume }
+    val initialOriginalAudioVolume = rememberSaveable { originalAudioVolume }
+    val initialLoopsToFillVideo = rememberSaveable { loopsToFillVideo }
+    val initialFadeInEnabled = rememberSaveable { fadeInEnabled }
+    val initialFadeOutEnabled = rememberSaveable { fadeOutEnabled }
     var previewTarget by remember { mutableStateOf<MusicPreviewTarget?>(null) }
     val previewPlayer = remember {
         ExoPlayer.Builder(context).build().apply {

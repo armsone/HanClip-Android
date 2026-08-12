@@ -183,7 +183,7 @@ fun EditorRoute(
     var previewClipID by rememberSaveable { mutableStateOf<String?>(null) }
     var isTextOverlaySheetVisible by remember { mutableStateOf(false) }
     var isEndingInfoSettingsSheetVisible by remember { mutableStateOf(false) }
-    var isMusicSettingsSheetVisible by remember { mutableStateOf(false) }
+    var isMusicSettingsSheetVisible by rememberSaveable { mutableStateOf(false) }
     var isCalendarPickerVisible by rememberSaveable { mutableStateOf(false) }
     var mediaPickerTitle by rememberSaveable { mutableStateOf("날짜별") }
     var isReorderMode by rememberSaveable { mutableStateOf(false) }
@@ -197,7 +197,7 @@ fun EditorRoute(
     var isExitConfirmationVisible by remember { mutableStateOf(false) }
     var isQuickDurationVisible by remember { mutableStateOf(false) }
     var reopenQuickAfterPicker by remember { mutableStateOf(false) }
-    var reopenQuickAfterSettings by remember { mutableStateOf(false) }
+    var reopenQuickAfterSettings by rememberSaveable { mutableStateOf(false) }
     var showPermissionSettingsAction by remember { mutableStateOf(false) }
     var resumeCalendarAfterSettings by rememberSaveable { mutableStateOf(false) }
     var quickDurationShownProjectId by remember { mutableStateOf<String?>(null) }
