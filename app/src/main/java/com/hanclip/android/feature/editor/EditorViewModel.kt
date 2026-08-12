@@ -942,8 +942,17 @@ class EditorViewModel : ViewModel() {
 
     fun openDraft(context: Context): Boolean {
         val appContext = context.applicationContext
-        val draft = DraftProjectStore.load(appContext) ?: return false
-        val recoveryMessage = combinedProjectRecoveryMessage(appContext, draft)
+        val loadedDraft = DraftProjectStore.load(appContext) ?: return false
+        val recovery = recoverMissingMotionPhotoMedia(loadedDraft)
+        val draft = recovery.project
+        if (recovery.motionPhotoFallbackCount > 0) {
+            DraftProjectStore.save(appContext, draft)
+        }
+        val recoveryMessage = combinedProjectRecoveryMessage(
+            context = appContext,
+            project = draft,
+            motionPhotoFallbackCount = recovery.motionPhotoFallbackCount
+        )
         editingSessionBaseline = draft
         _uiState.update {
             it.copy(
@@ -974,8 +983,14 @@ class EditorViewModel : ViewModel() {
 
     fun openEditableProject(context: Context, projectId: String): Boolean {
         val appContext = context.applicationContext
-        val project = EditableProjectStore.load(appContext, projectId) ?: return false
-        val recoveryMessage = combinedProjectRecoveryMessage(appContext, project)
+        val loadedProject = EditableProjectStore.load(appContext, projectId) ?: return false
+        val recovery = recoverMissingMotionPhotoMedia(loadedProject)
+        val project = recovery.project
+        val recoveryMessage = combinedProjectRecoveryMessage(
+            context = appContext,
+            project = project,
+            motionPhotoFallbackCount = recovery.motionPhotoFallbackCount
+        )
         editingSessionBaseline = project
         DraftProjectStore.save(appContext, project)
         _uiState.update {
@@ -1030,7 +1045,11 @@ class EditorViewModel : ViewModel() {
 
     private fun projectMediaRecoveryMessage(project: DraftProject): String? {
         val missingClipCount = project.clips.count { clip ->
-            clip.sourceUri.isMissingLocalFile()
+            clip.sourceUri.isMissingLocalFile() && !(
+                clip.mediaKind == ClipMediaKind.LivePhoto &&
+                    clip.livePhotoMode == LivePhotoMode.Still &&
+                    clip.livePhotoStillUri?.isMissingLocalFile() == false
+            )
         }
         val missingBackgroundMusic = project.backgroundMusicSampleId == null &&
             project.backgroundMusicUri?.isMissingLocalFile() == true
@@ -1047,7 +1066,39 @@ class EditorViewModel : ViewModel() {
         return scheme == "file" && (path.isNullOrBlank() || !File(path.orEmpty()).isFile)
     }
 
-    private fun combinedProjectRecoveryMessage(context: Context, project: DraftProject): String? {
+    private data class RecoveredProject(
+        val project: DraftProject,
+        val motionPhotoFallbackCount: Int
+    )
+
+    private fun recoverMissingMotionPhotoMedia(project: DraftProject): RecoveredProject {
+        var fallbackCount = 0
+        val recoveredClips = project.clips.map { clip ->
+            val stillUri = clip.livePhotoStillUri
+            if (
+                clip.mediaKind == ClipMediaKind.LivePhoto &&
+                clip.livePhotoMode == LivePhotoMode.Motion &&
+                clip.sourceUri.isMissingLocalFile() &&
+                stillUri != null &&
+                !stillUri.isMissingLocalFile()
+            ) {
+                fallbackCount += 1
+                clip.copy(livePhotoMode = LivePhotoMode.Still)
+            } else {
+                clip
+            }
+        }
+        return RecoveredProject(
+            project = if (fallbackCount > 0) project.copy(clips = recoveredClips) else project,
+            motionPhotoFallbackCount = fallbackCount
+        )
+    }
+
+    private fun combinedProjectRecoveryMessage(
+        context: Context,
+        project: DraftProject,
+        motionPhotoFallbackCount: Int = 0
+    ): String? {
         val interruptedExportMessage = if (
             ExportRecoveryStore.consumeInterrupted(context, project.projectId)
         ) {
@@ -1057,6 +1108,9 @@ class EditorViewModel : ViewModel() {
         }
         return listOfNotNull(
             interruptedExportMessage,
+            motionPhotoFallbackCount.takeIf { it > 0 }?.let { count ->
+                "모션포토 영상 ${count}개를 찾지 못해 남아 있는 사진으로 표시합니다. 클립과 편집 설정은 유지됩니다."
+            },
             projectAssetRecoveryMessage(context, project),
             projectMediaRecoveryMessage(project)
         ).takeIf(List<String>::isNotEmpty)?.joinToString("\n\n")

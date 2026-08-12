@@ -7,6 +7,8 @@ import android.graphics.Bitmap
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.hanclip.android.core.model.ClipItem
+import com.hanclip.android.core.model.ClipMediaKind
+import com.hanclip.android.core.model.LivePhotoMode
 import com.hanclip.android.core.model.MoviePreset
 import com.hanclip.android.core.model.OutputQualityPreset
 import com.hanclip.android.core.model.VideoSegmentMode
@@ -246,6 +248,53 @@ class ProjectPersistenceInstrumentedTest {
         assertEquals("사용자 음악", opened.backgroundMusicTitle)
         assertEquals(true, opened.alertMessage?.contains("클립 원본 1개") == true)
         assertEquals(true, opened.alertMessage?.contains("배경음악") == true)
+    }
+
+    @Test
+    fun missingMotionPhotoVideoFallsBackToPersistedStillWithoutDiscardingClip() {
+        val motionSource = File(context.filesDir, "fixture-motion.mp4").apply {
+            writeBytes(byteArrayOf(1, 2, 3, 4))
+        }
+        val stillSource = File(context.filesDir, "fixture-motion-still.jpg")
+        FileOutputStream(stillSource).use { output ->
+            val bitmap = Bitmap.createBitmap(6, 6, Bitmap.Config.ARGB_8888)
+            try {
+                bitmap.eraseColor(android.graphics.Color.BLUE)
+                assertEquals(true, bitmap.compress(Bitmap.CompressFormat.JPEG, 100, output))
+            } finally {
+                bitmap.recycle()
+            }
+            output.fd.sync()
+        }
+        val projectId = "test-${UUID.randomUUID()}"
+        val stored = EditableProjectStore.upsert(
+            context,
+            sampleProject(projectId, defaultDurationSeconds = 4.0).copy(
+                clips = listOf(
+                    ClipItem(
+                        id = "motion-clip",
+                        sourceUri = Uri.fromFile(motionSource),
+                        livePhotoStillUri = Uri.fromFile(stillSource),
+                        isLivePhoto = true,
+                        livePhotoMode = LivePhotoMode.Motion,
+                        mediaKind = ClipMediaKind.LivePhoto,
+                        livePhotoDurationSeconds = 2.5,
+                        sourceDurationSeconds = 2.5
+                    )
+                )
+            )
+        )
+        File(requireNotNull(stored.clips.single().sourceUri.path)).delete()
+
+        val viewModel = EditorViewModel()
+        assertEquals(true, viewModel.openEditableProject(context, projectId))
+
+        val opened = viewModel.uiState.value
+        assertEquals(listOf("motion-clip"), opened.clips.map(ClipItem::id))
+        assertEquals(LivePhotoMode.Still, opened.clips.single().livePhotoMode)
+        assertEquals(true, File(requireNotNull(opened.clips.single().livePhotoStillUri?.path)).isFile)
+        assertEquals(true, opened.alertMessage?.contains("남아 있는 사진으로 표시") == true)
+        assertEquals(false, opened.alertMessage?.contains("클립 원본") == true)
     }
 
     @Test
