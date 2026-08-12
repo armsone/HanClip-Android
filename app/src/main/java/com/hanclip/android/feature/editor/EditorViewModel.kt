@@ -124,6 +124,7 @@ class EditorViewModel : ViewModel() {
     private var importJob: Job? = null
     private var lastUndoSnapshot: EditorUndoSnapshot? = null
     private var editingSessionBaseline: DraftProject? = null
+    private var videoRangeSelectionSnapshot: VideoRangeSelectionSnapshot? = null
 
     fun openPreset(context: Context, preset: MoviePreset) {
         var startedNewSession = false
@@ -134,11 +135,15 @@ class EditorViewModel : ViewModel() {
             startedNewSession = true
             presetInitialState(context.applicationContext, preset)
         }
-        if (startedNewSession) editingSessionBaseline = null
+        if (startedNewSession) {
+            editingSessionBaseline = null
+            videoRangeSelectionSnapshot = null
+        }
     }
 
     fun startNewPreset(context: Context, preset: MoviePreset) {
         editingSessionBaseline = null
+        videoRangeSelectionSnapshot = null
         _uiState.value = presetInitialState(context.applicationContext, preset)
     }
 
@@ -702,6 +707,18 @@ class EditorViewModel : ViewModel() {
 
     fun selectDefaultRangeForAllVideoClips() {
         _uiState.update { state ->
+            val snapshot = videoRangeSelectionSnapshot
+                ?.takeIf { it.projectId == state.activeProjectId }
+            if (snapshot != null) {
+                val clipsById = snapshot.clips.associateBy(ClipItem::id)
+                videoRangeSelectionSnapshot = null
+                return@update state.copy(
+                    clips = state.clips.map { clip -> clipsById[clip.id] ?: clip },
+                    defaultVideoSegmentMode = snapshot.defaultVideoSegmentMode,
+                    alertMessage = "영상의 이전 선택구간을 복원했습니다.",
+                    undoDeleteMessage = null
+                )
+            }
             val videoCount = state.clips.count {
                 it.mediaKind == ClipMediaKind.Video && !it.isVideoSegmentChild
             }
@@ -961,6 +978,7 @@ class EditorViewModel : ViewModel() {
     fun openDraft(context: Context): Boolean {
         val appContext = context.applicationContext
         val loadedDraft = DraftProjectStore.load(appContext) ?: return false
+        videoRangeSelectionSnapshot = null
         val recovery = recoverMissingMotionPhotoMedia(loadedDraft)
         val draft = recovery.project
         if (recovery.motionPhotoFallbackCount > 0) {
@@ -1002,6 +1020,7 @@ class EditorViewModel : ViewModel() {
     fun openEditableProject(context: Context, projectId: String): Boolean {
         val appContext = context.applicationContext
         val loadedProject = EditableProjectStore.load(appContext, projectId) ?: return false
+        videoRangeSelectionSnapshot = null
         val recovery = recoverMissingMotionPhotoMedia(loadedProject)
         val project = recovery.project
         val recoveryMessage = combinedProjectRecoveryMessage(
@@ -1313,13 +1332,22 @@ class EditorViewModel : ViewModel() {
 
     fun selectFullRangeForAllVideoClips() {
         _uiState.update { state ->
+            val existingSnapshot = videoRangeSelectionSnapshot
+                ?.takeIf { it.projectId == state.activeProjectId }
+            if (existingSnapshot == null) {
+                videoRangeSelectionSnapshot = VideoRangeSelectionSnapshot(
+                    projectId = state.activeProjectId,
+                    clips = state.clips.filter { it.mediaKind == ClipMediaKind.Video },
+                    defaultVideoSegmentMode = state.defaultVideoSegmentMode
+                )
+            }
             val videoCount = state.clips.count {
                 it.mediaKind == ClipMediaKind.Video && !it.isVideoSegmentChild
             }
             state.copy(
-                clips = state.clips.mapNotNull { clip ->
+                clips = state.clips.map { clip ->
                     if (clip.isVideoSegmentChild) {
-                        null
+                        clip.copy(isVideoSegmentSelected = false)
                     } else if (clip.mediaKind == ClipMediaKind.Video) {
                         val sourceDuration = clip.sourceDurationSeconds ?: clip.durationSeconds
                         clip.copy(
@@ -2413,4 +2441,10 @@ private fun exportRouteLocationNames(clips: List<ClipItem>): List<String> {
 private data class EditorUndoSnapshot(
     val state: EditorUiState,
     val restoredMessage: String
+)
+
+private data class VideoRangeSelectionSnapshot(
+    val projectId: String,
+    val clips: List<ClipItem>,
+    val defaultVideoSegmentMode: VideoSegmentMode
 )

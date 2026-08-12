@@ -389,13 +389,28 @@ class ProjectPersistenceInstrumentedTest {
 
         viewModel.selectFullRangeForAllVideoClips()
 
-        val clips = viewModel.uiState.value.clips
-        assertEquals(listOf("video-parent", "photo"), clips.map(ClipItem::id))
-        assertEquals(10.0, clips.first().durationSeconds, 0.0)
-        assertEquals(false, clips.first().isVideoSegmentParent)
-        assertEquals(VideoSegmentMode.Single, clips.first().videoSegmentMode)
-        assertEquals(7.0, clips.last().durationSeconds, 0.0)
-        assertEquals(7.0, clips.last().photoDurationSeconds, 0.0)
+        val fullRange = viewModel.uiState.value.clips
+        assertEquals(
+            listOf("video-parent", "video-child-1", "video-child-2", "photo"),
+            fullRange.map(ClipItem::id)
+        )
+        assertEquals(10.0, fullRange.first().durationSeconds, 0.0)
+        assertEquals(false, fullRange.first().isVideoSegmentParent)
+        assertEquals(VideoSegmentMode.Single, fullRange.first().videoSegmentMode)
+        assertEquals(false, fullRange[1].isVideoSegmentSelected)
+        assertEquals(false, fullRange[2].isVideoSegmentSelected)
+        assertEquals(7.0, fullRange.last().durationSeconds, 0.0)
+
+        viewModel.selectDefaultRangeForAllVideoClips()
+
+        val restored = viewModel.uiState.value.clips
+        assertEquals(true, restored.first().isVideoSegmentParent)
+        assertEquals(VideoSegmentMode.Multiple, restored.first().videoSegmentMode)
+        assertEquals(3.0, restored.first().durationSeconds, 0.0)
+        assertEquals(true, restored[1].isVideoSegmentSelected)
+        assertEquals(true, restored[2].isVideoSegmentSelected)
+        assertEquals(7.0, restored.last().durationSeconds, 0.0)
+        assertEquals(7.0, restored.last().photoDurationSeconds, 0.0)
     }
 
     @Test
