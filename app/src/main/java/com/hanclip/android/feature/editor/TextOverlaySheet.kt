@@ -76,6 +76,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hanclip.android.R
+import com.hanclip.android.core.model.CaptionDateFormatter
 import com.hanclip.android.core.model.CopyrightIconColorMode
 import com.hanclip.android.core.model.EndingInfoCardTheme
 import com.hanclip.android.core.model.WatermarkFontSize
@@ -88,11 +89,6 @@ import com.hanclip.android.core.project.ImportedFontStore
 import com.hanclip.android.core.project.CopyrightIconStore
 import com.hanclip.android.core.theme.HanClipPalette
 import org.json.JSONObject
-import java.time.LocalDate
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 import kotlin.math.pow
 import java.io.File
 
@@ -2137,14 +2133,7 @@ private fun saveCaptionPresetAppearances(
 }
 
 private fun mediaDateRangeCaptionText(createdAtMillis: List<Long>): String {
-    val dates = createdAtMillis
-        .map { millis -> Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate() }
-        .sorted()
-    val first = dates.firstOrNull() ?: LocalDate.now()
-    val last = dates.lastOrNull() ?: first
-    val formatter = DateTimeFormatter.ofPattern("yy.MM.dd(E)", Locale.KOREAN)
-    val firstText = first.format(formatter)
-    return if (first == last) firstText else "$firstText - ${last.format(formatter)}"
+    return CaptionDateFormatter.range(createdAtMillis)
 }
 
 private enum class CaptionTextPreset(val title: String) {
@@ -2154,9 +2143,7 @@ private enum class CaptionTextPreset(val title: String) {
     Empty("비우기");
 
     fun text(): String {
-        val dateText = LocalDate.now().format(
-            DateTimeFormatter.ofPattern("yy.MM.dd(E)", Locale.KOREAN)
-        )
+        val dateText = CaptionDateFormatter.single()
         return when (this) {
             Today -> dateText
             Swing -> "오늘의 스윙\n$dateText"

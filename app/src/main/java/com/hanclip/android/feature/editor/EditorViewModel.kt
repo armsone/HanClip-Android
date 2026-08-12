@@ -11,6 +11,7 @@ import com.hanclip.android.core.media.Media3TransformerExportService
 import com.hanclip.android.core.media.ExportForegroundService
 import com.hanclip.android.core.media.VideoExportRequest
 import com.hanclip.android.core.model.BackgroundMusicSample
+import com.hanclip.android.core.model.CaptionDateFormatter
 import com.hanclip.android.core.model.ClipItem
 import com.hanclip.android.core.model.EndingInfoCardTheme
 import com.hanclip.android.core.model.ClipMediaKind
@@ -45,9 +46,7 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.io.File
-import java.util.Locale
 import java.util.UUID
 import kotlin.math.abs
 import kotlin.math.max
@@ -262,8 +261,18 @@ class EditorViewModel : ViewModel() {
                         autoSegmentCount = groupedImported.count { clip -> clip.isVideoSegmentChild },
                         replacedSamples = shouldReplaceSamples
                     )
+                    val updatedClips = if (shouldReplaceSamples) groupedImported else it.clips + groupedImported
+                    val updatedWatermarkSettings = if (it.preset == MoviePreset.Travel) {
+                        it.watermarkSettings.copy(
+                            isEnabled = true,
+                            text = travelPresetCaptionText(updatedClips)
+                        )
+                    } else {
+                        it.watermarkSettings
+                    }
                     it.copy(
-                        clips = if (shouldReplaceSamples) groupedImported else it.clips + groupedImported,
+                        clips = updatedClips,
+                        watermarkSettings = updatedWatermarkSettings,
                         isImportingMedia = false,
                         importedMediaCount = it.importedMediaCount + groupedImported.count { clip -> clip.isRenderableClip },
                         progressMessage = "",
@@ -2144,9 +2153,7 @@ class EditorViewModel : ViewModel() {
     }
 
     private fun presetWatermark(preset: MoviePreset): WatermarkSettings {
-        val dateText = LocalDate.now().format(
-            DateTimeFormatter.ofPattern("yy.MM.dd(E)", Locale.KOREAN)
-        )
+        val dateText = CaptionDateFormatter.single()
         return when (preset) {
             MoviePreset.AiShot -> WatermarkSettings(
                 isEnabled = true,
@@ -2446,6 +2453,26 @@ private fun exportRouteLocationNames(clips: List<ClipItem>): List<String> {
         }
     }
     return names
+}
+
+private fun travelPresetCaptionText(clips: List<ClipItem>): String {
+    val sourceClips = clips.filterNot { it.isVideoSegmentChild }
+    val dateText = if (sourceClips.size <= 1) {
+        CaptionDateFormatter.range(emptyList())
+    } else {
+        CaptionDateFormatter.range(sourceClips.mapNotNull(ClipItem::sourceCreatedAtMillis))
+    }
+    val locationCounts = linkedMapOf<String, Int>()
+    clips.filter(ClipItem::isRenderableClip).forEach { clip ->
+        if (!clip.hasUsableSourceLocation) return@forEach
+        val location = clip.sourceLocationName?.trim()?.takeIf(String::isNotEmpty) ?: return@forEach
+        locationCounts[location] = (locationCounts[location] ?: 0) + 1
+    }
+    val mainLocations = locationCounts.entries
+        .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value })
+        .take(2)
+        .map(Map.Entry<String, Int>::key)
+    return if (mainLocations.isEmpty()) dateText else "$dateText\n${mainLocations.joinToString(" · ")}"
 }
 
 private data class EditorUndoSnapshot(
