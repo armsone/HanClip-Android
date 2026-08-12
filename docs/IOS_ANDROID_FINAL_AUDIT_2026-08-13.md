@@ -2,16 +2,16 @@
 
 - 기준 시점: 2026-08-13
 - iOS 기준 원본: `/Users/armsone/git/HanClip` (`31e60ec`)
-- Android 비교본: `/Users/armsone/git/HanClip-Android` (`5b61cf`)
+- Android 비교본: `/Users/armsone/git/HanClip-Android` (`98131db` 이후 수정 포함)
 - 방법: 과거 완료표와 `IOS_PARITY.md`를 증거에서 제외하고, 현재 iOS 진입점·화면·상태·서비스를 소스에서 추적한 뒤 Android 현재 소스와 대조했다.
 - 한계: 이 문서는 **소스 감사**다. iOS 빌드는 CoreSimulator 서비스가 차단된 환경에서 Asset Catalog 단계가 실패했으며, Android는 `testDebugUnitTest lintDebug`가 성공했다. 두 플랫폼 실기기 픽셀·제스처·TalkBack/VoiceOver·폴드 전환·저장 공간 부족 실험은 수행하지 못했다. 해당 항목은 아래에서 `미검증`을 명시하고 `동일`로 판정하지 않았다.
 - 판정 의미: `동일`은 현재 소스에서 결과와 수치가 일치한 경우만, `부분`은 핵심 일부만 있거나 런타임 확인이 남은 경우, `누락`은 iOS 기능의 호출 가능한 Android 경로가 없는 경우, `잘못 구현`은 Android 동작·수치·결과가 iOS와 다른 경우, `플랫폼 고유`는 시스템 UI만 다르고 사용자 결과·상태 수명이 같은 경우다.
 
 ## Android 수정 진행 상태
 
-- 소스 수정 및 단위시험·빌드·린트 완료: A04, A05, A07, A09, A11, A12, A13, B05, B06, C03, C09, C10, C12, C15, C16, C17, C19, D01, D02, D04, D05, D10, D11, D12, D13, D14, E03, E04, E06, E07, E11, F01, F05, F06. C05·C06의 iOS 분할/묶음 계산식도 소스 반영 후 최종 빌드 대기다.
+- 소스 수정 및 단위시험·빌드·린트 완료: A04, A05, A07, A09, A11, A12, A13, B05, B06, C03, C05, C06, C09, C10, C12, C15, C16, C17, C19, D01, D02, D04, D05, D10, D11, D12, D13, D14, E03, E04, E06, E07, E11, F01, F05, F06.
 - SM-F968N에 APK를 설치하고 A05 공유 사진 복사→새 영화/기존 영화/비우기 선택→새 영화 Live 클립 가져오기를 확인했다. B06·E04·E11의 실제 gesture/lifecycle 결과와 미디어 출력 결과는 아직 검증하지 않았으므로 해당 항목을 `동일`로 재판정하지 않는다.
-- 부분 구현, 추가 비교 필요: E02(기기 지원 범위 연속 zoom 추가, iOS의 물리 렌즈 배율과 실기기 비교 필요).
+- E02는 기기 지원 범위 버튼, 로그 정밀 zoom, 0.5초 자동 닫힘을 소스와 단위시험에 반영했다. 물리 렌즈 전환의 플랫폼별 결과만 실기기 비교가 남았다.
 - 결제 A14는 결제 상품·외부 설정 승인이 필요한 별도 작업이라 수정하지 않았다.
 
 ## 감사 항목
@@ -571,10 +571,10 @@
 #### E02 — AiShot 줌
 1. **iOS 실제 동작/수치:** 기기 지원 lens factor를 동적으로 나열하고 logarithmic drag/dial로 정밀 zoom을 제공한다.
 2. **iOS 근거:** `HanClip/Services/AiShotCamera.swift:477-541, 1646-1845, 1937-1941`
-3. **Android 근거:** `app/src/main/java/com/hanclip/android/feature/aishot/AiShotRoute.kt:155-160, 526-534`
-4. **판정:** 누락
-5. **보이는 차이:** Android는 고정 .5/1/2/4/8 버튼을 기기 범위로 clamp할 뿐 정밀 drag/dial이 없다.
-6. **수정 파일/영역:** `AiShotRoute.kt` camera lens discovery와 zoom bar/dial gesture.
+3. **Android 근거:** `app/src/main/java/com/hanclip/android/feature/aishot/AiShotRoute.kt`의 기기 zoom 범위, lens factor 버튼, 로그 정밀 조절.
+4. **판정:** 부분
+5. **보이는 차이:** 로그 배율과 0.5초 자동 닫힘은 같지만 물리 렌즈 전환 결과는 플랫폼 카메라 장치에 따라 달라 실기기 비교가 남았다.
+6. **수정 파일/영역:** 소스 반영 완료. SM-F968N과 기준 iPhone의 물리 렌즈 전환 비교만 남음.
 7. **시험:** 1.0에서 drag로 1.3배를 선택하고 촬영 중 유지되는지 확인한다.
 
 #### E03 — AiShot 촬영 결과 규격

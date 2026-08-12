@@ -111,6 +111,8 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.math.ceil
 import kotlin.math.abs
+import kotlin.math.exp
+import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
@@ -160,6 +162,24 @@ private enum class ZoomPreset(val title: String, val ratio: Double) {
     Two("2x", 2.0),
     Four("4x", 4.0),
     Eight("8x", 8.0)
+}
+
+internal fun zoomRatioToControlPosition(ratio: Float, minimum: Float, maximum: Float): Float {
+    if (minimum <= 0f || maximum <= minimum) return 0f
+    val safeRatio = ratio.coerceIn(minimum, maximum)
+    return ((ln(safeRatio) - ln(minimum)) / (ln(maximum) - ln(minimum))).coerceIn(0f, 1f)
+}
+
+internal fun zoomControlPositionToRatio(position: Float, minimum: Float, maximum: Float): Float {
+    if (minimum <= 0f || maximum <= minimum) return minimum
+    val logRatio = ln(minimum) + position.coerceIn(0f, 1f) * (ln(maximum) - ln(minimum))
+    return exp(logRatio).coerceIn(minimum, maximum)
+}
+
+private fun zoomRatioTitle(ratio: Float): String {
+    if (abs(ratio - 0.5f) < 0.05f) return ".5x"
+    val rounded = ratio.toInt()
+    return if (abs(ratio - rounded) < 0.05f) "${rounded}x" else "%.1fx".format(ratio)
 }
 
 private object AiShotModelInfo {
@@ -911,6 +931,15 @@ private fun AiShotFloatingControls(
     onManualRecord: () -> Unit,
     onSwitchCamera: () -> Unit
 ) {
+    var isPrecisionZoomVisible by remember { mutableStateOf(false) }
+    var isPrecisionZoomInteracting by remember { mutableStateOf(false) }
+    LaunchedEffect(isPrecisionZoomVisible, isPrecisionZoomInteracting, zoomRatio) {
+        if (isPrecisionZoomVisible && !isPrecisionZoomInteracting) {
+            delay(500)
+            isPrecisionZoomVisible = false
+        }
+    }
+
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -926,43 +955,72 @@ private fun AiShotFloatingControls(
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ZoomPreset.entries
-                .filter { it.ratio.toFloat() in minimumZoomRatio..maximumZoomRatio }
-                .forEach { option ->
-                val selected = kotlin.math.abs(option.ratio.toFloat() - zoomRatio) < 0.05f
-                Button(
-                    onClick = { onZoomRatioChange(option.ratio.toFloat()) },
+            if (isPrecisionZoomVisible) {
+                Text(
+                    zoomRatioTitle(zoomRatio),
+                    color = Color(0xFF25C481),
+                    fontWeight = FontWeight.Bold
+                )
+                Slider(
+                    value = zoomRatioToControlPosition(
+                        zoomRatio,
+                        minimumZoomRatio,
+                        maximumZoomRatio
+                    ),
+                    onValueChange = { position ->
+                        isPrecisionZoomVisible = true
+                        isPrecisionZoomInteracting = true
+                        onZoomRatioChange(
+                            zoomControlPositionToRatio(
+                                position,
+                                minimumZoomRatio,
+                                maximumZoomRatio
+                            )
+                        )
+                    },
+                    onValueChangeFinished = {
+                        isPrecisionZoomInteracting = false
+                    },
+                    valueRange = 0f..1f,
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp)
-                        .semantics { this.selected = selected },
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selected) Color.White.copy(alpha = 0.16f) else Color.Transparent,
-                        contentColor = if (selected) Color(0xFF25C481) else Color.White
-                    ),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
-                ) {
-                    Text(option.title, fontWeight = FontWeight.Bold)
+                        .semantics {
+                            contentDescription = "정밀 확대 조절"
+                            stateDescription = zoomRatioTitle(zoomRatio)
+                        }
+                )
+            } else {
+                val factors = ZoomPreset.entries
+                    .filter { it.ratio.toFloat() in minimumZoomRatio..maximumZoomRatio }
+                val activeFactor = factors.lastOrNull {
+                    it.ratio.toFloat() <= zoomRatio + 0.02f
+                }
+                factors.forEach { option ->
+                    val selected = option == activeFactor
+                    Button(
+                        onClick = {
+                            onZoomRatioChange(option.ratio.toFloat())
+                            isPrecisionZoomVisible = true
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .semantics { this.selected = selected },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (selected) {
+                                Color.White.copy(alpha = 0.16f)
+                            } else {
+                                Color.Transparent
+                            },
+                            contentColor = if (selected) Color(0xFF25C481) else Color.White
+                        ),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                    ) {
+                        Text(option.title, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(0.90f),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                "%.1fx".format(zoomRatio),
-                color = Color(0xFF25C481),
-                fontWeight = FontWeight.Bold
-            )
-            Slider(
-                value = zoomRatio.coerceIn(minimumZoomRatio, maximumZoomRatio),
-                onValueChange = onZoomRatioChange,
-                valueRange = minimumZoomRatio..maximumZoomRatio,
-                modifier = Modifier.weight(1f)
-            )
         }
 
         Row(
