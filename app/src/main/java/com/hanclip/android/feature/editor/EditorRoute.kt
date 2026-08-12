@@ -403,8 +403,8 @@ fun EditorRoute(
         LazyVerticalGrid(
             columns = GridCells.Fixed(editorColumnCount),
             modifier = Modifier
-                .fillMaxSize()
                 .widthIn(max = 920.dp)
+                .fillMaxSize()
                 .align(Alignment.TopCenter)
                 .statusBarsPadding()
                 .padding(horizontal = 16.dp),

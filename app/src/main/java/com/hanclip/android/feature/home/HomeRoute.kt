@@ -423,8 +423,8 @@ fun HomeRoute(
         if (!showSettingsInfo) {
         LazyColumn(
             modifier = Modifier
-                .fillMaxSize()
                 .widthIn(max = 920.dp)
+                .fillMaxSize()
                 .align(Alignment.TopCenter)
                 .statusBarsPadding()
                 .navigationBarsPadding()
