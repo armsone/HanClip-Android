@@ -8,6 +8,7 @@ import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -108,6 +109,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import androidx.media3.ui.TimeBar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -1079,6 +1081,7 @@ private fun FullscreenPreviewDialog(
     var areControlsVisible by remember { mutableStateOf(true) }
     var isPlayerPlaying by remember { mutableStateOf(false) }
     var playbackProgress by remember { mutableFloatStateOf(0f) }
+    var isScrubbing by remember { mutableStateOf(false) }
     val manualAspectModeSelection by rememberUpdatedState(hasManualAspectModeSelection)
     val looping by rememberUpdatedState(isLooping)
     val dismissThresholdPx = with(LocalDensity.current) { 120.dp.toPx() }
@@ -1127,10 +1130,10 @@ private fun FullscreenPreviewDialog(
     SideEffect {
         player.repeatMode = if (isLooping) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
     }
-    LaunchedEffect(areControlsVisible, zoomScale, isPlayerPlaying) {
-        if (areControlsVisible && zoomScale <= 1.01f && isPlayerPlaying) {
+    LaunchedEffect(areControlsVisible, zoomScale, isPlayerPlaying, isScrubbing) {
+        if (areControlsVisible && zoomScale <= 1.01f && isPlayerPlaying && !isScrubbing) {
             delay(2_600)
-            if (isPlayerPlaying) areControlsVisible = false
+            if (isPlayerPlaying && !isScrubbing) areControlsVisible = false
         }
     }
     LaunchedEffect(player) {
@@ -1249,6 +1252,10 @@ private fun FullscreenPreviewDialog(
                             AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                         } else {
                             AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        },
+                        onScrubbingChanged = { scrubbing ->
+                            isScrubbing = scrubbing
+                            if (scrubbing) areControlsVisible = true
                         }
                     )
                 }
@@ -1450,7 +1457,8 @@ private fun ExportedVideoPlayer(
 @Composable
 private fun ExportedVideoPlayerView(
     player: Player,
-    resizeMode: Int
+    resizeMode: Int,
+    onScrubbingChanged: (Boolean) -> Unit = {}
 ) {
     AndroidView(
         factory = { viewContext ->
@@ -1459,6 +1467,22 @@ private fun ExportedVideoPlayerView(
                 useController = true
                 controllerShowTimeoutMs = 3_000
                 this.resizeMode = resizeMode
+                (findViewById<View>(androidx.media3.ui.R.id.exo_progress) as? TimeBar)
+                    ?.addListener(object : TimeBar.OnScrubListener {
+                        override fun onScrubStart(timeBar: TimeBar, position: Long) {
+                            onScrubbingChanged(true)
+                        }
+
+                        override fun onScrubMove(timeBar: TimeBar, position: Long) = Unit
+
+                        override fun onScrubStop(
+                            timeBar: TimeBar,
+                            position: Long,
+                            canceled: Boolean
+                        ) {
+                            onScrubbingChanged(false)
+                        }
+                    })
                 layoutParams = FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
