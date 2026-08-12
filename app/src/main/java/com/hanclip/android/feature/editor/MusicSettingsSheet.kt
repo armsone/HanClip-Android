@@ -132,7 +132,8 @@ fun MusicSettingsSheet(
                 .then(if (fullScreen) Modifier.background(palette.background) else Modifier)
                 .verticalScroll(rememberScrollState())
                 .navigationBarsPadding()
-                .padding(18.dp),
+                .padding(horizontal = 20.dp)
+                .padding(top = 16.dp, bottom = 30.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             if (fullScreen) {
@@ -230,7 +231,7 @@ fun MusicSettingsSheet(
                     }
                     Box(Modifier.fillMaxWidth().height(1.dp).background(palette.border))
                     OutlinedButton(
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        modifier = Modifier.fillMaxWidth().height(42.dp),
                         onClick = onOpenBrowser,
                         shape = RoundedCornerShape(8.dp),
                         border = BorderStroke(1.dp, palette.border),
@@ -244,7 +245,7 @@ fun MusicSettingsSheet(
                     }
                     Box(Modifier.fillMaxWidth().height(1.dp).background(palette.border))
                     OutlinedButton(
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        modifier = Modifier.fillMaxWidth().height(42.dp),
                         onClick = onPickFile,
                         shape = RoundedCornerShape(8.dp),
                         border = BorderStroke(1.dp, palette.border),
@@ -490,7 +491,7 @@ private fun SampleMusicButton(
         contentColor = palette.text,
         border = BorderStroke(
             1.dp,
-            if (selected) palette.primary.copy(alpha = 0.34f) else palette.border.copy(alpha = 0.70f)
+            if (selected) palette.primary.copy(alpha = 0.34f) else palette.secondary.copy(alpha = 0.10f)
         )
     ) {
         Row(
@@ -498,45 +499,42 @@ private fun SampleMusicButton(
                 .fillMaxWidth()
                 .semantics { this.selected = selected }
                 .clickable(onClick = onClick)
-                .height(64.dp)
-                .padding(horizontal = 8.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                .padding(horizontal = 10.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Icon(
                 if (selected) Icons.Outlined.CheckCircle else Icons.Outlined.GraphicEq,
                 contentDescription = null,
                 tint = if (selected) palette.primary else palette.subText,
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier.size(15.dp)
             )
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(1.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
                     sample.title,
                     color = if (selected) palette.primary else palette.text,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 10.5.sp,
-                    lineHeight = 13.sp,
+                    fontSize = 12.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     sample.detail,
                     color = palette.subText,
-                    fontSize = 9.sp,
-                    lineHeight = 11.sp,
-                    maxLines = 1,
+                    fontSize = 10.sp,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            IconButton(onClick = onTogglePreview, modifier = Modifier.size(48.dp)) {
+            IconButton(onClick = onTogglePreview, modifier = Modifier.size(30.dp)) {
                 Icon(
                     if (isPreviewing) Icons.Outlined.PauseCircle else Icons.Outlined.PlayCircle,
                     contentDescription = if (isPreviewing) "미리듣기 정지" else "미리듣기",
                     tint = if (selected || isPreviewing) palette.primary else palette.text,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
