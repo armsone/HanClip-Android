@@ -75,8 +75,9 @@ fun EndingInfoSettingsSheet(
                 .background(palette.background)
                 .verticalScroll(rememberScrollState())
                 .navigationBarsPadding()
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 20.dp)
+                .padding(top = 16.dp, bottom = 30.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             FullScreenSettingsHeader(
                 title = "엔딩",
@@ -210,12 +211,12 @@ private fun EndingThemePicker(
                 )
             ) {
                 Column(
-                    modifier = Modifier.height(38.dp),
+                    modifier = Modifier.height(35.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
                     Text(endingThemeMark(theme), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    Text(theme.title, fontSize = 8.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text(theme.title, fontSize = 8.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                 }
             }
         }
@@ -229,35 +230,35 @@ private fun EndingDurationControl(
     onDecrease: () -> Unit,
     onIncrease: () -> Unit
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth().height(44.dp),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
-        color = palette.chip,
-        border = BorderStroke(1.dp, palette.border)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("표시 시간", color = palette.subText, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.weight(1f))
             androidx.compose.material3.IconButton(
                 onClick = onDecrease,
                 enabled = duration > 1.0,
-                modifier = Modifier.size(52.dp)
+                modifier = Modifier.size(width = 30.dp, height = 28.dp)
             ) {
-                androidx.compose.material3.Icon(Icons.Outlined.Remove, "엔딩 시간 줄이기")
+                androidx.compose.material3.Icon(Icons.Outlined.Remove, "엔딩 시간 줄이기", modifier = Modifier.size(16.dp))
             }
             Text(
                 "%.1f초".format(duration),
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.size(width = 45.dp, height = 28.dp),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 color = palette.text,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Bold
             )
             androidx.compose.material3.IconButton(
                 onClick = onIncrease,
                 enabled = duration < 10.0,
-                modifier = Modifier.size(52.dp)
+                modifier = Modifier.size(width = 30.dp, height = 28.dp)
             ) {
-                androidx.compose.material3.Icon(Icons.Outlined.Add, "엔딩 시간 늘리기")
+                androidx.compose.material3.Icon(Icons.Outlined.Add, "엔딩 시간 늘리기", modifier = Modifier.size(16.dp))
             }
-        }
     }
 }
 
