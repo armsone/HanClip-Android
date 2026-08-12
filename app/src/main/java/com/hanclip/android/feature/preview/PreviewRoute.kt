@@ -793,7 +793,7 @@ private fun SaveOptionsSheet(
     onSaveToFile: () -> Unit
 ) {
     var downwardDragPx by remember { mutableFloatStateOf(0f) }
-    val dismissThresholdPx = with(LocalDensity.current) { 96.dp.toPx() }
+    val dismissThresholdPx = with(LocalDensity.current) { 60.dp.toPx() }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -905,7 +905,7 @@ private fun SaveOptionsSheet(
                                     Box(Modifier.width(14.dp))
                                     OutlinedTextField(
                                         value = albumName,
-                                        onValueChange = { onAlbumNameChange(it.take(80)) },
+                                        onValueChange = onAlbumNameChange,
                                         modifier = Modifier.weight(1f),
                                         singleLine = true,
                                         label = { Text("앨범명") },
