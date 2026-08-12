@@ -115,6 +115,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -4063,6 +4064,7 @@ private fun ClipPreviewDialog(
     onDismiss: () -> Unit
 ) {
     var isDeleteConfirmationVisible by remember(clip.id) { mutableStateOf(false) }
+    var replayRequestKey by remember { mutableIntStateOf(0) }
     var playbackMode by remember {
         mutableStateOf(
             if (autoplayOnLoad) ClipPreviewPlaybackMode.AutoNext
@@ -4130,7 +4132,7 @@ private fun ClipPreviewDialog(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(
                             onClick = {
-                                playbackMode = ClipPreviewPlaybackMode.AutoNext
+                                replayRequestKey += 1
                                 clips.firstOrNull()?.let { onSelectClip(it.id) }
                             }
                         ) {
@@ -4165,6 +4167,7 @@ private fun ClipPreviewDialog(
                 ClipPreviewPlayer(
                     clip = clip,
                     playbackMode = playbackMode,
+                    replayRequestKey = replayRequestKey,
                     onPlaybackEnded = {
                         when (
                             nextClipIndexOnPlaybackEnded(
@@ -4374,6 +4377,7 @@ private fun ClipPreviewDialog(
 private fun ClipPreviewPlayer(
     clip: ClipItem,
     playbackMode: ClipPreviewPlaybackMode,
+    replayRequestKey: Int,
     onPlaybackEnded: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -4418,6 +4422,12 @@ private fun ClipPreviewPlayer(
             Player.REPEAT_MODE_ONE
         } else {
             Player.REPEAT_MODE_OFF
+        }
+    }
+    LaunchedEffect(player, replayRequestKey) {
+        if (replayRequestKey > 0) {
+            player?.seekTo(0L)
+            player?.play()
         }
     }
 
