@@ -117,7 +117,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
-import kotlin.math.ceil
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.ln
@@ -152,9 +151,6 @@ private enum class ShotLength(
 
     val fullSeconds: Double
         get() = beforeSeconds + afterSeconds
-
-    val recordingSeconds: Long
-        get() = ceil(fullSeconds).toLong()
 
     val timingDescription: String
         get() = "앞 ${durationText(beforeSeconds)}초 · 뒤 ${durationText(afterSeconds)}초"
@@ -344,8 +340,7 @@ fun AiShotRoute(
     var capturedShots by remember { mutableStateOf<List<CapturedShot>>(emptyList()) }
     val capturedUris = orderedCaptureValues(capturedShots.map { it.sequence to it.uri })
     var didHandOffCapturedUris by remember { mutableStateOf(false) }
-    var recordingRemainingSeconds by remember { mutableStateOf(0L) }
-    var activeRecordingSeconds by remember { mutableStateOf(shotLength.recordingSeconds) }
+    var recordingRemainingMillis by remember { mutableLongStateOf(0L) }
     var shotLengthNotice by remember { mutableStateOf<ShotLength?>(null) }
     var capturePhase by remember { mutableStateOf(AiShotCapturePhase.Detecting) }
     var hasShownIntroSwing by remember { mutableStateOf(false) }
@@ -370,8 +365,7 @@ fun AiShotRoute(
         activeShotLength = timing
         statusText = ""
         capturePhase = AiShotCapturePhase.Detected
-        activeRecordingSeconds = timing.recordingSeconds
-        recordingRemainingSeconds = ceil(timing.afterSeconds).toLong()
+        recordingRemainingMillis = (timing.afterSeconds * 1_000.0).toLong()
         scope.launch {
             val captureEndMillis = SystemClock.elapsedRealtime() + (timing.afterSeconds * 1000).toLong()
             delay(600L)
@@ -382,7 +376,7 @@ fun AiShotRoute(
             while (recording == activeRecording && SystemClock.elapsedRealtime() < stopAtMillis) {
                 delay(100L)
                 val remainingMillis = (captureEndMillis - SystemClock.elapsedRealtime()).coerceAtLeast(0L)
-                recordingRemainingSeconds = ceil(remainingMillis / 1000.0).toLong()
+                recordingRemainingMillis = remainingMillis
             }
             if (recording == activeRecording) activeRecording.stop()
         }
@@ -431,8 +425,7 @@ fun AiShotRoute(
                 triggerTimeSeconds = null
                 activeCaptureSequence = null
                 activeShotLength = null
-                recordingRemainingSeconds = 0L
-                activeRecordingSeconds = shotLength.recordingSeconds
+                recordingRemainingMillis = 0L
                 pendingLensFacing?.let { targetLensFacing ->
                     pendingLensFacing = null
                     lensFacing = targetLensFacing
@@ -535,7 +528,6 @@ fun AiShotRoute(
 
     LaunchedEffect(shotLength) {
         AiShotPreferenceStore.saveShotLength(context, projectId, shotLength)
-        activeRecordingSeconds = shotLength.recordingSeconds
     }
 
     LaunchedEffect(nextShotLengthEdge) {
@@ -754,9 +746,7 @@ fun AiShotRoute(
                 level = level,
                 sensitivity = sensitivity,
                 onSensitivityChange = { sensitivity = it },
-                capturePhase = capturePhase,
-                recordingRemainingSeconds = recordingRemainingSeconds,
-                activeRecordingSeconds = activeRecordingSeconds
+                capturePhase = capturePhase
             )
         }
 
@@ -778,6 +768,11 @@ fun AiShotRoute(
                 onZoomRatioChange = { zoomRatio = it },
                 lensLabel = if (lensFacing == CameraSelector.LENS_FACING_FRONT) "전면" else "후면",
                 isRecording = triggerTimeSeconds != null,
+                saveProgress = activeShotLength?.let { timing ->
+                    val fullMillis = timing.fullSeconds * 1_000.0
+                    val elapsedAfterTriggerMillis = timing.afterSeconds * 1_000.0 - recordingRemainingMillis
+                    (elapsedAfterTriggerMillis / fullMillis).toFloat().coerceIn(0f, 1f)
+                } ?: 0f,
                 isReadyForTrigger = isRollingRecordingActive &&
                     triggerTimeSeconds == null &&
                     recordingDurationNanos / 1_000_000_000.0 >= shotLength.beforeSeconds,
@@ -874,9 +869,7 @@ private fun AiShotBottomPanel(
     level: Double,
     sensitivity: ShotSensitivity,
     onSensitivityChange: (ShotSensitivity) -> Unit,
-    capturePhase: AiShotCapturePhase,
-    recordingRemainingSeconds: Long,
-    activeRecordingSeconds: Long
+    capturePhase: AiShotCapturePhase
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -951,12 +944,6 @@ private fun AiShotBottomPanel(
                     )
                 }
             }
-            if (capturePhase != AiShotCapturePhase.Detecting) {
-                RecordingProgress(
-                    remainingSeconds = recordingRemainingSeconds,
-                    totalSeconds = activeRecordingSeconds
-                )
-            }
         }
     }
 }
@@ -999,6 +986,7 @@ private fun AiShotFloatingControls(
     onZoomRatioChange: (Float) -> Unit,
     lensLabel: String,
     isRecording: Boolean,
+    saveProgress: Float,
     isReadyForTrigger: Boolean,
     isShowingIntroSwing: Boolean,
     isSwitchingCamera: Boolean,
@@ -1143,36 +1131,36 @@ private fun AiShotFloatingControls(
                 contentDescription = "샷 시간 ${shotLength.title}, ${shotLength.timingDescription}",
                 onClick = onShotLengthTap
             )
-            Button(
-                onClick = onManualRecord,
-                enabled = isReadyForTrigger && !isRecording,
-                modifier = Modifier
-                    .size(88.dp)
-                    .semantics {
-                        contentDescription = "AiShot 수동 촬영"
-                    },
-                shape = CircleShape,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Black.copy(alpha = 0.34f),
-                    contentColor = Color.White
-                ),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Box(
-                        modifier = Modifier
-                            .size(78.dp)
-                            .border(
-                                5.dp,
-                                if (isRecording) Color(0xFFE45D42) else Color(0xFF25C481).copy(alpha = 0.72f),
-                                CircleShape
-                            )
-                    )
-                    GolfSwingSpriteIndicator(
-                        isAnimating = isRecording || isShowingIntroSwing,
-                        playbackDurationSeconds = shotLength.fullSeconds,
-                        modifier = Modifier.size(62.dp)
-                    )
+            if (isRecording) {
+                AiShotSaveProgress(progress = saveProgress)
+            } else {
+                Button(
+                    onClick = onManualRecord,
+                    enabled = isReadyForTrigger,
+                    modifier = Modifier
+                        .size(88.dp)
+                        .semantics {
+                            contentDescription = "AiShot 수동 촬영"
+                        },
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.Black.copy(alpha = 0.34f),
+                        contentColor = Color.White
+                    ),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Box(
+                            modifier = Modifier
+                                .size(78.dp)
+                                .border(5.dp, Color(0xFF25C481).copy(alpha = 0.72f), CircleShape)
+                        )
+                        GolfSwingSpriteIndicator(
+                            isAnimating = isShowingIntroSwing,
+                            playbackDurationSeconds = shotLength.fullSeconds,
+                            modifier = Modifier.size(62.dp)
+                        )
+                    }
                 }
             }
             FloatingSideButton(
@@ -1282,39 +1270,38 @@ private fun FloatingSideButton(
 }
 
 @Composable
-private fun RecordingProgress(
-    remainingSeconds: Long,
-    totalSeconds: Long
-) {
-    val elapsedFraction = if (totalSeconds <= 0L) {
-        0f
-    } else {
-        ((totalSeconds - remainingSeconds).toFloat() / totalSeconds.toFloat()).coerceIn(0f, 1f)
-    }
+private fun AiShotSaveProgress(progress: Float) {
+    val safeProgress = progress.coerceIn(0f, 1f)
     Column(
-        modifier = Modifier.semantics {
-            stateDescription =
-                "${(elapsedFraction * 100).toInt()}%, ${remainingSeconds.coerceAtLeast(0L)}초 남음"
-        },
+        modifier = Modifier
+            .width(120.dp)
+            .height(52.dp)
+            .background(Color.Black.copy(alpha = 0.70f), RoundedCornerShape(12.dp))
+            .border(1.dp, Color(0xFF25C481).copy(alpha = 0.70f), RoundedCornerShape(12.dp))
+            .padding(horizontal = 14.dp, vertical = 7.dp)
+            .semantics {
+                contentDescription = "AiShot 클립 저장 중"
+                stateDescription = "${(safeProgress * 100).toInt()}%"
+            },
         verticalArrangement = Arrangement.spacedBy(7.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text("AiShot 클립 저장 중", color = Color.White, fontWeight = FontWeight.Bold)
-            Text("${remainingSeconds.coerceAtLeast(0L)}초", color = Color.White.copy(alpha = 0.86f))
-        }
+        Text(
+            "저장 중",
+            color = Color.White.copy(alpha = 0.86f),
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        )
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(8.dp)
+                .height(4.dp)
                 .background(Color.White.copy(alpha = 0.18f), RoundedCornerShape(999.dp))
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth(elapsedFraction.coerceAtLeast(0.04f))
-                    .height(8.dp)
+                    .fillMaxWidth(safeProgress.coerceAtLeast(0.01f))
+                    .height(4.dp)
                     .background(Color(0xFF1DBA7A), RoundedCornerShape(999.dp))
             )
         }
