@@ -86,6 +86,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
@@ -1074,7 +1075,13 @@ private fun RecordingProgress(
     } else {
         ((totalSeconds - remainingSeconds).toFloat() / totalSeconds.toFloat()).coerceIn(0f, 1f)
     }
-    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+    Column(
+        modifier = Modifier.semantics {
+            stateDescription =
+                "${(elapsedFraction * 100).toInt()}%, ${remainingSeconds.coerceAtLeast(0L)}초 남음"
+        },
+        verticalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
