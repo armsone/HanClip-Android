@@ -1057,7 +1057,9 @@ private fun FullscreenPreviewDialog(
     var zoomScale by remember { mutableFloatStateOf(1f) }
     var zoomOffset by remember { mutableStateOf(Offset.Zero) }
     var areControlsVisible by remember { mutableStateOf(true) }
+    var isPlayerPlaying by remember { mutableStateOf(false) }
     val manualAspectModeSelection by rememberUpdatedState(hasManualAspectModeSelection)
+    val looping by rememberUpdatedState(isLooping)
     val dismissThresholdPx = with(LocalDensity.current) { 120.dp.toPx() }
     DisposableEffect(player) {
         val listener = object : Player.Listener {
@@ -1066,8 +1068,20 @@ private fun FullscreenPreviewDialog(
                     isFillMode = videoSize.width > videoSize.height
                 }
             }
+
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                isPlayerPlaying = isPlaying
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                when {
+                    playbackState == Player.STATE_BUFFERING -> areControlsVisible = true
+                    playbackState == Player.STATE_ENDED && !looping -> areControlsVisible = true
+                }
+            }
         }
         player.addListener(listener)
+        isPlayerPlaying = player.isPlaying
         player.videoSize.takeIf { it.width > 0 && it.height > 0 }?.let { videoSize ->
             isFillMode = videoSize.width > videoSize.height
         }
@@ -1092,10 +1106,10 @@ private fun FullscreenPreviewDialog(
     SideEffect {
         player.repeatMode = if (isLooping) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
     }
-    LaunchedEffect(areControlsVisible, zoomScale) {
-        if (areControlsVisible && zoomScale <= 1.01f) {
+    LaunchedEffect(areControlsVisible, zoomScale, isPlayerPlaying) {
+        if (areControlsVisible && zoomScale <= 1.01f && isPlayerPlaying) {
             delay(2_600)
-            areControlsVisible = false
+            if (isPlayerPlaying) areControlsVisible = false
         }
     }
     Dialog(
