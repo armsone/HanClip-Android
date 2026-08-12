@@ -288,17 +288,20 @@ fun PreviewRoute(
                 HanClipBrandCapsule(palette)
             }
             Surface(
-                modifier = Modifier.size(54.dp),
+                modifier = Modifier.size(58.dp),
                 shape = RoundedCornerShape(50),
-                color = palette.panel,
-                border = BorderStroke(1.dp, palette.border),
+                color = palette.panel.copy(alpha = palette.panel.alpha * 0.72f),
+                border = BorderStroke(
+                    1.dp,
+                    palette.border.copy(alpha = palette.border.alpha * 0.62f)
+                ),
                 onClick = onEdit
             ) {
                 Icon(
                     Icons.Outlined.Close,
                     contentDescription = if (canReturnToEditor) "다시 편집" else "완성본 목록",
-                    tint = palette.text,
-                    modifier = Modifier.padding(14.dp)
+                    tint = palette.primary,
+                    modifier = Modifier.padding(16.5.dp)
                 )
             }
         }
@@ -308,23 +311,23 @@ fun PreviewRoute(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
-                modifier = Modifier.size(34.dp),
-                shape = RoundedCornerShape(9.dp),
-                color = palette.chip
+                modifier = Modifier.size(18.dp),
+                shape = RoundedCornerShape(5.dp),
+                color = palette.secondary.copy(alpha = 0.10f)
             ) {
                 Icon(
                     Icons.Outlined.PlayCircle,
                     contentDescription = null,
-                    tint = palette.primary,
-                    modifier = Modifier.padding(7.dp)
+                    tint = palette.primary.copy(alpha = 0.72f),
+                    modifier = Modifier.padding(4.dp)
                 )
             }
-            Box(Modifier.width(8.dp))
+            Box(Modifier.width(7.dp))
             Text(
                 text = "시사회",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = palette.text
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Black,
+                color = palette.text.copy(alpha = 0.76f)
             )
         }
         Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
