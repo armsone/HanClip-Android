@@ -245,6 +245,7 @@ fun EditorRoute(
     var quickTargetDurationSeconds by rememberSaveable { mutableStateOf(1.0) }
     var pendingExportAfterNotificationPermission by rememberSaveable { mutableStateOf(false) }
     var autoAdvancePreviewOnOpen by rememberSaveable { mutableStateOf(false) }
+    var clipPreviewAutoAdvanceEnabled by rememberSaveable { mutableStateOf(false) }
     val trimmingClip = state.clips.firstOrNull { it.id == trimmingClipID }
     val previewClip = state.clips.firstOrNull { it.id == previewClipID }
     val pendingDeleteClip = state.clips.firstOrNull { it.id == pendingDeleteClipID }
@@ -1008,9 +1009,13 @@ fun EditorRoute(
                 VideoTrimSheet(
                     clip = clip,
                     palette = palette,
-                    autoAdvanceOnLoad = autoAdvancePreviewOnOpen,
+                    autoAdvanceOnLoad = clipPreviewAutoAdvanceEnabled || autoAdvancePreviewOnOpen,
                     onAutoAdvanceConsumed = { autoAdvancePreviewOnOpen = false },
-                    onDismiss = { trimmingClipID = null },
+                    onAutoAdvanceChanged = { clipPreviewAutoAdvanceEnabled = it },
+                    onDismiss = {
+                        trimmingClipID = null
+                        clipPreviewAutoAdvanceEnabled = false
+                    },
                     onFirst = previewClips.firstOrNull()
                         ?.takeIf { first -> first.id != clip.id && previewClips.size > 1 }
                         ?.let { first ->
@@ -1034,11 +1039,13 @@ fun EditorRoute(
                     onAutoNext = automaticNextClip?.let { next ->
                         { startSeconds, durationSeconds ->
                             viewModel.updateVideoTrim(clip.id, startSeconds, durationSeconds)
+                            clipPreviewAutoAdvanceEnabled = true
                             openClipFromTrim(next, autoAdvance = true)
                         }
                     },
                     onDelete = {
                         trimmingClipID = null
+                        clipPreviewAutoAdvanceEnabled = false
                         pendingDeleteClipID = clip.id
                     },
                     bottomThumbnailStrip = { startSeconds, durationSeconds ->
@@ -1073,6 +1080,8 @@ fun EditorRoute(
                 total = previewClips.size,
                 autoplayOnLoad = autoAdvancePreviewOnOpen,
                 onAutoplayConsumed = { autoAdvancePreviewOnOpen = false },
+                autoAdvanceEnabled = clipPreviewAutoAdvanceEnabled,
+                onAutoAdvanceChange = { clipPreviewAutoAdvanceEnabled = it },
                 onFirst = if (previewClipIndex > 0) {
                     { previewClipID = previewClips.first().id }
                 } else null,
@@ -1097,12 +1106,17 @@ fun EditorRoute(
                         ?: previewClips.getOrNull(previewClipIndex - 1)?.id
                     viewModel.removeClip(clip.id)
                     previewClipID = nextClipId
+                    if (nextClipId == null) clipPreviewAutoAdvanceEnabled = false
                 },
                 onMakeMovie = {
                     previewClipID = null
+                    clipPreviewAutoAdvanceEnabled = false
                     beginMovieExport()
                 },
-                onDismiss = { previewClipID = null }
+                onDismiss = {
+                    previewClipID = null
+                    clipPreviewAutoAdvanceEnabled = false
+                }
             )
         }
         if (isTextOverlaySheetVisible) {
@@ -4054,6 +4068,8 @@ private fun ClipPreviewDialog(
     total: Int,
     autoplayOnLoad: Boolean,
     onAutoplayConsumed: () -> Unit,
+    autoAdvanceEnabled: Boolean,
+    onAutoAdvanceChange: (Boolean) -> Unit,
     onFirst: (() -> Unit)?,
     onPrevious: (() -> Unit)?,
     onNext: (() -> Unit)?,
@@ -4068,6 +4084,7 @@ private fun ClipPreviewDialog(
     var playbackMode by remember {
         mutableStateOf(
             if (autoplayOnLoad) ClipPreviewPlaybackMode.AutoNext
+            else if (autoAdvanceEnabled) ClipPreviewPlaybackMode.AutoNext
             else DefaultClipPreviewPlaybackMode
         )
     }
@@ -4287,11 +4304,13 @@ private fun ClipPreviewDialog(
                             FilterChip(
                                 selected = playbackMode == ClipPreviewPlaybackMode.AutoNext,
                                 onClick = {
-                                    playbackMode = if (playbackMode == ClipPreviewPlaybackMode.AutoNext) {
+                                    val nextMode = if (playbackMode == ClipPreviewPlaybackMode.AutoNext) {
                                         ClipPreviewPlaybackMode.Stop
                                     } else {
                                         ClipPreviewPlaybackMode.AutoNext
                                     }
+                                    playbackMode = nextMode
+                                    onAutoAdvanceChange(nextMode == ClipPreviewPlaybackMode.AutoNext)
                                 },
                                 label = { Text("자동 진행") }
                             )

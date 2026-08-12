@@ -96,6 +96,7 @@ fun VideoTrimSheet(
     onDismiss: () -> Unit,
     autoAdvanceOnLoad: Boolean = false,
     onAutoAdvanceConsumed: () -> Unit = {},
+    onAutoAdvanceChanged: (Boolean) -> Unit = {},
     onFirst: ((startSeconds: Double, durationSeconds: Double) -> Unit)? = null,
     onPrevious: ((startSeconds: Double, durationSeconds: Double) -> Unit)? = null,
     onNext: ((startSeconds: Double, durationSeconds: Double) -> Unit)? = null,
@@ -121,7 +122,10 @@ fun VideoTrimSheet(
     var autoAdvances by rememberSaveable(clip.id) { mutableStateOf(autoAdvanceOnLoad) }
 
     LaunchedEffect(clip.id) {
-        if (autoAdvanceOnLoad) onAutoAdvanceConsumed()
+        if (autoAdvanceOnLoad) {
+            onAutoAdvanceChanged(true)
+            onAutoAdvanceConsumed()
+        }
     }
 
     LaunchedEffect(startSeconds, durationSeconds, sourceDuration) {
@@ -169,7 +173,10 @@ fun VideoTrimSheet(
                     ) {
                         Icon(Icons.Outlined.SkipPrevious, contentDescription = "이전 영상", tint = palette.text)
                     }
-                    IconButton(onClick = { autoAdvances = !autoAdvances }) {
+                    IconButton(onClick = {
+                        autoAdvances = !autoAdvances
+                        onAutoAdvanceChanged(autoAdvances)
+                    }) {
                         Icon(
                             Icons.Outlined.Repeat,
                             contentDescription = if (autoAdvances) "자동 진행 끄기" else "자동 진행 켜기",
