@@ -228,7 +228,7 @@ fun MusicSettingsSheet(
                     }
                     Box(Modifier.fillMaxWidth().height(1.dp).background(palette.border))
                     OutlinedButton(
-                        modifier = Modifier.fillMaxWidth().height(42.dp),
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
                         onClick = onOpenBrowser,
                         shape = RoundedCornerShape(8.dp),
                         border = BorderStroke(1.dp, palette.border),
@@ -242,7 +242,7 @@ fun MusicSettingsSheet(
                     }
                     Box(Modifier.fillMaxWidth().height(1.dp).background(palette.border))
                     OutlinedButton(
-                        modifier = Modifier.fillMaxWidth().height(42.dp),
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
                         onClick = onPickFile,
                         shape = RoundedCornerShape(8.dp),
                         border = BorderStroke(1.dp, palette.border),
@@ -467,7 +467,7 @@ private fun SampleMusicButton(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onClick)
-                .height(58.dp)
+                .height(64.dp)
                 .padding(horizontal = 8.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -500,7 +500,7 @@ private fun SampleMusicButton(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            IconButton(onClick = onTogglePreview, modifier = Modifier.size(32.dp)) {
+            IconButton(onClick = onTogglePreview, modifier = Modifier.size(48.dp)) {
                 Icon(
                     if (isPreviewing) Icons.Outlined.PauseCircle else Icons.Outlined.PlayCircle,
                     contentDescription = if (isPreviewing) "미리듣기 정지" else "미리듣기",

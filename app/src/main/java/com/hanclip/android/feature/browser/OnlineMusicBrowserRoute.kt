@@ -950,7 +950,7 @@ private fun BrowserDownloadPanel(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                IconButton(onClick = onCancel, modifier = Modifier.size(36.dp)) {
+                IconButton(onClick = onCancel, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Outlined.Close, contentDescription = "다운로드 취소", tint = palette.primary)
                 }
             }
