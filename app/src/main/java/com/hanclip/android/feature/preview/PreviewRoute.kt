@@ -1335,20 +1335,22 @@ private fun FullscreenPreviewDialog(
                     ) {
                         Icon(Icons.Outlined.Repeat, contentDescription = null, tint = Color.White)
                     }
-                    FullscreenCircleButton(
-                        onClick = {
-                            hasManualAspectModeSelection = true
-                            isFillMode = !isFillMode
-                            areControlsVisible = true
-                        },
-                        active = isFillMode,
-                        contentDescription = if (isFillMode) "화면에 맞추기" else "화면 채우기"
-                    ) {
-                        Icon(
-                            if (isFillMode) Icons.Outlined.FullscreenExit else Icons.Outlined.Fullscreen,
-                            contentDescription = null,
-                            tint = Color.White
-                        )
+                    if (shouldShowFullscreenAspectToggle(viewportWidthPx, viewportHeightPx)) {
+                        FullscreenCircleButton(
+                            onClick = {
+                                hasManualAspectModeSelection = true
+                                isFillMode = !isFillMode
+                                areControlsVisible = true
+                            },
+                            active = isFillMode,
+                            contentDescription = if (isFillMode) "화면에 맞추기" else "화면 채우기"
+                        ) {
+                            Icon(
+                                if (isFillMode) Icons.Outlined.FullscreenExit else Icons.Outlined.Fullscreen,
+                                contentDescription = null,
+                                tint = Color.White
+                            )
+                        }
                     }
                     FullscreenCircleButton(
                         onClick = { onShare?.invoke() },
@@ -1426,6 +1428,11 @@ internal fun fullscreenPlaybackTapAction(
     hasEnded -> FullscreenPlaybackTapAction.ReplayFromStart
     else -> FullscreenPlaybackTapAction.Play
 }
+
+internal fun shouldShowFullscreenAspectToggle(
+    viewportWidth: Float,
+    viewportHeight: Float
+): Boolean = viewportWidth > viewportHeight
 
 @Composable
 private fun SavingMovieDialog(palette: HanClipPalette) {
