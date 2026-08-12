@@ -838,17 +838,20 @@ private fun SaveOptionsSheet(
                         HanClipBrandCapsule()
                     }
                     Surface(
-                        modifier = Modifier.size(54.dp),
+                        modifier = Modifier.size(58.dp),
                         shape = RoundedCornerShape(50),
-                        color = palette.panel,
-                        border = BorderStroke(1.dp, palette.border),
+                        color = palette.panel.copy(alpha = palette.panel.alpha * 0.72f),
+                        border = BorderStroke(
+                            1.dp,
+                            palette.border.copy(alpha = palette.border.alpha * 0.62f)
+                        ),
                         onClick = onDismiss
                     ) {
                         Icon(
                             Icons.Outlined.Close,
                             contentDescription = "취소",
-                            tint = palette.text,
-                            modifier = Modifier.padding(14.dp)
+                            tint = palette.primary,
+                            modifier = Modifier.padding(16.5.dp)
                         )
                     }
                 }
