@@ -20,6 +20,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
@@ -113,6 +114,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -3341,7 +3343,12 @@ private fun CompactChoice(
     Surface(
         modifier = Modifier
             .height(48.dp)
-            .clickable(enabled = enabled, onClick = onClick),
+            .selectable(
+                selected = selected,
+                enabled = enabled,
+                role = Role.RadioButton,
+                onClick = onClick
+            ),
         shape = RoundedCornerShape(50),
         color = if (selected) palette.primary else palette.chip,
         border = BorderStroke(1.dp, if (selected) palette.primary else palette.border)

@@ -10,6 +10,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,6 +57,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -232,9 +234,11 @@ fun TextOverlaySheet(
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp)
-                            .clickable {
-                                draft = draft.copy(isEnabled = true, text = presetText)
-                            },
+                            .selectable(
+                                selected = selected,
+                                role = Role.RadioButton,
+                                onClick = { draft = draft.copy(isEnabled = true, text = presetText) }
+                            ),
                         shape = RoundedCornerShape(16.dp),
                         color = if (selected) palette.primary.copy(alpha = 0.13f) else palette.panel,
                         border = BorderStroke(1.dp, if (selected) palette.primary.copy(alpha = 0.30f) else palette.border)
@@ -1383,7 +1387,7 @@ private fun ColorSwatchChip(
         modifier = Modifier
             .height(48.dp)
             .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick),
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         color = if (selected) palette.primary.copy(alpha = 0.12f) else palette.panel,
         border = BorderStroke(1.dp, if (selected) palette.primary else palette.border)
@@ -1431,7 +1435,11 @@ private fun PositionPicker(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp)
-                                .clickable { onSelect(position) }
+                                .selectable(
+                                    selected = isSelected,
+                                    role = Role.RadioButton,
+                                    onClick = { onSelect(position) }
+                                )
                                 .padding(vertical = 7.dp)
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(if (isSelected) palette.primary else palette.panel),
@@ -1468,7 +1476,11 @@ private fun PlatformPicker(
                         modifier = Modifier
                             .weight(1f)
                             .height(54.dp)
-                            .clickable { onSelect(platform) },
+                            .selectable(
+                                selected = isSelected,
+                                role = Role.RadioButton,
+                                onClick = { onSelect(platform) }
+                            ),
                         shape = RoundedCornerShape(16.dp),
                         color = if (isSelected) palette.primary else palette.chip,
                         border = BorderStroke(
@@ -1510,7 +1522,11 @@ private fun CaptionModeSegmentedControl(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxSize()
-                    .clickable { onChange(value) },
+                    .selectable(
+                        selected = selected,
+                        role = Role.RadioButton,
+                        onClick = { onChange(value) }
+                    ),
                 shape = RoundedCornerShape(22.dp),
                 color = if (selected) palette.primary else Color.Transparent
             ) {
@@ -1547,7 +1563,11 @@ private fun CaptionChoiceSegment(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxSize()
-                    .clickable { onSelect(index) },
+                    .selectable(
+                        selected = selected,
+                        role = Role.RadioButton,
+                        onClick = { onSelect(index) }
+                    ),
                 shape = RoundedCornerShape(18.dp),
                 color = if (selected) palette.primary else Color.Transparent
             ) {
@@ -1653,7 +1673,11 @@ private fun CaptionStylePicker(
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp)
-                            .clickable { onSelect(preset, appearance) },
+                            .selectable(
+                                selected = selected,
+                                role = Role.RadioButton,
+                                onClick = { onSelect(preset, appearance) }
+                            ),
                         shape = RoundedCornerShape(10.dp),
                         color = if (selected) palette.secondary.copy(alpha = 0.20f) else palette.chip,
                         border = BorderStroke(1.dp, if (selected) palette.primary else palette.border)

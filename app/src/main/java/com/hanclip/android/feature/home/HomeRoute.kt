@@ -20,6 +20,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
@@ -112,6 +113,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -1085,7 +1087,7 @@ private fun ThemeSelectionRow(
             .fillMaxWidth()
             .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = 4.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -1525,7 +1527,11 @@ private fun CopyrightWatermarkCard(
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(48.dp)
-                                    .clickable { onChange(settings.copy(copyrightPosition = position)) }
+                                    .selectable(
+                                        selected = settings.copyrightPosition == position,
+                                        role = Role.RadioButton,
+                                        onClick = { onChange(settings.copy(copyrightPosition = position)) }
+                                    )
                                     .padding(vertical = 7.dp)
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(
@@ -1576,7 +1582,7 @@ private fun CopyrightSegment(
     Box(
         modifier = Modifier
             .height(48.dp)
-            .clickable(onClick = onClick)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
             .padding(vertical = 7.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -1607,7 +1613,7 @@ private fun CopyrightPlatformCell(
     Surface(
         modifier = modifier
             .height(58.dp)
-            .clickable(onClick = onClick),
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         color = if (selected) palette.primary.copy(alpha = 0.18f) else palette.panel.copy(alpha = 0.72f),
         border = BorderStroke(1.dp, if (selected) palette.primary else palette.border)
@@ -1662,7 +1668,11 @@ private fun SleepPreventionInfoCard(
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp)
-                            .clickable { onChange(option) }
+                            .selectable(
+                                selected = mode == option,
+                                role = Role.RadioButton,
+                                onClick = { onChange(option) }
+                            )
                             .padding(vertical = 5.dp),
                         contentAlignment = Alignment.Center
                     ) {
