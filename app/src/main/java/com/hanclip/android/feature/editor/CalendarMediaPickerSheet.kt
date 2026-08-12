@@ -84,6 +84,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -158,6 +160,10 @@ fun CalendarMediaPickerSheet(
     var pendingRecentDate by rememberSaveable(title, saver = NullableLocalDateStateSaver) {
         mutableStateOf(null)
     }
+    var pendingRecentScrollDate by rememberSaveable(title, saver = NullableLocalDateStateSaver) {
+        mutableStateOf(null)
+    }
+    var isTodaySelectionArmed by rememberSaveable(title) { mutableStateOf(false) }
     var pendingBulkImportUris by remember { mutableStateOf<List<Uri>?>(null) }
     var sortOrder by rememberSaveable(saver = MediaSortOrderStateSaver) {
         mutableStateOf(MediaSortOrder.TakenOldest)
@@ -292,6 +298,7 @@ fun CalendarMediaPickerSheet(
                     selectedCount = selectedUris.size,
                     onCancel = onDismiss,
                     onShowPhotos = {
+                        isTodaySelectionArmed = false
                         pickerMode = MediaPickerSheetMode.Recent
                         hasAppliedInitialSelection = true
                     },
@@ -309,6 +316,7 @@ fun CalendarMediaPickerSheet(
                     selectedCount = selectedUris.size,
                     canApplyEmptySelection = initialSelectedUris.isNotEmpty(),
                     onShowCalendar = {
+                        isTodaySelectionArmed = false
                         val selectedDays = selectedUris.mapNotNull { uri ->
                             recentKnownItems[uri]?.date
                         }.toSet()
@@ -367,7 +375,13 @@ fun CalendarMediaPickerSheet(
                 sortOrder = sortOrder,
                 recentFilter = recentFilter,
                 videoDurationFilter = videoDurationFilter,
-                onSortOrderChange = { sortOrder = it },
+                pendingRecentScrollDate = pendingRecentScrollDate,
+                onRecentScrollHandled = { pendingRecentScrollDate = null },
+                onRecentUserScroll = { isTodaySelectionArmed = false },
+                onSortOrderChange = {
+                    isTodaySelectionArmed = false
+                    sortOrder = it
+                },
                 onOpenVideoDurationFilter = { showVideoDurationFilter = true },
                 onSelectAll = {
                     selectedUris = visibleItems.map { it.uri }
@@ -437,16 +451,22 @@ fun CalendarMediaPickerSheet(
                         selectedCount = selectedUris.size,
                         currentFilter = recentFilter,
                         currentSort = sortOrder,
+                        isTodaySelectionArmed = isTodaySelectionArmed,
                         canClear = selectedUris.isNotEmpty(),
                         onFilterChange = {
+                            isTodaySelectionArmed = false
                             recentFilter = it
                             if (it != RecentMediaFilter.Video) videoDurationFilter = null
                             selectedUris = emptyList()
                             hasAppliedInitialSelection = false
                         },
-                        onSortChange = { sortOrder = it },
+                        onSortChange = {
+                            isTodaySelectionArmed = false
+                            sortOrder = it
+                        },
                         onDurationFilter = { showVideoDurationFilter = true },
                         onPreviousDay = {
+                            isTodaySelectionArmed = false
                             val anchor = selectedUris.firstOrNull()
                                 ?.let { uri -> recentKnownItems[uri]?.date }
                                 ?: LocalDate.now()
@@ -461,15 +481,31 @@ fun CalendarMediaPickerSheet(
                         },
                         onToday = {
                             val today = LocalDate.now()
-                            val currentMonth = YearMonth.from(today)
-                            if (currentMonth != visibleMonth) {
-                                pendingRecentDate = today
-                                visibleMonth = currentMonth
-                            } else {
-                                selectedUris = visibleItems.filter { it.date == today }.map { it.uri }
+                            when (
+                                todaySelectionAction(
+                                    isArmed = isTodaySelectionArmed,
+                                    hasTodayItems = visibleItems.any { it.date == today }
+                                )
+                            ) {
+                                TodaySelectionAction.MoveAndArm -> {
+                                    visibleMonth = YearMonth.from(today)
+                                    pendingRecentScrollDate = today
+                                    isTodaySelectionArmed = true
+                                }
+                                TodaySelectionAction.Select -> {
+                                    selectedUris = visibleItems.filter { it.date == today }.map { it.uri }
+                                    isTodaySelectionArmed = false
+                                }
+                                TodaySelectionAction.MoveOnly -> {
+                                    pendingRecentScrollDate = visibleItems.maxOfOrNull { it.date }
+                                    isTodaySelectionArmed = false
+                                }
                             }
                         },
-                        onClear = { selectedUris = emptyList() },
+                        onClear = {
+                            isTodaySelectionArmed = false
+                            selectedUris = emptyList()
+                        },
                         onAdd = ::requestImport
                     )
                 }
@@ -534,6 +570,7 @@ fun CalendarMediaPickerSheet(
             current = videoDurationFilter,
             palette = palette,
             onApply = { filter ->
+                isTodaySelectionArmed = false
                 if (videoDurationFilter == null && pickerMode == MediaPickerSheetMode.Recent) {
                     recentFilterBeforeDuration = recentFilter
                 }
@@ -915,6 +952,7 @@ private fun RecentDayActions(
     selectedCount: Int,
     currentFilter: RecentMediaFilter,
     currentSort: MediaSortOrder,
+    isTodaySelectionArmed: Boolean,
     canClear: Boolean,
     onFilterChange: (RecentMediaFilter) -> Unit,
     onSortChange: (MediaSortOrder) -> Unit,
@@ -969,7 +1007,13 @@ private fun RecentDayActions(
             }
         }
         DayCircleButton("전날", palette, enabled = true, onClick = onPreviousDay)
-        DayCircleButton("오늘", palette, enabled = true, onClick = onToday)
+        DayCircleButton(
+            "오늘",
+            palette,
+            enabled = true,
+            emphasized = isTodaySelectionArmed,
+            onClick = onToday
+        )
         DayCircleButton("해제", palette, enabled = canClear, onClick = onClear)
         DayCircleButton("추가", palette, enabled = selectedCount > 0, onClick = onAdd)
     }
@@ -1002,15 +1046,24 @@ private fun DayCircleButton(
     title: String,
     palette: HanClipPalette,
     enabled: Boolean,
+    emphasized: Boolean = false,
     onClick: () -> Unit
 ) {
     Surface(
-        modifier = Modifier.size(64.dp),
+        modifier = Modifier
+            .size(64.dp)
+            .semantics {
+                if (emphasized) stateDescription = "오늘 미디어 선택 준비"
+            },
         shape = CircleShape,
-        color = palette.solidPanel.copy(alpha = if (enabled) 0.88f else 0.46f),
+        color = if (emphasized) {
+            palette.primary.copy(alpha = 0.18f)
+        } else {
+            palette.solidPanel.copy(alpha = if (enabled) 0.88f else 0.46f)
+        },
         border = BorderStroke(
             1.25.dp,
-            palette.primary.copy(alpha = if (enabled) 0.48f else 0.16f)
+            palette.primary.copy(alpha = if (emphasized) 0.50f else if (enabled) 0.48f else 0.16f)
         ),
         enabled = enabled,
         onClick = onClick
@@ -1410,6 +1463,9 @@ private fun CalendarMediaStrip(
     sortOrder: MediaSortOrder,
     recentFilter: RecentMediaFilter,
     videoDurationFilter: VideoDurationFilter?,
+    pendingRecentScrollDate: LocalDate?,
+    onRecentScrollHandled: () -> Unit,
+    onRecentUserScroll: () -> Unit,
     onSortOrderChange: (MediaSortOrder) -> Unit,
     onOpenVideoDurationFilter: () -> Unit,
     onSelectAll: () -> Unit,
@@ -1439,6 +1495,18 @@ private fun CalendarMediaStrip(
         ) {
             val lastGridIndex = items.size + items.map { it.date }.distinct().size - 1
             gridState.scrollToItem(lastGridIndex.coerceAtLeast(0))
+        }
+    }
+    LaunchedEffect(mode, pendingRecentScrollDate, items) {
+        val targetDate = pendingRecentScrollDate
+        if (mode == MediaPickerSheetMode.Recent && targetDate != null && items.isNotEmpty()) {
+            val sections = items.groupBy { it.date }.toList()
+            val sectionPosition = sections.indexOfFirst { (date) -> date == targetDate }
+            if (sectionPosition >= 0) {
+                val gridIndex = sections.take(sectionPosition).sumOf { (_, dayItems) -> 1 + dayItems.size }
+                gridState.animateScrollToItem(gridIndex)
+            }
+            onRecentScrollHandled()
         }
     }
     Column(
@@ -1579,6 +1647,7 @@ private fun CalendarMediaStrip(
 
                                 detectDragGestures(
                                     onDragStart = { position ->
+                                        onRecentUserScroll()
                                         mediaAt(position.x, position.y)?.let { item ->
                                             dragSelects = item.uri !in currentSelectedUris
                                             lastDraggedUri = item.uri
@@ -1695,6 +1764,21 @@ private fun CalendarMediaStrip(
             }
         )
     }
+}
+
+internal enum class TodaySelectionAction {
+    MoveAndArm,
+    Select,
+    MoveOnly
+}
+
+internal fun todaySelectionAction(
+    isArmed: Boolean,
+    hasTodayItems: Boolean
+): TodaySelectionAction = when {
+    !hasTodayItems -> TodaySelectionAction.MoveOnly
+    isArmed -> TodaySelectionAction.Select
+    else -> TodaySelectionAction.MoveAndArm
 }
 
 @Composable
