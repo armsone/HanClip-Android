@@ -166,7 +166,7 @@ object ExportHistoryStore {
     }
 
     fun updateMemo(context: Context, uriString: String, memo: String) {
-        val normalizedMemo = memo.trim().take(80)
+        val normalizedMemo = memo.trim()
         val items = list(context).map { summary ->
             if (summary.uriString == uriString) {
                 summary.copy(memo = normalizedMemo)
