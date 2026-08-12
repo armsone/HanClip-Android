@@ -69,6 +69,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -106,6 +107,7 @@ import androidx.core.content.ContextCompat
 import com.hanclip.android.R
 import com.hanclip.android.core.safety.orderedCaptureValues
 import com.hanclip.android.core.theme.HanClipSystemBars
+import com.hanclip.android.core.theme.HanClipThemeMode
 import com.hanclip.android.core.theme.HanClipThemeStore
 import com.hanclip.android.core.theme.currentPalette
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -274,7 +276,13 @@ fun AiShotRoute(
 ) {
     HanClipSystemBars(Color.Black)
     val context = LocalContext.current
-    val palette = HanClipThemeStore.load(context).currentPalette
+    val themeMode = HanClipThemeStore.load(context)
+    val palette = themeMode.currentPalette
+    val accentForeground = if (themeMode == HanClipThemeMode.GrayscalePlay) {
+        Color(0xFFE2E2E5)
+    } else {
+        Color.White
+    }
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     val cameraExecutor = remember(context) { ContextCompat.getMainExecutor(context) }
@@ -758,7 +766,7 @@ fun AiShotRoute(
                 level = level,
                 sensitivity = sensitivity,
                 accentColor = palette.secondary,
-                accentForeground = Color.White,
+                accentForeground = accentForeground,
                 isReadyForTrigger = isRollingRecordingActive &&
                     triggerTimeSeconds == null &&
                     recordingDurationNanos / 1_000_000_000.0 >= shotLength.beforeSeconds,
@@ -777,6 +785,7 @@ fun AiShotRoute(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             AiShotFloatingControls(
+                accentColor = palette.secondary,
                 shotLength = shotLength,
                 onShotLengthTap = ::selectNextShotLength,
                 zoomRatio = zoomRatio,
@@ -1055,6 +1064,7 @@ private fun AiShotModelInfoRow() {
 @Composable
 private fun AiShotFloatingControls(
     modifier: Modifier = Modifier,
+    accentColor: Color,
     shotLength: ShotLength,
     onShotLengthTap: () -> Unit,
     zoomRatio: Float,
@@ -1129,7 +1139,7 @@ private fun AiShotFloatingControls(
             if (isPrecisionZoomVisible) {
                 Text(
                     zoomRatioTitle(zoomRatio),
-                    color = Color(0xFF25C481),
+                    color = accentColor,
                     fontWeight = FontWeight.Bold
                 )
                 Slider(
@@ -1153,6 +1163,10 @@ private fun AiShotFloatingControls(
                         isPrecisionZoomInteracting = false
                     },
                     valueRange = 0f..1f,
+                    colors = SliderDefaults.colors(
+                        thumbColor = accentColor,
+                        activeTrackColor = accentColor
+                    ),
                     modifier = Modifier
                         .weight(1f)
                         .semantics {
@@ -1184,7 +1198,7 @@ private fun AiShotFloatingControls(
                             } else {
                                 Color.Transparent
                             },
-                            contentColor = if (selected) Color(0xFF25C481) else Color.White
+                            contentColor = if (selected) accentColor else Color.White
                         ),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
                     ) {
@@ -1206,10 +1220,11 @@ private fun AiShotFloatingControls(
                 icon = { Icon(Icons.Outlined.Timer, contentDescription = null) },
                 title = shotLength.title,
                 contentDescription = "샷 시간 ${shotLength.title}, ${shotLength.timingDescription}",
+                accentColor = accentColor,
                 onClick = onShotLengthTap
             )
             if (isRecording) {
-                AiShotSaveProgress(progress = saveProgress)
+                AiShotSaveProgress(progress = saveProgress, accentColor = accentColor)
             } else {
                 Button(
                     onClick = onManualRecord,
@@ -1230,7 +1245,7 @@ private fun AiShotFloatingControls(
                         Box(
                             modifier = Modifier
                                 .size(78.dp)
-                                .border(5.dp, Color(0xFF25C481).copy(alpha = 0.72f), CircleShape)
+                                .border(5.dp, accentColor.copy(alpha = 0.62f), CircleShape)
                         )
                         GolfSwingSpriteIndicator(
                             isAnimating = isShowingIntroSwing,
@@ -1244,6 +1259,7 @@ private fun AiShotFloatingControls(
                 icon = { Icon(Icons.Outlined.Cameraswitch, contentDescription = null) },
                 title = lensLabel,
                 contentDescription = "카메라 전환, 현재 $lensLabel",
+                accentColor = accentColor,
                 enabled = !isSwitchingCamera,
                 onClick = onSwitchCamera
             )
@@ -1302,6 +1318,7 @@ private fun FloatingSideButton(
     icon: @Composable () -> Unit,
     title: String,
     contentDescription: String,
+    accentColor: Color,
     enabled: Boolean = true,
     onClick: () -> Unit
 ) {
@@ -1325,7 +1342,7 @@ private fun FloatingSideButton(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Surface(
-                color = Color(0xFF0B7A4E),
+                color = accentColor.copy(alpha = 0.72f),
                 shape = RoundedCornerShape(9.dp)
             ) {
                 Box(
@@ -1347,14 +1364,14 @@ private fun FloatingSideButton(
 }
 
 @Composable
-private fun AiShotSaveProgress(progress: Float) {
+private fun AiShotSaveProgress(progress: Float, accentColor: Color) {
     val safeProgress = progress.coerceIn(0f, 1f)
     Column(
         modifier = Modifier
             .width(120.dp)
             .height(52.dp)
             .background(Color.Black.copy(alpha = 0.70f), RoundedCornerShape(12.dp))
-            .border(1.dp, Color(0xFF25C481).copy(alpha = 0.70f), RoundedCornerShape(12.dp))
+            .border(1.dp, accentColor.copy(alpha = 0.70f), RoundedCornerShape(12.dp))
             .padding(horizontal = 14.dp, vertical = 7.dp)
             .semantics {
                 contentDescription = "AiShot 클립 저장 중"
@@ -1379,7 +1396,7 @@ private fun AiShotSaveProgress(progress: Float) {
                 modifier = Modifier
                     .fillMaxWidth(safeProgress.coerceAtLeast(0.01f))
                     .height(4.dp)
-                    .background(Color(0xFF1DBA7A), RoundedCornerShape(999.dp))
+                    .background(accentColor, RoundedCornerShape(999.dp))
             )
         }
     }
