@@ -477,7 +477,7 @@ fun EditorRoute(
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(6.dp))
                 EditorHeader(
                     palette = palette,
                     onBackHome = ::requestBackHome,
