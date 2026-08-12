@@ -930,13 +930,15 @@ class EditorViewModel : ViewModel() {
         val persistedProject = EditableProjectStore.upsert(context.applicationContext, project)
         DraftProjectStore.save(context.applicationContext, persistedProject)
         if (persistedProject.clips != state.clips ||
-            persistedProject.backgroundMusicUri != state.backgroundMusicUri
+            persistedProject.backgroundMusicUri != state.backgroundMusicUri ||
+            persistedProject.watermarkSettings != state.watermarkSettings
         ) {
             _uiState.update { current ->
                 if (current.activeProjectId == persistedProject.projectId) {
                     current.copy(
                         clips = persistedProject.clips,
-                        backgroundMusicUri = persistedProject.backgroundMusicUri
+                        backgroundMusicUri = persistedProject.backgroundMusicUri,
+                        watermarkSettings = persistedProject.watermarkSettings
                     )
                 } else {
                     current

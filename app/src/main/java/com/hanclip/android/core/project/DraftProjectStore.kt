@@ -439,8 +439,12 @@ object EditableProjectStore {
             persistProjectUri(
                 context = context,
                 source = source,
-                destination = File(directory, "background-music.${fileExtension(source, null)}"),
-                replaceExisting = true
+                destination = projectAssetDestination(
+                    directory = directory,
+                    prefix = "background-music",
+                    source = source,
+                    extension = fileExtension(source, null)
+                )
             )
         }
         val watermarkSettings = project.watermarkSettings.let { settings ->
@@ -454,11 +458,12 @@ object EditableProjectStore {
                     persistProjectUri(
                         context = context,
                         source = sourceUri,
-                        destination = File(
-                            directory,
-                            "copyright-icon.${fileExtension(sourceUri, null)}"
-                        ),
-                        replaceExisting = true
+                        destination = projectAssetDestination(
+                            directory = directory,
+                            prefix = "copyright-icon",
+                            source = sourceUri,
+                            extension = fileExtension(sourceUri, null)
+                        )
                     ).path
                 }.getOrNull()
             }
@@ -473,6 +478,26 @@ object EditableProjectStore {
             backgroundMusicUri = musicUri,
             watermarkSettings = watermarkSettings
         )
+    }
+
+    private fun projectAssetDestination(
+        directory: File,
+        prefix: String,
+        source: Uri,
+        extension: String
+    ): File {
+        val sourceFile = source.takeIf { it.scheme == "file" }?.path?.let(::File)
+        val isExistingProjectAsset = sourceFile?.let { file ->
+            runCatching {
+                file.parentFile?.canonicalFile == directory.canonicalFile &&
+                    (file.name.startsWith("$prefix-") || file.name.startsWith("$prefix."))
+            }.getOrDefault(false)
+        } == true
+        return if (isExistingProjectAsset) {
+            requireNotNull(sourceFile)
+        } else {
+            File(directory, "$prefix-${UUID.randomUUID()}.$extension")
+        }
     }
 
     private fun ensureProjectThumbnail(

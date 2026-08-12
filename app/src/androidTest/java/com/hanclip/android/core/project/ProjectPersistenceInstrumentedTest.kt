@@ -13,6 +13,7 @@ import com.hanclip.android.core.model.MoviePreset
 import com.hanclip.android.core.model.OutputQualityPreset
 import com.hanclip.android.core.model.VideoSegmentMode
 import com.hanclip.android.core.model.WatermarkSettings
+import com.hanclip.android.core.model.WatermarkPlatform
 import com.hanclip.android.core.media.MediaImportReader
 import com.hanclip.android.core.media.CaptionTypefaceLoader
 import com.hanclip.android.feature.editor.EditorViewModel
@@ -677,7 +678,8 @@ class ProjectPersistenceInstrumentedTest {
                 backgroundMusicUri = Uri.fromFile(firstSource)
             )
         )
-        val firstBytes = File(requireNotNull(first.backgroundMusicUri).path.orEmpty()).readBytes().toList()
+        val firstStoredFile = File(requireNotNull(first.backgroundMusicUri).path.orEmpty())
+        val firstBytes = firstStoredFile.readBytes().toList()
 
         val second = EditableProjectStore.upsert(
             context,
@@ -685,8 +687,65 @@ class ProjectPersistenceInstrumentedTest {
         )
         val secondBytes = File(requireNotNull(second.backgroundMusicUri).path.orEmpty()).readBytes().toList()
 
+        assertEquals(false, first.backgroundMusicUri == second.backgroundMusicUri)
+        assertEquals(true, firstStoredFile.isFile)
+        assertEquals(firstBytes, firstStoredFile.readBytes().toList())
         assertEquals(false, firstBytes == secondBytes)
         assertEquals(secondSource.readBytes().toList(), secondBytes)
+        val restored = EditableProjectStore.restoreWithoutUpdatingSavedAt(context, first)
+        assertEquals(first.backgroundMusicUri, restored.backgroundMusicUri)
+        assertEquals(firstBytes, File(requireNotNull(restored.backgroundMusicUri).path.orEmpty()).readBytes().toList())
+    }
+
+    @Test
+    fun replacingProjectCopyrightIconPreservesThePreviousSessionAsset() {
+        fun writeIcon(filename: String, color: Int): File {
+            return File(context.filesDir, filename).also { target ->
+                FileOutputStream(target).use { output ->
+                    val bitmap = Bitmap.createBitmap(6, 6, Bitmap.Config.ARGB_8888)
+                    try {
+                        bitmap.eraseColor(color)
+                        assertEquals(true, bitmap.compress(Bitmap.CompressFormat.PNG, 100, output))
+                    } finally {
+                        bitmap.recycle()
+                    }
+                    output.fd.sync()
+                }
+            }
+        }
+        val firstSource = writeIcon("first-project-icon.png", android.graphics.Color.MAGENTA)
+        val secondSource = writeIcon("second-project-icon.png", android.graphics.Color.CYAN)
+        val first = EditableProjectStore.upsert(
+            context,
+            sampleProject("icon-replacement", 2.0).copy(
+                watermarkSettings = WatermarkSettings(
+                    platform = WatermarkPlatform.Custom,
+                    customCopyrightIconPath = firstSource.absolutePath
+                )
+            )
+        )
+        val firstStoredFile = File(first.watermarkSettings.customCopyrightIconPath)
+        val firstBytes = firstStoredFile.readBytes().toList()
+
+        val second = EditableProjectStore.upsert(
+            context,
+            first.copy(
+                watermarkSettings = first.watermarkSettings.copy(
+                    customCopyrightIconPath = secondSource.absolutePath
+                )
+            )
+        )
+        val secondStoredFile = File(second.watermarkSettings.customCopyrightIconPath)
+
+        assertEquals(false, firstStoredFile.absolutePath == secondStoredFile.absolutePath)
+        assertEquals(true, firstStoredFile.isFile)
+        assertEquals(firstBytes, firstStoredFile.readBytes().toList())
+        assertEquals(secondSource.readBytes().toList(), secondStoredFile.readBytes().toList())
+        val restored = EditableProjectStore.restoreWithoutUpdatingSavedAt(context, first)
+        assertEquals(
+            first.watermarkSettings.customCopyrightIconPath,
+            restored.watermarkSettings.customCopyrightIconPath
+        )
     }
 
     @Test
