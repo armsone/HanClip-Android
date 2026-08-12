@@ -2083,7 +2083,7 @@ private fun QuickDurationDialog(
                     .fillMaxSize()
                     .statusBarsPadding()
                     .navigationBarsPadding(),
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
+                contentPadding = PaddingValues(start = 20.dp, top = 6.dp, end = 20.dp, bottom = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 item {
@@ -2093,13 +2093,19 @@ private fun QuickDurationDialog(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Surface(
-                            modifier = Modifier.size(52.dp).clickable(onClick = onDismiss),
-                            shape = RoundedCornerShape(26.dp),
-                            color = palette.panel,
-                            border = BorderStroke(1.dp, palette.border)
+                            modifier = Modifier.size(58.dp).clickable(onClick = onDismiss),
+                            shape = RoundedCornerShape(29.dp),
+                            color = palette.panel.copy(alpha = 0.72f),
+                            border = BorderStroke(1.dp, palette.border.copy(alpha = 0.62f)),
+                            shadowElevation = 5.dp
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Outlined.Close, contentDescription = "취소", tint = palette.primary)
+                                Icon(
+                                    Icons.Outlined.Close,
+                                    contentDescription = "취소",
+                                    tint = palette.primary,
+                                    modifier = Modifier.size(25.dp)
+                                )
                             }
                         }
                         Text(
@@ -2109,8 +2115,22 @@ private fun QuickDurationDialog(
                             fontSize = 18.sp
                         )
                         Box {
-                            IconButton(onClick = { mediaMenuExpanded = true }) {
-                                Icon(Icons.Outlined.AddPhotoAlternate, contentDescription = "미디어 추가", tint = palette.primary)
+                            Surface(
+                                modifier = Modifier.size(58.dp),
+                                shape = RoundedCornerShape(29.dp),
+                                color = palette.panel.copy(alpha = 0.72f),
+                                border = BorderStroke(1.dp, palette.border.copy(alpha = 0.62f)),
+                                shadowElevation = 5.dp,
+                                onClick = { mediaMenuExpanded = true }
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Outlined.AddPhotoAlternate,
+                                        contentDescription = "미디어 추가",
+                                        tint = palette.primary,
+                                        modifier = Modifier.size(25.dp)
+                                    )
+                                }
                             }
                             DropdownMenu(
                                 expanded = mediaMenuExpanded,
