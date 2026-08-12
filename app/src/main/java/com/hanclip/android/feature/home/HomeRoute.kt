@@ -1237,9 +1237,7 @@ private fun HomeHeader(
 ) {
     var showMediaMenu by remember { mutableStateOf(false) }
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(end = 4.dp),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1280,7 +1278,7 @@ private fun HomeHeader(
                     imageVector = Icons.Outlined.AddPhotoAlternate,
                     contentDescription = null,
                     tint = palette.primary,
-                    modifier = Modifier.padding(15.dp)
+                    modifier = Modifier.padding(16.5.dp)
                 )
             }
             DropdownMenu(
