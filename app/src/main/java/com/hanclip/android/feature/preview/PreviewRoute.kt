@@ -1106,6 +1106,9 @@ internal fun FullscreenPreviewDialog(
     var isPlayerPlaying by remember { mutableStateOf(false) }
     var playbackProgress by remember { mutableFloatStateOf(0f) }
     var isScrubbing by remember { mutableStateOf(false) }
+    var dragPreviewPositionMs by remember { mutableStateOf<Long?>(null) }
+    var dragPreviewVolumePercent by remember { mutableStateOf<Int?>(null) }
+    var zoomPreviewScale by remember { mutableStateOf<Float?>(null) }
     val manualAspectModeSelection by rememberUpdatedState(hasManualAspectModeSelection)
     val looping by rememberUpdatedState(isLooping)
     val configuration = LocalConfiguration.current
@@ -1183,6 +1186,11 @@ internal fun FullscreenPreviewDialog(
             if (isPlayerPlaying && !isScrubbing) areControlsVisible = false
         }
     }
+    LaunchedEffect(zoomPreviewScale) {
+        if (zoomPreviewScale == null) return@LaunchedEffect
+        delay(500L)
+        zoomPreviewScale = null
+    }
     LaunchedEffect(player) {
         while (true) {
             val durationMs = player.duration
@@ -1243,9 +1251,10 @@ internal fun FullscreenPreviewDialog(
                                     val durationMs = player.duration
                                     if (durationMs > 0L) {
                                         val deltaMs = totalDrag.x / size.width.coerceAtLeast(1) * durationMs
-                                        player.seekTo(
-                                            (dragStartPositionMs + deltaMs.toLong()).coerceIn(0L, durationMs)
-                                        )
+                                        val targetMs = (dragStartPositionMs + deltaMs.toLong())
+                                            .coerceIn(0L, durationMs)
+                                        player.seekTo(targetMs)
+                                        dragPreviewPositionMs = targetMs
                                     }
                                     verticalDragPx = 0f
                                 }
@@ -1256,6 +1265,11 @@ internal fun FullscreenPreviewDialog(
                                         .roundToInt()
                                         .coerceIn(0, maximumVolume)
                                     audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
+                                    dragPreviewVolumePercent = if (maximumVolume > 0) {
+                                        (target * 100f / maximumVolume).roundToInt()
+                                    } else {
+                                        0
+                                    }
                                     verticalDragPx = 0f
                                 }
                                 FullscreenDragMode.DownwardDismiss -> {
@@ -1271,10 +1285,14 @@ internal fun FullscreenPreviewDialog(
                             ) onClose()
                             else verticalDragPx = 0f
                             dragMode = null
+                            dragPreviewPositionMs = null
+                            dragPreviewVolumePercent = null
                         },
                         onDragCancel = {
                             dragMode = null
                             verticalDragPx = 0f
+                            dragPreviewPositionMs = null
+                            dragPreviewVolumePercent = null
                         }
                     )
                 }
@@ -1297,6 +1315,7 @@ internal fun FullscreenPreviewDialog(
             val transformableState = rememberTransformableState { zoomChange, panChange, _ ->
                 val newScale = (zoomScale * zoomChange).coerceIn(0.5f, 4f)
                 zoomScale = newScale
+                if (abs(zoomChange - 1f) > 0.001f) zoomPreviewScale = newScale
                 zoomOffset = if (newScale <= 1.01f) Offset.Zero else {
                     clampZoomOffset(zoomOffset + panChange, newScale)
                 }
@@ -1379,6 +1398,28 @@ internal fun FullscreenPreviewDialog(
                         },
                         useController = false
                     )
+                }
+                val gesturePreviewText = when {
+                    dragPreviewPositionMs != null -> formatPlaybackPosition(dragPreviewPositionMs!!)
+                    dragPreviewVolumePercent != null -> "${dragPreviewVolumePercent}%"
+                    zoomPreviewScale != null && abs(zoomPreviewScale!! - 1f) > 0.01f ->
+                        "%.1f×".format(zoomPreviewScale)
+                    else -> null
+                }
+                gesturePreviewText?.let { previewText ->
+                    Surface(
+                        modifier = Modifier.align(Alignment.Center),
+                        shape = RoundedCornerShape(999.dp),
+                        color = Color.Black.copy(alpha = 0.66f),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f))
+                    ) {
+                        Text(
+                            previewText,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
                 if (areControlsVisible) {
                     Row(
@@ -1559,6 +1600,11 @@ internal fun shouldShowFullscreenAspectToggle(
     viewportWidth: Float,
     viewportHeight: Float
 ): Boolean = viewportWidth > viewportHeight
+
+private fun formatPlaybackPosition(positionMs: Long): String {
+    val totalSeconds = (positionMs.coerceAtLeast(0L) / 1_000L)
+    return "%d:%02d".format(totalSeconds / 60L, totalSeconds % 60L)
+}
 
 @Composable
 private fun SavingMovieDialog(palette: HanClipPalette) {
