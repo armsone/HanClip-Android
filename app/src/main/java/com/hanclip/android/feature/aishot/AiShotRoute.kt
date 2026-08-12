@@ -89,6 +89,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -835,6 +836,8 @@ fun AiShotRoute(
         shotLengthNotice?.let { notice ->
             ShotLengthNoticePanel(
                 shotLength = notice,
+                primaryColor = palette.primary,
+                secondaryColor = palette.secondary,
                 modifier = Modifier.align(Alignment.Center)
             )
         }
@@ -1405,13 +1408,26 @@ private fun AiShotSaveProgress(progress: Float, accentColor: Color) {
 @Composable
 private fun ShotLengthNoticePanel(
     shotLength: ShotLength,
+    primaryColor: Color,
+    secondaryColor: Color,
     modifier: Modifier = Modifier
 ) {
     Surface(
         modifier = modifier
-            .fillMaxWidth(0.78f)
-            .border(1.dp, Color.White.copy(alpha = 0.24f), RoundedCornerShape(16.dp)),
-        color = Color.Black.copy(alpha = 0.94f),
+            .width(280.dp)
+            .height(116.dp)
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        primaryColor.copy(alpha = 0.58f),
+                        Color.Black.copy(alpha = 0.92f),
+                        secondaryColor.copy(alpha = 0.40f)
+                    )
+                ),
+                RoundedCornerShape(16.dp)
+            )
+            .border(1.dp, secondaryColor, RoundedCornerShape(16.dp)),
+        color = Color.Transparent,
         shape = RoundedCornerShape(16.dp),
         shadowElevation = 10.dp
     ) {
@@ -1425,7 +1441,7 @@ private fun ShotLengthNoticePanel(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Surface(
-                    color = Color(0xFF0B7A4E),
+                    color = secondaryColor,
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Icon(
@@ -1433,7 +1449,7 @@ private fun ShotLengthNoticePanel(
                         contentDescription = null,
                         tint = Color.White,
                         modifier = Modifier
-                            .padding(8.dp)
+                            .padding(7.dp)
                             .size(20.dp)
                     )
                 }
@@ -1452,7 +1468,7 @@ private fun ShotLengthNoticePanel(
                     )
                 }
                 Surface(
-                    color = Color(0xFF1DBA7A).copy(alpha = 0.46f),
+                    color = secondaryColor.copy(alpha = 0.48f),
                     shape = CircleShape
                 ) {
                     Text(
@@ -1467,21 +1483,22 @@ private fun ShotLengthNoticePanel(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
+                    .background(Color.Black.copy(alpha = 0.30f), RoundedCornerShape(10.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(10.dp))
                     .padding(3.dp),
-                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                horizontalArrangement = Arrangement.spacedBy(0.dp)
             ) {
                 ShotLength.entries.forEach { option ->
                     val selected = option == shotLength
                     Surface(
                         modifier = Modifier.weight(1f),
-                        color = if (selected) Color(0xFF1DBA7A) else Color.Transparent,
-                        shape = RoundedCornerShape(16.dp)
+                        color = if (selected) secondaryColor else Color.Transparent,
+                        shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
                             option.title,
-                            color = if (selected) Color.White else Color.White.copy(alpha = 0.5f),
-                            modifier = Modifier.padding(vertical = 8.dp),
+                            color = if (selected) Color.White else Color.White.copy(alpha = 0.48f),
+                            modifier = Modifier.padding(vertical = 7.dp),
                             fontWeight = FontWeight.Bold,
                             style = MaterialTheme.typography.labelMedium,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
