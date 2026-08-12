@@ -2161,7 +2161,7 @@ private fun QuickRatioChoice(
     onClick: () -> Unit
 ) {
     Surface(
-        modifier = modifier.height(44.dp),
+        modifier = modifier.height(48.dp),
         shape = RoundedCornerShape(12.dp),
         color = if (selected) palette.primary.copy(alpha = 0.14f) else Color.Transparent,
         border = BorderStroke(1.dp, if (selected) palette.primary else Color.Transparent),
@@ -3334,19 +3334,23 @@ private fun CompactChoice(
     enabled: Boolean = true
 ) {
     Surface(
-        modifier = Modifier.clickable(enabled = enabled, onClick = onClick),
+        modifier = Modifier
+            .height(48.dp)
+            .clickable(enabled = enabled, onClick = onClick),
         shape = RoundedCornerShape(50),
         color = if (selected) palette.primary else palette.chip,
         border = BorderStroke(1.dp, if (selected) palette.primary else palette.border)
     ) {
-        Text(
-            text,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            color = if (!enabled) palette.subText.copy(alpha = 0.45f) else if (selected) Color.White else palette.text,
-            fontSize = 11.sp,
-            lineHeight = 14.sp,
-            fontWeight = FontWeight.Bold
-        )
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text,
+                modifier = Modifier.padding(horizontal = 10.dp),
+                color = if (!enabled) palette.subText.copy(alpha = 0.45f) else if (selected) Color.White else palette.text,
+                fontSize = 11.sp,
+                lineHeight = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 
