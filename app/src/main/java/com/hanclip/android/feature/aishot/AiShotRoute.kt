@@ -691,8 +691,13 @@ fun AiShotRoute(
             AiShotTopBar(
                 statusText = statusText,
                 onClose = {
-                    didHandOffCapturedUris = false
-                    onClose()
+                    if (capturedUris.isEmpty()) {
+                        didHandOffCapturedUris = false
+                        onClose()
+                    } else {
+                        didHandOffCapturedUris = true
+                        onOpenEditor(capturedUris)
+                    }
                 }
             )
 
@@ -783,27 +788,6 @@ fun AiShotRoute(
                     }
                 }
             )
-            if (savedCount > 0) {
-                Button(
-                    onClick = {
-                        didHandOffCapturedUris = true
-                        onOpenEditor(capturedUris)
-                    },
-                    enabled = pendingSaveCount == 0 && triggerTimeSeconds == null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
-                    shape = RoundedCornerShape(999.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF07323A),
-                        contentColor = Color.White,
-                        disabledContainerColor = Color(0xFF07323A).copy(alpha = 0.54f),
-                        disabledContentColor = Color.White.copy(alpha = 0.52f)
-                    )
-                ) {
-                    Text("저장한 ${savedCount}개 클립 편집", fontWeight = FontWeight.Bold)
-                }
-            }
         }
     }
 }
