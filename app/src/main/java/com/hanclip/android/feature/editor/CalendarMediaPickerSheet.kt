@@ -55,6 +55,9 @@ import androidx.compose.material.icons.outlined.FilterAlt
 import androidx.compose.material.icons.outlined.MovieCreation
 import androidx.compose.material.icons.outlined.MotionPhotosOn
 import androidx.compose.material.icons.outlined.Photo
+import androidx.compose.material.icons.outlined.PauseCircle
+import androidx.compose.material.icons.outlined.PlayCircle
+import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material.icons.outlined.SwapVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -67,6 +70,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -75,6 +79,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
@@ -945,8 +950,33 @@ private fun CalendarMediaPreviewDialog(
             null
         }
     }
+    var isVideoPlaying by remember { mutableStateOf(isVideo) }
+    var videoProgress by remember { mutableFloatStateOf(0f) }
+    var isVideoSeeking by remember { mutableStateOf(false) }
+    var isVideoLooping by remember { mutableStateOf(true) }
     DisposableEffect(player) {
-        onDispose { player?.release() }
+        val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                isVideoPlaying = isPlaying
+            }
+        }
+        player?.addListener(listener)
+        onDispose {
+            player?.removeListener(listener)
+            player?.release()
+        }
+    }
+    LaunchedEffect(player, isVideoSeeking) {
+        val activePlayer = player ?: return@LaunchedEffect
+        while (!isVideoSeeking) {
+            val duration = activePlayer.duration
+            videoProgress = if (duration > 0L) {
+                (activePlayer.currentPosition.toFloat() / duration).coerceIn(0f, 1f)
+            } else {
+                0f
+            }
+            delay(100L)
+        }
     }
     Dialog(onDismissRequest = onDismiss) {
         Column(
@@ -954,18 +984,83 @@ private fun CalendarMediaPreviewDialog(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Button(
-                onClick = if (isSelected) onToggleSelection else onDismiss,
-                modifier = Modifier.fillMaxWidth(0.70f),
-                shape = RoundedCornerShape(18.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = palette.primary)
-            ) {
-                Icon(
-                    if (isSelected) Icons.Outlined.Delete else Icons.Outlined.Close,
-                    contentDescription = null
-                )
-                Spacer(Modifier.width(5.dp))
-                Text(if (isSelected) "제거" else "닫기")
+            if (isVideo && player != null) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(0.70f).height(56.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    color = palette.solidPanel.copy(alpha = 0.92f),
+                    border = BorderStroke(1.dp, palette.secondary.copy(alpha = 0.28f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        IconButton(
+                            onClick = { if (player.isPlaying) player.pause() else player.play() },
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Icon(
+                                if (isVideoPlaying) Icons.Outlined.PauseCircle else Icons.Outlined.PlayCircle,
+                                contentDescription = if (isVideoPlaying) "일시정지" else "재생",
+                                tint = palette.secondary
+                            )
+                        }
+                        Slider(
+                            value = videoProgress,
+                            onValueChange = {
+                                isVideoSeeking = true
+                                videoProgress = it
+                            },
+                            onValueChangeFinished = {
+                                val duration = player.duration
+                                if (duration > 0L) player.seekTo((duration * videoProgress).toLong())
+                                isVideoSeeking = false
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        Button(
+                            onClick = if (isSelected) onToggleSelection else onDismiss,
+                            modifier = Modifier.size(52.dp),
+                            shape = RoundedCornerShape(18.dp),
+                            contentPadding = PaddingValues(0.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = palette.secondary)
+                        ) {
+                            Text(if (isSelected) "제거" else "닫기", fontWeight = FontWeight.Bold)
+                        }
+                        IconButton(
+                            onClick = {
+                                isVideoLooping = !isVideoLooping
+                                player.repeatMode = if (isVideoLooping) {
+                                    Player.REPEAT_MODE_ALL
+                                } else {
+                                    Player.REPEAT_MODE_OFF
+                                }
+                            },
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Icon(
+                                Icons.Outlined.Repeat,
+                                contentDescription = "무한 재생",
+                                tint = if (isVideoLooping) palette.secondary else palette.subText
+                            )
+                        }
+                    }
+                }
+            } else {
+                Button(
+                    onClick = if (isSelected) onToggleSelection else onDismiss,
+                    modifier = Modifier.fillMaxWidth(0.70f),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = palette.primary)
+                ) {
+                    Icon(
+                        if (isSelected) Icons.Outlined.Delete else Icons.Outlined.Close,
+                        contentDescription = null
+                    )
+                    Spacer(Modifier.width(5.dp))
+                    Text(if (isSelected) "제거" else "닫기")
+                }
             }
             Surface(
                 modifier = Modifier
@@ -981,8 +1076,7 @@ private fun CalendarMediaPreviewDialog(
                             factory = { viewContext ->
                                 PlayerView(viewContext).apply {
                                     this.player = player
-                                    useController = true
-                                    controllerAutoShow = true
+                                    useController = false
                                     contentDescription = "${item.displayName} 영상 미리보기"
                                 }
                             },
