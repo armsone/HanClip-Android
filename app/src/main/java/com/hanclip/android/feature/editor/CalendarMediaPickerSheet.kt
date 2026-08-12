@@ -1359,7 +1359,7 @@ private fun CalendarDayCell(
 ) {
     Surface(
         modifier = Modifier
-            .height(42.dp)
+            .height(48.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(0.dp),
         color = if (selected) palette.primary else palette.panel,
@@ -1414,7 +1414,7 @@ private fun CalendarSelectionSummary(
         border = BorderStroke(1.dp, palette.border)
     ) {
         Row(
-            modifier = Modifier.height(44.dp),
+            modifier = Modifier.height(48.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -1429,7 +1429,7 @@ private fun CalendarSelectionSummary(
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .height(44.dp)
+                    .height(48.dp)
                     .clickable(enabled = selectedDateCount > 0, onClick = onClear),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
@@ -1532,7 +1532,7 @@ private fun CalendarMediaStrip(
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box {
                     OutlinedButton(
-                        modifier = Modifier.height(34.dp),
+                        modifier = Modifier.height(48.dp),
                         onClick = { showSortMenu = true },
                         border = BorderStroke(1.dp, palette.border),
                         colors = ButtonDefaults.outlinedButtonColors(
@@ -1570,7 +1570,7 @@ private fun CalendarMediaStrip(
                     }
                 }
                 OutlinedButton(
-                    modifier = Modifier.height(34.dp),
+                    modifier = Modifier.height(48.dp),
                     onClick = onOpenVideoDurationFilter,
                     border = BorderStroke(
                         1.dp,
@@ -1590,7 +1590,7 @@ private fun CalendarMediaStrip(
                 }
                 if (items.isNotEmpty()) {
                     OutlinedButton(
-                        modifier = Modifier.height(34.dp),
+                        modifier = Modifier.height(48.dp),
                         onClick = if (selectedUris.size == items.size) onClearSelection else onSelectAll,
                         border = BorderStroke(1.dp, palette.border),
                         colors = ButtonDefaults.outlinedButtonColors(
