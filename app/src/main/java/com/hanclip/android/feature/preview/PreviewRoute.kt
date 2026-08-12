@@ -1292,6 +1292,7 @@ private fun FullscreenPreviewDialog(
                         } else {
                             AspectRatioFrameLayout.RESIZE_MODE_FIT
                         },
+                        controlsVisible = areControlsVisible,
                         onScrubbingChanged = { scrubbing ->
                             isScrubbing = scrubbing
                             if (scrubbing) areControlsVisible = true
@@ -1521,6 +1522,7 @@ private fun ExportedVideoPlayer(
 private fun ExportedVideoPlayerView(
     player: Player,
     resizeMode: Int,
+    controlsVisible: Boolean? = null,
     onScrubbingChanged: (Boolean) -> Unit = {}
 ) {
     AndroidView(
@@ -1529,7 +1531,7 @@ private fun ExportedVideoPlayerView(
                 this.player = player
                 contentDescription = "시사회 재생 또는 일시정지"
                 useController = true
-                controllerShowTimeoutMs = 3_000
+                controllerShowTimeoutMs = if (controlsVisible == null) 3_000 else 0
                 this.resizeMode = resizeMode
                 (findViewById<View>(androidx.media3.ui.R.id.exo_progress) as? TimeBar)
                     ?.addListener(object : TimeBar.OnScrubListener {
@@ -1556,6 +1558,12 @@ private fun ExportedVideoPlayerView(
         update = { view ->
             view.player = player
             view.resizeMode = resizeMode
+            if (controlsVisible == null) {
+                view.controllerShowTimeoutMs = 3_000
+            } else {
+                view.controllerShowTimeoutMs = 0
+                if (controlsVisible) view.showController() else view.hideController()
+            }
         },
         modifier = Modifier.fillMaxSize()
     )
