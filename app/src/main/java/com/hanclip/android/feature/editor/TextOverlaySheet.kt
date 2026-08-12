@@ -310,7 +310,6 @@ fun TextOverlaySheet(
                     captionTextFieldValue = value
                     hasUserEditedCaptionText = true
                     draft = draft.copy(
-                        isEnabled = value.text.isNotBlank(),
                         text = value.text
                     )
                 },
