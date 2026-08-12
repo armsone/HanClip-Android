@@ -2244,11 +2244,7 @@ private fun SharedInboxDialog(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(
-                        Brush.linearGradient(
-                            listOf(palette.primary, palette.secondary, palette.primary)
-                        )
-                    )
+                    .background(palette.background)
                     .statusBarsPadding()
                     .navigationBarsPadding(),
                 contentAlignment = Alignment.Center
@@ -2268,7 +2264,7 @@ private fun SharedInboxDialog(
                     Surface(
                         modifier = Modifier.size(60.dp),
                         shape = RoundedCornerShape(18.dp),
-                        color = Color.White.copy(alpha = 0.95f)
+                        color = palette.secondary.copy(alpha = 0.10f)
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Collections,
@@ -2278,8 +2274,12 @@ private fun SharedInboxDialog(
                         )
                     }
                     Text(
-                        text = if (isCopying) "공유 파일을 옮기는 중" else "공유파일 ${count}개 발견",
-                        color = Color.White,
+                        text = if (isCopying) {
+                            "공유 파일을 HanClip으로 옮기는 중입니다."
+                        } else {
+                            "공유파일 ${count}개 발견"
+                        },
+                        color = palette.text,
                         fontSize = 25.sp,
                         fontWeight = FontWeight.Black
                     )
@@ -2294,7 +2294,7 @@ private fun SharedInboxDialog(
                         Text(
                             "${(progress * 100).roundToInt()}%",
                             modifier = Modifier.width(54.dp),
-                            color = Color.White,
+                            color = palette.secondary,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.End
@@ -2302,18 +2302,18 @@ private fun SharedInboxDialog(
                         LinearProgressIndicator(
                             progress = { progress },
                             modifier = Modifier.weight(1f),
-                            color = Color.White,
-                            trackColor = Color.White.copy(alpha = 0.22f)
+                            color = palette.secondary,
+                            trackColor = palette.secondary.copy(alpha = 0.18f)
                         )
                     }
                     Text(
                         "$copyCurrent/${copyTotal}개 파일을 복사하는 중입니다.",
-                        color = Color.White,
+                        color = palette.text,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         "복사가 끝나면 HanClip에서 바로 새 영화나 기존 영화에 추가할 수 있습니다.",
-                        color = Color.White.copy(alpha = 0.86f),
+                        color = palette.subText,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -2321,12 +2321,16 @@ private fun SharedInboxDialog(
                     OutlinedButton(
                         onClick = onCancelCopy,
                         modifier = Modifier.fillMaxWidth().height(54.dp),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.55f))
-                    ) { Text("닫기", color = Color.White) }
+                        border = BorderStroke(1.dp, palette.secondary.copy(alpha = 0.32f)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = palette.secondary.copy(alpha = 0.12f),
+                            contentColor = palette.primary
+                        )
+                    ) { Text("닫기", fontWeight = FontWeight.Bold) }
                 } else {
                     Text(
                         "새 영화를 만들거나 저장된 영화에 추가할 수 있습니다.",
-                        color = Color.White.copy(alpha = 0.86f),
+                        color = palette.subText,
                         fontWeight = FontWeight.SemiBold
                     )
                     Spacer(Modifier.weight(1f))
@@ -2337,16 +2341,19 @@ private fun SharedInboxDialog(
                         SharedInboxActionButton(
                             title = "새 영화 제작",
                             modifier = Modifier.weight(1f),
+                            palette = palette,
                             onClick = onCreateMovie
                         )
                         SharedInboxActionButton(
                             title = "영화에 추가",
                             modifier = Modifier.weight(1f),
+                            palette = palette,
                             onClick = onAddToMovie
                         )
                         SharedInboxActionButton(
                             title = "비우기",
                             modifier = Modifier.weight(1f),
+                            palette = palette,
                             onClick = onClear
                         )
                     }
@@ -2361,6 +2368,7 @@ private fun SharedInboxDialog(
 private fun SharedInboxActionButton(
     title: String,
     modifier: Modifier,
+    palette: HanClipPalette,
     onClick: () -> Unit
 ) {
     Button(
@@ -2368,10 +2376,10 @@ private fun SharedInboxActionButton(
         modifier = modifier.height(58.dp),
         shape = RoundedCornerShape(18.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = Color.White.copy(alpha = 0.18f),
+            containerColor = palette.secondary.copy(alpha = 0.92f),
             contentColor = Color.White
         ),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.34f)),
+        border = BorderStroke(1.dp, palette.secondary.copy(alpha = 0.32f)),
         contentPadding = PaddingValues(horizontal = 6.dp)
     ) {
         Text(
