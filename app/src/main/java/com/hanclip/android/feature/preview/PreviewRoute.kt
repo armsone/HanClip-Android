@@ -202,6 +202,8 @@ fun PreviewRoute(
         FullscreenPreviewDialog(
             uri = exportedVideoUri,
             title = movieSummary.presetTitle,
+            loop = false,
+            showsLoopControl = false,
             onShare = { runCatching { VideoSaveShare.shareVideo(context, exportedVideoUri) } },
             onClose = onDone
         )
@@ -1080,6 +1082,8 @@ internal fun FullscreenPreviewDialog(
     uri: Uri,
     title: String? = null,
     startPositionMs: Long = 0L,
+    loop: Boolean = true,
+    showsLoopControl: Boolean = true,
     onShare: (() -> Unit)? = null,
     onClose: () -> Unit
 ) {
@@ -1096,7 +1100,7 @@ internal fun FullscreenPreviewDialog(
             prepare()
         }
     }
-    var isLooping by remember { mutableStateOf(true) }
+    var isLooping by remember(loop) { mutableStateOf(loop) }
     var isFillMode by remember { mutableStateOf(false) }
     var hasManualAspectModeSelection by remember { mutableStateOf(false) }
     var verticalDragPx by remember { mutableFloatStateOf(0f) }
@@ -1411,15 +1415,17 @@ internal fun FullscreenPreviewDialog(
                             .padding(18.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                    FullscreenCircleButton(
-                        onClick = {
-                            isLooping = !isLooping
-                            areControlsVisible = true
-                        },
-                        active = isLooping,
-                        contentDescription = if (isLooping) "반복 재생 끄기" else "반복 재생 켜기"
-                    ) {
-                        Icon(Icons.Outlined.Repeat, contentDescription = null, tint = Color.White)
+                    if (showsLoopControl) {
+                        FullscreenCircleButton(
+                            onClick = {
+                                isLooping = !isLooping
+                                areControlsVisible = true
+                            },
+                            active = isLooping,
+                            contentDescription = if (isLooping) "반복 재생 끄기" else "반복 재생 켜기"
+                        ) {
+                            Icon(Icons.Outlined.Repeat, contentDescription = null, tint = Color.White)
+                        }
                     }
                     if (shouldShowFullscreenAspectToggle(viewportWidthPx, viewportHeightPx)) {
                         FullscreenCircleButton(
