@@ -84,7 +84,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.onClick as semanticsOnClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -468,14 +473,23 @@ private fun CollectionImportCard(
                 )
             )
             .border(1.dp, palette.secondary.copy(alpha = 0.40f), shape)
-            .semantics(mergeDescendants = true) {
+            .clickable(enabled = !isImporting, onClick = onClick)
+            .clearAndSetSemantics {
                 contentDescription = if (isImporting) {
                     "컬렉션 영화 가져오는 중"
                 } else {
                     "컬렉션에 영화 추가"
                 }
-            }
-            .clickable(enabled = !isImporting, onClick = onClick),
+                role = Role.Button
+                if (isImporting) {
+                    disabled()
+                } else {
+                    semanticsOnClick {
+                        onClick()
+                        true
+                    }
+                }
+            },
         contentAlignment = Alignment.Center
     ) {
         Column(
