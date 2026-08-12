@@ -78,6 +78,7 @@ import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.MovieCreation
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.PlayCircle
+import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Repeat
@@ -1294,7 +1295,7 @@ private fun HomeHeader(
                     showMediaMenu = false
                     onOpenAiShot()
                 }
-                HomeMediaMenuItem("사진", Icons.Outlined.Collections, palette) {
+                HomeMediaMenuItem("사진", Icons.Outlined.PhotoLibrary, palette) {
                     showMediaMenu = false
                     onOpenPhotos()
                 }
@@ -2379,7 +2380,7 @@ private fun PresetGrid(
         MoviePreset.Golf
     )
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        HomeSectionTitle("영화 프리셋", Icons.Outlined.Collections, palette)
+        HomeSectionTitle("영화 프리셋", Icons.Outlined.GridView, palette)
         orderedPresets.chunked(columnCount).forEach { rowPresets ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 rowPresets.forEach { preset ->
