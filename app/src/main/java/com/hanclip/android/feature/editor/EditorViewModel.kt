@@ -686,7 +686,9 @@ class EditorViewModel : ViewModel() {
 
     fun selectDefaultRangeForAllVideoClips() {
         _uiState.update { state ->
-            val videoCount = state.renderableClips.count { it.mediaKind == ClipMediaKind.Video }
+            val videoCount = state.clips.count {
+                it.mediaKind == ClipMediaKind.Video && !it.isVideoSegmentChild
+            }
             state.copy(
                 clips = state.clips.map { clip ->
                     if (clip.mediaKind != ClipMediaKind.Video || clip.isVideoSegmentChild) {
@@ -1295,23 +1297,25 @@ class EditorViewModel : ViewModel() {
 
     fun selectFullRangeForAllVideoClips() {
         _uiState.update { state ->
-            val videoCount = state.renderableClips.count { it.mediaKind == ClipMediaKind.Video }
+            val videoCount = state.clips.count {
+                it.mediaKind == ClipMediaKind.Video && !it.isVideoSegmentChild
+            }
             state.copy(
-                clips = state.clips.map { clip ->
-                    if (clip.mediaKind == ClipMediaKind.Video) {
+                clips = state.clips.mapNotNull { clip ->
+                    if (clip.isVideoSegmentChild) {
+                        null
+                    } else if (clip.mediaKind == ClipMediaKind.Video) {
                         val sourceDuration = clip.sourceDurationSeconds ?: clip.durationSeconds
                         clip.copy(
                             durationSeconds = sourceDuration,
                             photoDurationSeconds = sourceDuration,
                             trimStartSeconds = 0.0,
-                            videoSegmentMode = VideoSegmentMode.Single
+                            videoSegmentMode = VideoSegmentMode.Single,
+                            isVideoSegmentParent = false,
+                            videoSegmentParentId = null
                         )
                     } else {
-                        clip.copy(
-                            durationSeconds = state.defaultDurationSeconds,
-                            photoDurationSeconds = state.defaultDurationSeconds,
-                            trimStartSeconds = 0.0
-                        )
+                        clip
                     }
                 },
                 defaultVideoSegmentMode = VideoSegmentMode.Single,

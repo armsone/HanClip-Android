@@ -332,6 +332,62 @@ class ProjectPersistenceInstrumentedTest {
     }
 
     @Test
+    fun selectingFullVideoRangeCollapsesSegmentsWithoutChangingPhotos() {
+        val projectId = "test-${UUID.randomUUID()}"
+        val videoUri = Uri.parse("sample://source-video.mp4")
+        EditableProjectStore.upsert(
+            context,
+            sampleProject(projectId, defaultDurationSeconds = 4.0).copy(
+                clips = listOf(
+                    ClipItem(
+                        id = "video-parent",
+                        sourceUri = videoUri,
+                        mediaKind = ClipMediaKind.Video,
+                        durationSeconds = 3.0,
+                        sourceDurationSeconds = 10.0,
+                        videoSegmentMode = VideoSegmentMode.Multiple,
+                        isVideoSegmentParent = true
+                    ),
+                    ClipItem(
+                        id = "video-child-1",
+                        sourceUri = videoUri,
+                        mediaKind = ClipMediaKind.Video,
+                        durationSeconds = 2.0,
+                        sourceDurationSeconds = 10.0,
+                        videoSegmentParentId = "video-parent"
+                    ),
+                    ClipItem(
+                        id = "video-child-2",
+                        sourceUri = videoUri,
+                        mediaKind = ClipMediaKind.Video,
+                        durationSeconds = 2.0,
+                        sourceDurationSeconds = 10.0,
+                        videoSegmentParentId = "video-parent"
+                    ),
+                    ClipItem(
+                        id = "photo",
+                        sourceUri = Uri.parse("sample://photo.jpg"),
+                        durationSeconds = 7.0,
+                        photoDurationSeconds = 7.0
+                    )
+                )
+            )
+        )
+        val viewModel = EditorViewModel()
+        assertEquals(true, viewModel.openEditableProject(context, projectId))
+
+        viewModel.selectFullRangeForAllVideoClips()
+
+        val clips = viewModel.uiState.value.clips
+        assertEquals(listOf("video-parent", "photo"), clips.map(ClipItem::id))
+        assertEquals(10.0, clips.first().durationSeconds, 0.0)
+        assertEquals(false, clips.first().isVideoSegmentParent)
+        assertEquals(VideoSegmentMode.Single, clips.first().videoSegmentMode)
+        assertEquals(7.0, clips.last().durationSeconds, 0.0)
+        assertEquals(7.0, clips.last().photoDurationSeconds, 0.0)
+    }
+
+    @Test
     fun malformedPrimaryMetadataFallsBackToPreviousVerifiedBackup() {
         val projectId = "test-${UUID.randomUUID()}"
         val first = sampleProject(projectId, defaultDurationSeconds = 3.0)
