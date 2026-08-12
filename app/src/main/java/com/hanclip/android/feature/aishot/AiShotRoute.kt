@@ -880,6 +880,7 @@ private fun AiShotTopBar(
         Surface(
             color = if (isReady) accentColor.copy(alpha = 0.24f) else Color(0xFF4F1F24).copy(alpha = 0.78f),
             shape = RoundedCornerShape(999.dp),
+            shadowElevation = 5.dp,
             border = androidx.compose.foundation.BorderStroke(
                 1.dp,
                 if (isReady) accentColor.copy(alpha = 0.72f) else Color(0xFFE05257).copy(alpha = 0.58f)
@@ -890,7 +891,7 @@ private fun AiShotTopBar(
                     .height(40.dp)
                     .padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(7.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (isReady) {
                     Image(
@@ -915,6 +916,7 @@ private fun AiShotTopBar(
             modifier = Modifier.height(40.dp),
             color = Color.Black.copy(alpha = 0.52f),
             shape = RoundedCornerShape(999.dp),
+            shadowElevation = 5.dp,
             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE05257).copy(alpha = 0.58f)),
             onClick = onClose
         ) {
@@ -1389,7 +1391,7 @@ private fun FloatingSideButton(
                 ),
                 RoundedCornerShape(12.dp)
             )
-            .border(1.dp, accentColor.copy(alpha = 0.70f), RoundedCornerShape(12.dp))
+            .border(1.2.dp, accentColor.copy(alpha = 0.70f), RoundedCornerShape(12.dp))
             .semantics { this.contentDescription = contentDescription },
         shape = RoundedCornerShape(12.dp),
         colors = ButtonDefaults.buttonColors(
@@ -1505,7 +1507,11 @@ private fun ShotLengthNoticePanel(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Surface(
-                    color = secondaryColor,
+                    modifier = Modifier.background(
+                        Brush.linearGradient(listOf(secondaryColor, primaryColor)),
+                        RoundedCornerShape(10.dp)
+                    ),
+                    color = Color.Transparent,
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Icon(
@@ -1555,8 +1561,19 @@ private fun ShotLengthNoticePanel(
                 ShotLength.entries.forEach { option ->
                     val selected = option == shotLength
                     Surface(
-                        modifier = Modifier.weight(1f),
-                        color = if (selected) secondaryColor else Color.Transparent,
+                        modifier = Modifier
+                            .weight(1f)
+                            .then(
+                                if (selected) {
+                                    Modifier.background(
+                                        Brush.linearGradient(listOf(secondaryColor, primaryColor)),
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                } else {
+                                    Modifier
+                                }
+                            ),
+                        color = Color.Transparent,
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
