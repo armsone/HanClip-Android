@@ -951,17 +951,17 @@ private fun CalendarMediaPreviewDialog(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Button(
-                onClick = onToggleSelection,
+                onClick = if (isSelected) onToggleSelection else onDismiss,
                 modifier = Modifier.fillMaxWidth(0.70f),
                 shape = RoundedCornerShape(18.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = palette.primary)
             ) {
                 Icon(
-                    if (isSelected) Icons.Outlined.Delete else Icons.Outlined.Add,
+                    if (isSelected) Icons.Outlined.Delete else Icons.Outlined.Close,
                     contentDescription = null
                 )
                 Spacer(Modifier.width(5.dp))
-                Text(if (isSelected) "선택에서 제거" else "선택에 추가")
+                Text(if (isSelected) "제거" else "닫기")
             }
             Surface(
                 modifier = Modifier
