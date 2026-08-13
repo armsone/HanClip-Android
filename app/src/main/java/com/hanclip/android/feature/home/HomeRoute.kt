@@ -223,11 +223,13 @@ fun HomeRoute(
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
     val screenWidthDp = LocalConfiguration.current.screenWidthDp
+    val fontScale = LocalConfiguration.current.fontScale
     val presetColumnCount = when {
-        LocalConfiguration.current.fontScale >= 1.6f -> 1
-        LocalConfiguration.current.fontScale >= 1.3f -> 2
+        fontScale >= 1.6f -> 1
+        fontScale >= 1.3f -> 2
         else -> 3
     }
+    val presetTileHeight = (74f + 72f * fontScale).dp
     val standardProjectColumnCount = if (screenWidthDp >= 600) 2 else 1
     val collectionColumnCount = if (screenWidthDp >= 600) 3 else 2
     val coroutineScope = rememberCoroutineScope()
@@ -471,7 +473,7 @@ fun HomeRoute(
             Spacer(Modifier.height(8.dp))
         }
         item(key = "preset-grid") {
-            PresetGrid(onStartPreset, palette, presetColumnCount)
+            PresetGrid(onStartPreset, palette, presetColumnCount, presetTileHeight)
             Spacer(Modifier.height(8.dp))
         }
         savedProjectItems(
@@ -1962,6 +1964,7 @@ private fun importantInfoIcon(title: String): ImageVector = when (title) {
     "iPad 지원" -> Icons.Outlined.GridView
     "영화 프리셋" -> Icons.Outlined.GridView
     "영상 시간 필터" -> Icons.Outlined.Timelapse
+    "사진 선택" -> Icons.Outlined.AddPhotoAlternate
     "사진 정렬" -> Icons.Outlined.SwapHoriz
     "퀵모드" -> Icons.Outlined.Bolt
     "여행 영화" -> Icons.Outlined.Flight
@@ -2030,7 +2033,7 @@ private fun importantInfoItems(): List<Pair<String, String>> = listOf(
         첫 화면 상단에서 새 영화, 퀵모드, AiShot, 여행 영화, 인생 영화, 골프 영화 중 원하는 설정으로 영화 제작을 시작하는 영역입니다.
     """.trimIndent(),
     "퀵모드" to """
-        새 영화의 기본 설정에 음악을 켠 빠른 제작 기능입니다. 미디어를 고르면 30초, 45초, 1분, 2분, 3분, 5분, 추천시간 또는 최소시간을 고릅니다. 추천시간은 미디어당 1초, 최소시간은 미디어당 0.2초로 계산합니다. 선택한 미디어가 많으면 정해진 시간보다 최소시간이 길 때 가능한 최소 시간으로 자동 보정하며, −와 +로 5초씩 조절할 수 있습니다. 시간 화면에서 영화 제작과 같은 자막·음악 패널을 사용할 수 있습니다. 확정하면 선택 시간÷원본 미디어 수로 기본시간을 정해 편집 화면을 거치지 않고 영화를 만들며, 시사회에서 다시 편집을 누르면 퀵모드 영상 길이 화면으로 돌아갑니다. 외부 주소 hanclip://quick으로 바로 실행할 수 있습니다.
+        새 영화의 기본 설정에 음악을 켠 빠른 제작 기능입니다. 첫 화면에서 누르면 영화 제작 세션을 준비하고 사진 화면을 바로 엽니다. 미디어를 고르면 퀵모드 화면에서 30초, 45초, 1분, 2분, 3분, 5분, 추천시간 또는 최소시간을 고릅니다. 추천시간은 미디어당 1초, 최소시간은 미디어당 0.2초로 계산합니다. 선택한 미디어가 많으면 정해진 시간보다 최소시간이 길 때 가능한 최소 시간으로 자동 보정하며, −와 +로 5초씩 조절할 수 있습니다. 시간 화면에서 영화 제작과 같은 자막·음악 패널을 사용할 수 있습니다. 확정하면 선택 시간÷원본 미디어 수로 기본시간을 정해 편집 화면을 거치지 않고 영화를 만들며, 시사회에서 다시 편집을 누르면 퀵모드 영상 길이 화면으로 돌아갑니다. 외부 주소 hanclip://quick으로 바로 실행할 수 있습니다.
     """.trimIndent(),
     "여행 영화" to """
         기본시간 1초, 라이브포토 영상, 영상 분할, 묶음사진 1/6 자동, 여행 서체와 여행의 설렘 음악을 적용합니다. 촬영 기간과 많이 촬영한 지역 최대 두 곳을 자막에 넣고, 마지막 엔딩 카드는 보물지도를 기본으로 사용합니다.
@@ -2080,6 +2083,9 @@ private fun importantInfoItems(): List<Pair<String, String>> = listOf(
     """.trimIndent(),
     "영상 시간 필터" to """
         사진 화면의 필터에서 설정한 시간 이상 또는 이하인 영상을 찾는 기능입니다. 시간 필터를 적용하는 동안에는 사진과 라이브포토를 숨기고 영상만 표시합니다. 1분, 3분, 5분, 10분을 빠르게 고르거나 분과 초를 직접 선택할 수 있으며, 필터를 해제하면 이전에 선택했던 미디어 종류가 복원됩니다.
+    """.trimIndent(),
+    "사진 선택" to """
+        영화에 넣을 사진과 영상을 날짜별 그리드에서 고르는 화면입니다. 한 항목을 누른 채 다른 항목까지 가로로 끌면 두 지점 사이의 사진을 빠짐없이 한 번에 선택하거나 해제하며, 화면 가장자리에서는 자동으로 스크롤합니다.
     """.trimIndent(),
     "사진 정렬" to """
         사진 화면의 필터에서 날짜순 또는 추가순을 선택합니다. 선택된 정렬을 다시 누르면 글자 옆 화살표가 바뀌며 오름차순과 내림차순이 전환됩니다. 날짜순은 촬영일을 사용하고, 추가순은 사진 보관함의 추가·변경 시각을 사용합니다. 영화 제작, 퀵모드와 컬렉션의 공용 사진 화면에 동일하게 적용됩니다.
@@ -2402,7 +2408,8 @@ private fun SharedInboxActionButton(
 private fun PresetGrid(
     onStartPreset: (MoviePreset) -> Unit,
     palette: HanClipPalette,
-    columnCount: Int
+    columnCount: Int,
+    tileHeight: androidx.compose.ui.unit.Dp
 ) {
     val orderedPresets = listOf(
         MoviePreset.NewMovie,
@@ -2422,6 +2429,7 @@ private fun PresetGrid(
                 rowPresets.forEach { preset ->
                     PresetTile(
                         modifier = Modifier.weight(1f),
+                        tileHeight = tileHeight,
                         preset = preset,
                         icon = when (preset) {
                             MoviePreset.NewMovie -> Icons.Outlined.VideoLibrary
@@ -2446,6 +2454,7 @@ private fun PresetGrid(
 @Composable
 private fun PresetTile(
     modifier: Modifier,
+    tileHeight: androidx.compose.ui.unit.Dp,
     preset: MoviePreset,
     icon: ImageVector?,
     palette: HanClipPalette,
@@ -2455,7 +2464,7 @@ private fun PresetTile(
     Box(
         modifier = modifier
             .fillMaxHeight()
-            .heightIn(min = 120.dp)
+            .height(tileHeight)
             .clip(cardShape)
             .background(
                 Brush.linearGradient(

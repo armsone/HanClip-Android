@@ -11,6 +11,7 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import android.util.Size
 import android.webkit.MimeTypeMap
 import androidx.exifinterface.media.ExifInterface
 import com.hanclip.android.core.model.ClipItem
@@ -431,6 +432,11 @@ object MediaImportReader {
         mediaKind: ClipMediaKind,
         targetSize: Int = 320
     ): Bitmap? = withContext(Dispatchers.IO) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uri.scheme == "content") {
+            runCatching {
+                context.contentResolver.loadThumbnail(uri, Size(targetSize, targetSize), null)
+            }.getOrNull()?.let { return@withContext it }
+        }
         runCatching {
             if (mediaKind == ClipMediaKind.Video) {
                 val retriever = MediaMetadataRetriever()

@@ -2134,7 +2134,7 @@ private fun QuickDurationDialog(
                     .fillMaxSize()
                     .statusBarsPadding()
                     .navigationBarsPadding(),
-                contentPadding = PaddingValues(start = 20.dp, top = 6.dp, end = 20.dp, bottom = 111.dp),
+                contentPadding = PaddingValues(start = 20.dp, top = 6.dp, end = 20.dp, bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 stickyHeader {
@@ -2426,18 +2426,22 @@ private fun QuickDurationDialog(
                     }
                 }
             }
-            Button(
+            Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(horizontal = 20.dp, vertical = 6.dp)
-                    .height(93.dp),
-                onClick = onConfirm,
-                shape = RoundedCornerShape(47.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = palette.primary)
+                    .background(palette.background)
+                    .padding(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 10.dp)
             ) {
-                Text("이 시간으로 만들기", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, lineHeight = 22.sp)
+                Button(
+                    modifier = Modifier.fillMaxWidth().height(58.dp),
+                    onClick = onConfirm,
+                    shape = RoundedCornerShape(29.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = palette.primary)
+                ) {
+                    Text("이 시간으로 만들기", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, lineHeight = 22.sp)
+                }
             }
         }
     }

@@ -204,11 +204,25 @@ fun CalendarMediaPickerSheet(
         visibleMonth,
         pickerMode
     ) {
-        value = visibleMonth to if (pickerMode == MediaPickerSheetMode.Recent) {
+        val initialItems = if (pickerMode == MediaPickerSheetMode.Recent) {
             CalendarMediaRepository.loadAll(context)
         } else {
             CalendarMediaRepository.loadMonth(context, visibleMonth)
         }
+        value = visibleMonth to initialItems
+        var enrichedItems = initialItems
+        initialItems
+            .filter { it.kind == ClipMediaKind.Photo }
+            .chunked(12)
+            .forEach { batch ->
+                val motionUris = CalendarMediaRepository.findMotionPhotoUris(context, batch)
+                if (motionUris.isNotEmpty()) {
+                    enrichedItems = enrichedItems.map { item ->
+                        if (item.uri in motionUris) item.copy(kind = ClipMediaKind.LivePhoto) else item
+                    }
+                    value = visibleMonth to enrichedItems
+                }
+            }
     }
     val monthItems = loadedMonthItems
         ?.takeIf { (loadedMonth) -> loadedMonth == visibleMonth }
@@ -416,6 +430,9 @@ fun CalendarMediaPickerSheet(
                 },
                 onClearSelection = {
                     selectedUris = emptyList()
+                },
+                onReplaceSelection = { replacement ->
+                    selectedUris = replacement
                 },
                 onToggle = { uri ->
                     selectedUris = if (uri in selectedUris) {
@@ -1640,22 +1657,38 @@ private fun CalendarMediaStrip(
     onOpenVideoDurationFilter: () -> Unit,
     onSelectAll: () -> Unit,
     onClearSelection: () -> Unit,
+    onReplaceSelection: (List<Uri>) -> Unit,
     onToggle: (Uri) -> Unit
 ) {
     var previewItem by remember { mutableStateOf<CalendarMediaItem?>(null) }
     var showSortMenu by remember { mutableStateOf(false) }
     val gridState = rememberLazyGridState()
     val itemByKey = remember(items) { items.associateBy { it.uri.toString() } }
+    val orderedUris = remember(items) { items.map { it.uri } }
     val currentSelectedUris by rememberUpdatedState(selectedUris)
     val currentOnToggle by rememberUpdatedState(onToggle)
+    val currentOnReplaceSelection by rememberUpdatedState(onReplaceSelection)
     var dragSelects by remember { mutableStateOf(true) }
     var lastDraggedUri by remember { mutableStateOf<Uri?>(null) }
+    var dragWorkingSelection by remember { mutableStateOf<List<Uri>?>(null) }
     var edgeDragDirection by remember { mutableIntStateOf(0) }
     var edgeDragSpeedPxPerSecond by remember { mutableStateOf(0f) }
     var dragPosition by remember { mutableStateOf<Offset?>(null) }
     var mediaColumnCount by rememberSaveable { mutableIntStateOf(5) }
     val currentEdgeDragSpeedPxPerSecond by rememberUpdatedState(edgeDragSpeedPxPerSecond)
     val currentDragPosition by rememberUpdatedState(dragPosition)
+    fun applyDragRange(previous: Uri?, current: Uri) {
+        val range = inclusiveMediaDragRange(orderedUris, previous, current)
+        var next = dragWorkingSelection ?: currentSelectedUris
+        next = if (dragSelects) {
+            next + range.filterNot { it in next }
+        } else {
+            val removing = range.toSet()
+            next.filterNot { it in removing }
+        }
+        dragWorkingSelection = next
+        currentOnReplaceSelection(next)
+    }
     LaunchedEffect(edgeDragDirection) {
         while (edgeDragDirection != 0) {
             gridState.scrollBy(edgeDragDirection * currentEdgeDragSpeedPxPerSecond * 0.016f)
@@ -1668,9 +1701,9 @@ private fun CalendarMediaStrip(
                 }
                 val item = info?.let { itemByKey[it.key.toString()] }
                 if (item != null && item.uri != lastDraggedUri) {
+                    val previous = lastDraggedUri
                     lastDraggedUri = item.uri
-                    val isSelected = item.uri in currentSelectedUris
-                    if (isSelected != dragSelects) currentOnToggle(item.uri)
+                    applyDragRange(previous, item.uri)
                 }
             }
             delay(16L)
@@ -1840,17 +1873,20 @@ private fun CalendarMediaStrip(
                                         mediaAt(position.x, position.y)?.let { item ->
                                             dragSelects = item.uri !in currentSelectedUris
                                             lastDraggedUri = item.uri
-                                            currentOnToggle(item.uri)
+                                            dragWorkingSelection = currentSelectedUris
+                                            applyDragRange(item.uri, item.uri)
                                         }
                                     },
                                     onDragEnd = {
                                         lastDraggedUri = null
+                                        dragWorkingSelection = null
                                         edgeDragDirection = 0
                                         edgeDragSpeedPxPerSecond = 0f
                                         dragPosition = null
                                     },
                                     onDragCancel = {
                                         lastDraggedUri = null
+                                        dragWorkingSelection = null
                                         edgeDragDirection = 0
                                         edgeDragSpeedPxPerSecond = 0f
                                         dragPosition = null
@@ -1873,9 +1909,9 @@ private fun CalendarMediaStrip(
                                             (120f + 1_180f * edgeProgress * edgeProgress).dp.toPx()
                                         mediaAt(change.position.x, change.position.y)?.let { item ->
                                             if (item.uri != lastDraggedUri) {
+                                                val previous = lastDraggedUri
                                                 lastDraggedUri = item.uri
-                                                val isSelected = item.uri in currentSelectedUris
-                                                if (isSelected != dragSelects) currentOnToggle(item.uri)
+                                                applyDragRange(previous, item.uri)
                                             }
                                         }
                                     }
@@ -1962,6 +1998,17 @@ private fun CalendarMediaStrip(
             }
         )
     }
+}
+
+internal fun <T> inclusiveMediaDragRange(
+    items: List<T>,
+    previous: T?,
+    current: T
+): List<T> {
+    val start = items.indexOf(previous ?: current)
+    val end = items.indexOf(current)
+    if (start < 0 || end < 0) return listOf(current)
+    return if (start <= end) items.subList(start, end + 1) else items.subList(end, start + 1)
 }
 
 internal enum class TodaySelectionAction {
@@ -2503,6 +2550,8 @@ private fun formatDurationBadge(durationMillis: Long): String {
 }
 
 private object CalendarMediaRepository {
+    private val motionPhotoCache = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+
     suspend fun loadAll(context: Context): List<CalendarMediaItem> =
         withContext(Dispatchers.IO) {
             (queryCollection(
@@ -2528,6 +2577,20 @@ private object CalendarMediaRepository {
                 queryCollection(context, MediaStore.Video.Media.EXTERNAL_CONTENT_URI, ClipMediaKind.Video, start, end))
                 .sortedByDescending { it.takenMillis }
         }
+
+    suspend fun findMotionPhotoUris(
+        context: Context,
+        items: List<CalendarMediaItem>
+    ): Set<Uri> = withContext(Dispatchers.IO) {
+        items.mapNotNullTo(mutableSetOf()) { item ->
+            val cacheKey = "${item.uri}|${item.addedMillis}"
+            val isMotionPhoto = motionPhotoCache[cacheKey]
+                ?: MediaImportReader.isMotionPhoto(context, item.uri).also {
+                    motionPhotoCache[cacheKey] = it
+                }
+            item.uri.takeIf { isMotionPhoto }
+        }
+    }
 
     private fun queryCollection(
         context: Context,
@@ -2591,19 +2654,11 @@ private object CalendarMediaRepository {
                                 .atZone(ZoneId.systemDefault())
                                 .toLocalDate()
                             val itemUri = ContentUris.withAppendedId(collection, id)
-                            val resolvedKind = if (
-                                kind == ClipMediaKind.Photo &&
-                                MediaImportReader.isMotionPhoto(context, itemUri)
-                            ) {
-                                ClipMediaKind.LivePhoto
-                            } else {
-                                kind
-                            }
                             add(
                                 CalendarMediaItem(
                                     uri = itemUri,
                                     date = date,
-                                    kind = resolvedKind,
+                                    kind = kind,
                                     takenMillis = takenMillis,
                                     addedMillis = addedMillis,
                                     displayName = cursor.getString(nameColumn)
