@@ -329,12 +329,21 @@ fun EditorRoute(
             isQuickDurationVisible = true
         }
     }
+    fun startSavedMovieExport() {
+        saveBeforePreviewExport(
+            save = { viewModel.saveEditingSession(context) },
+            startExport = { viewModel.exportMovie(context, onPreview) },
+            onSaveFailure = {
+                viewModel.showAlert("영화를 저장하지 못해 만들기를 시작하지 않았습니다. 저장 공간을 확인한 뒤 다시 시도해 주세요.")
+            }
+        )
+    }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) {
         if (pendingExportAfterNotificationPermission) {
             pendingExportAfterNotificationPermission = false
-            viewModel.exportMovie(context, onPreview)
+            startSavedMovieExport()
         }
     }
     val calendarPermissionLauncher = rememberLauncherForActivityResult(
@@ -406,7 +415,7 @@ fun EditorRoute(
             pendingExportAfterNotificationPermission = true
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         } else {
-            viewModel.exportMovie(context, onPreview)
+            startSavedMovieExport()
         }
     }
 

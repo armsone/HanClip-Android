@@ -1692,24 +1692,25 @@ private fun CalendarMediaStrip(
     val currentOnToggle by rememberUpdatedState(onToggle)
     val currentOnReplaceSelection by rememberUpdatedState(onReplaceSelection)
     var dragSelects by remember { mutableStateOf(true) }
+    var dragAnchorUri by remember { mutableStateOf<Uri?>(null) }
+    var dragInitialSelection by remember { mutableStateOf<List<Uri>?>(null) }
     var lastDraggedUri by remember { mutableStateOf<Uri?>(null) }
-    var dragWorkingSelection by remember { mutableStateOf<List<Uri>?>(null) }
     var edgeDragDirection by remember { mutableIntStateOf(0) }
     var edgeDragSpeedPxPerSecond by remember { mutableStateOf(0f) }
     var dragPosition by remember { mutableStateOf<Offset?>(null) }
     var mediaColumnCount by rememberSaveable { mutableIntStateOf(5) }
     val currentEdgeDragSpeedPxPerSecond by rememberUpdatedState(edgeDragSpeedPxPerSecond)
     val currentDragPosition by rememberUpdatedState(dragPosition)
-    fun applyDragRange(previous: Uri?, current: Uri) {
-        val range = inclusiveMediaDragRange(orderedUris, previous, current)
-        var next = dragWorkingSelection ?: currentSelectedUris
-        next = if (dragSelects) {
-            next + range.filterNot { it in next }
-        } else {
-            val removing = range.toSet()
-            next.filterNot { it in removing }
-        }
-        dragWorkingSelection = next
+    fun applyDragSelection(current: Uri) {
+        val anchor = dragAnchorUri ?: current
+        val initial = dragInitialSelection ?: currentSelectedUris
+        val next = dragSelectionFromAnchor(
+            items = orderedUris,
+            initialSelection = initial,
+            anchor = anchor,
+            current = current,
+            selects = dragSelects
+        )
         currentOnReplaceSelection(next)
     }
     LaunchedEffect(edgeDragDirection) {
@@ -1724,9 +1725,8 @@ private fun CalendarMediaStrip(
                 }
                 val item = info?.let { itemByKey[it.key.toString()] }
                 if (item != null && item.uri != lastDraggedUri) {
-                    val previous = lastDraggedUri
                     lastDraggedUri = item.uri
-                    applyDragRange(previous, item.uri)
+                    applyDragSelection(item.uri)
                 }
             }
             delay(16L)
@@ -1895,21 +1895,24 @@ private fun CalendarMediaStrip(
                                         dragPosition = position
                                         mediaAt(position.x, position.y)?.let { item ->
                                             dragSelects = item.uri !in currentSelectedUris
+                                            dragAnchorUri = item.uri
+                                            dragInitialSelection = currentSelectedUris
                                             lastDraggedUri = item.uri
-                                            dragWorkingSelection = currentSelectedUris
-                                            applyDragRange(item.uri, item.uri)
+                                            applyDragSelection(item.uri)
                                         }
                                     },
                                     onDragEnd = {
+                                        dragAnchorUri = null
+                                        dragInitialSelection = null
                                         lastDraggedUri = null
-                                        dragWorkingSelection = null
                                         edgeDragDirection = 0
                                         edgeDragSpeedPxPerSecond = 0f
                                         dragPosition = null
                                     },
                                     onDragCancel = {
+                                        dragAnchorUri = null
+                                        dragInitialSelection = null
                                         lastDraggedUri = null
-                                        dragWorkingSelection = null
                                         edgeDragDirection = 0
                                         edgeDragSpeedPxPerSecond = 0f
                                         dragPosition = null
@@ -1932,9 +1935,8 @@ private fun CalendarMediaStrip(
                                             (120f + 1_180f * edgeProgress * edgeProgress).dp.toPx()
                                         mediaAt(change.position.x, change.position.y)?.let { item ->
                                             if (item.uri != lastDraggedUri) {
-                                                val previous = lastDraggedUri
                                                 lastDraggedUri = item.uri
-                                                applyDragRange(previous, item.uri)
+                                                applyDragSelection(item.uri)
                                             }
                                         }
                                     }
@@ -2032,6 +2034,22 @@ internal fun <T> inclusiveMediaDragRange(
     val end = items.indexOf(current)
     if (start < 0 || end < 0) return listOf(current)
     return if (start <= end) items.subList(start, end + 1) else items.subList(end, start + 1)
+}
+
+internal fun <T> dragSelectionFromAnchor(
+    items: List<T>,
+    initialSelection: List<T>,
+    anchor: T,
+    current: T,
+    selects: Boolean
+): List<T> {
+    val range = inclusiveMediaDragRange(items, anchor, current)
+    return if (selects) {
+        initialSelection + range.filterNot { it in initialSelection }
+    } else {
+        val removing = range.toSet()
+        initialSelection.filterNot { it in removing }
+    }
 }
 
 internal enum class TodaySelectionAction {
