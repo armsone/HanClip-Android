@@ -2526,8 +2526,8 @@ private fun PresetTile(
             Text(
                 text = preset.detail,
                 modifier = Modifier.fillMaxWidth(),
-                fontSize = 13.sp,
-                lineHeight = 18.sp,
+                fontSize = 10.4.sp,
+                lineHeight = 14.4.sp,
                 color = palette.subText,
                 textAlign = TextAlign.Center,
                 maxLines = 2,

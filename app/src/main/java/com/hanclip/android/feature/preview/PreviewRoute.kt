@@ -328,8 +328,9 @@ fun PreviewRoute(
             Box(Modifier.width(7.dp))
             Text(
                 text = "시사회",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Black,
+                fontSize = 15.sp,
+                lineHeight = 21.sp,
+                fontWeight = FontWeight.SemiBold,
                 color = palette.text.copy(alpha = 0.76f)
             )
         }
@@ -362,7 +363,7 @@ fun PreviewRoute(
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)
                                     .padding(12.dp)
-                                    .size(42.dp),
+                                    .size(48.dp),
                                 shape = RoundedCornerShape(999.dp),
                                 color = palette.solidPanel.copy(alpha = 0.72f),
                                 border = BorderStroke(1.dp, Color.White.copy(alpha = 0.38f)),
@@ -372,7 +373,7 @@ fun PreviewRoute(
                                     Icons.Outlined.Fullscreen,
                                     contentDescription = "시사회 전체 화면",
                                     tint = palette.text,
-                                    modifier = Modifier.padding(11.dp)
+                                    modifier = Modifier.padding(14.dp)
                                 )
                             }
                         } else {
@@ -890,8 +891,9 @@ private fun SaveOptionsSheet(
                     Text(
                         "개봉",
                         color = palette.text.copy(alpha = 0.76f),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Black
+                        fontSize = 15.sp,
+                        lineHeight = 21.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
                 Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {

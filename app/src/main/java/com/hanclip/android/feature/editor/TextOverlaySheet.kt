@@ -1757,7 +1757,7 @@ private fun CaptionStylePicker(
                             Text(
                                 preset.title,
                                 color = if (selected) palette.primary else palette.subText,
-                                fontWeight = if (selected) FontWeight.Black else FontWeight.SemiBold,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
                                 fontSize = 12.sp,
                                 maxLines = 1,
                                 modifier = Modifier.weight(1f)

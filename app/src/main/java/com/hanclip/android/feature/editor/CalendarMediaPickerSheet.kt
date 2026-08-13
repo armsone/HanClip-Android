@@ -32,11 +32,13 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -797,6 +799,7 @@ private fun RecentPickerHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         OutlinedButton(
+            modifier = Modifier.widthIn(min = 88.dp).heightIn(min = 48.dp),
             onClick = onCancel,
             shape = RoundedCornerShape(50),
             border = BorderStroke(1.dp, palette.border),
@@ -807,13 +810,22 @@ private fun RecentPickerHeader(
         ) { Text("취소", fontWeight = FontWeight.Bold) }
         Row(
             modifier = Modifier
+                .widthIn(min = 88.dp)
                 .height(48.dp)
                 .clickable(onClickLabel = "달력 열기", onClick = onShowCalendar),
+            horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("사진", color = palette.text, fontWeight = FontWeight.Black)
+            Text(
+                "사진",
+                color = palette.text,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 17.sp,
+                lineHeight = 23.sp
+            )
         }
         Button(
+            modifier = Modifier.widthIn(min = 88.dp).heightIn(min = 48.dp),
             onClick = onConfirm,
             enabled = selectedCount > 0 || canApplyEmptySelection,
             shape = RoundedCornerShape(50),
@@ -860,7 +872,7 @@ private fun RecentMonthNavigation(
                 visibleMonth.format(DateTimeFormatter.ofPattern("yyyy년 M월", Locale.KOREAN)),
                 modifier = Modifier.padding(horizontal = 22.dp, vertical = 6.dp),
                 color = palette.text,
-                fontWeight = FontWeight.Black,
+                fontWeight = FontWeight.SemiBold,
                 style = MaterialTheme.typography.bodyMedium
             )
         }
@@ -893,7 +905,7 @@ private fun RecentSelectionPreview(
                 date.format(DateTimeFormatter.ofPattern("yyyy년 M월 d일 EEEE", Locale.KOREAN)),
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
                 color = palette.text,
-                fontWeight = FontWeight.Black
+                fontWeight = FontWeight.SemiBold
             )
         }
         Row(
@@ -1371,8 +1383,9 @@ private fun CalendarMonthNavigation(
         Text(
             visibleMonth.format(DateTimeFormatter.ofPattern("yyyy년 M월", Locale.KOREAN)),
             color = palette.text,
-            fontWeight = FontWeight.Black,
-            style = MaterialTheme.typography.headlineSmall
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 17.sp,
+            lineHeight = 23.sp
         )
         Surface(
             modifier = Modifier.size(48.dp),
@@ -1503,7 +1516,7 @@ private fun CalendarMonthGrid(
                             text = label,
                             color = Color.White,
                             style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Black,
+                            fontWeight = FontWeight.SemiBold,
                             textAlign = TextAlign.Center
                         )
                     }
@@ -1571,7 +1584,7 @@ private fun CalendarDayCell(
                     date.dayOfWeek.value == 6 -> palette.secondary
                     else -> palette.text
                 },
-                fontWeight = if (count > 0 || date == LocalDate.now()) FontWeight.Black else FontWeight.Medium
+                fontWeight = if (count > 0 || date == LocalDate.now()) FontWeight.SemiBold else FontWeight.Medium
             )
             holidayName?.let {
                 Text(
@@ -1953,7 +1966,7 @@ private fun CalendarMediaStrip(
                                         ),
                                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
                                         color = palette.text,
-                                        fontWeight = FontWeight.Black
+                                        fontWeight = FontWeight.SemiBold
                                     )
                                 }
                             }
@@ -2129,14 +2142,14 @@ private fun DurationValueStepper(
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(onClick = onMinus, contentPadding = PaddingValues(horizontal = 11.dp, vertical = 6.dp)) {
-            Text("−", fontWeight = FontWeight.Black)
+            Text("−", fontWeight = FontWeight.SemiBold)
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(value.toString(), color = palette.text, fontWeight = FontWeight.Black)
+            Text(value.toString(), color = palette.text, fontWeight = FontWeight.SemiBold)
             Text(label, color = palette.subText, style = MaterialTheme.typography.labelSmall)
         }
         OutlinedButton(onClick = onPlus, contentPadding = PaddingValues(horizontal = 11.dp, vertical = 6.dp)) {
-            Text("+", fontWeight = FontWeight.Black)
+            Text("+", fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -2518,7 +2531,7 @@ private fun CalendarMediaThumb(
                         "✓",
                         color = Color.White,
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Black
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }

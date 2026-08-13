@@ -216,8 +216,9 @@ fun VideoTrimSheet(
                 Text(
                     "편집",
                     color = palette.subText.copy(alpha = 0.78f),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Black
+                    fontSize = 15.sp,
+                    lineHeight = 21.sp,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
             Row(

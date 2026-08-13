@@ -291,7 +291,12 @@ private fun CollectionBulkCompressionControls(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Icon(Icons.Outlined.Compress, contentDescription = null, modifier = Modifier.size(14.dp))
-                Text("컬렉션 용량 줄이기", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "컬렉션 용량 줄이기",
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
                 Icon(
                     if (expanded) Icons.AutoMirrored.Outlined.KeyboardArrowLeft
                     else Icons.AutoMirrored.Outlined.KeyboardArrowRight,
@@ -323,7 +328,8 @@ private fun CollectionBulkCompressionControls(
             Text(
                 "선택한 해상도 이하인 영상은 그대로 둡니다.",
                 color = palette.subText.copy(alpha = 0.72f),
-                fontSize = 9.sp,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
                 fontWeight = FontWeight.Medium
             )
         }
@@ -347,7 +353,13 @@ private fun BulkCompressionButton(
         onClick = onClick
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Text(title, color = palette.text, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text(
+                title,
+                color = palette.text,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                fontWeight = FontWeight.SemiBold
+            )
         }
     }
 }
@@ -381,13 +393,15 @@ private fun CollectionPosterRepairProgress(
                     modifier = Modifier.weight(1f),
                     color = palette.text,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp
                 )
                 Text(
                     "$completed/${total.coerceAtLeast(1)}",
                     color = palette.subText,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 10.sp
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp
                 )
             }
             LinearProgressIndicator(
@@ -956,7 +970,7 @@ private fun CollectionPosterCandidateDialog(
                         Icon(Icons.Outlined.Close, contentDescription = "취소", tint = palette.text)
                     }
                     Column(Modifier.weight(1f)) {
-                        Text("AI 썸네일 선택", color = palette.text, fontWeight = FontWeight.Black)
+                        Text("AI 썸네일 선택", color = palette.text, fontWeight = FontWeight.SemiBold)
                         Text("디바이스 AI와 한클립 AI의 장면 16개를 비교합니다.", color = palette.subText, fontSize = 12.sp)
                     }
                     OutlinedButton(onClick = onRegenerate, enabled = !isLoading) {
@@ -1072,7 +1086,7 @@ internal fun CollectionVideoSizeOptionsDialog(
                         "파일 용량 줄이기",
                         modifier = Modifier.weight(1f),
                         color = palette.text,
-                        fontWeight = FontWeight.Black,
+                        fontWeight = FontWeight.SemiBold,
                         textAlign = TextAlign.Center
                     )
                     Spacer(Modifier.size(48.dp))
@@ -1120,7 +1134,8 @@ internal fun CollectionVideoSizeOptionsDialog(
                     "예상 용량은 영상 장면에 따라 달라질 수 있습니다. 결과가 원본보다 크면 원본을 유지합니다.",
                     modifier = Modifier.fillMaxWidth(),
                     color = palette.subText,
-                    fontSize = 10.sp,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
                     textAlign = TextAlign.Center
                 )
             }
@@ -1158,14 +1173,21 @@ private fun CollectionVideoSizeOptionRow(
                 Icon(icon, contentDescription = null, tint = palette.primary, modifier = Modifier.padding(9.dp).size(20.dp))
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(option.title, color = palette.text, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text(option.detail, color = palette.subText, fontSize = 11.sp)
+                Text(
+                    option.title,
+                    color = palette.text,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp,
+                    lineHeight = 21.sp
+                )
+                Text(option.detail, color = palette.subText, fontSize = 13.sp, lineHeight = 18.sp)
             }
             estimatedBytes?.takeIf { it > 0L }?.let {
                 Text(
                     "예상 약\n${collectionFileSize(it)}",
                     color = palette.primary,
-                    fontSize = 10.sp,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.End
                 )
@@ -1190,7 +1212,7 @@ private fun CollectionPosterEngineHeader(
             title,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
             color = palette.primary,
-            fontWeight = FontWeight.Black,
+            fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center
         )
     }
@@ -1431,17 +1453,24 @@ private fun CollectionCompressionProgress(
                     modifier = Modifier.weight(1f),
                     color = palette.text,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text("${(progress * 100).toInt()}%", color = palette.subText, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "${(progress * 100).toInt()}%",
+                    color = palette.subText,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
                 Spacer(Modifier.width(6.dp))
                 OutlinedButton(
                     onClick = onCancel,
                     shape = RoundedCornerShape(10.dp),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                ) { Text("취소", fontSize = 10.sp) }
+                ) { Text("취소", fontSize = 12.sp, lineHeight = 16.sp) }
             }
             androidx.compose.material3.LinearProgressIndicator(
                 progress = { progress.toFloat().coerceIn(0f, 1f) },
