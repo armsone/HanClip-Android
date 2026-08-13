@@ -63,4 +63,52 @@ class MediaDragSelectionPolicyTest {
             )
         )
     }
+
+    @Test
+    fun `bottom auto scroll reaches full speed above the overlaid action bar`() {
+        val viewportHeight = 1_000f
+        val edgeSize = 100f
+        val bottomOcclusion = 80f
+
+        assertEquals(
+            1f,
+            mediaDragEdgeProgress(
+                pointerY = 920f,
+                viewportHeight = viewportHeight,
+                edgeSize = edgeSize,
+                bottomOcclusion = bottomOcclusion,
+                direction = 1
+            )
+        )
+        assertEquals(
+            1f,
+            mediaDragEdgeProgress(
+                pointerY = 0f,
+                viewportHeight = viewportHeight,
+                edgeSize = edgeSize,
+                bottomOcclusion = bottomOcclusion,
+                direction = -1
+            )
+        )
+    }
+
+    @Test
+    fun `bottom action area keeps selecting from the last unobscured grid position`() {
+        assertEquals(
+            919f,
+            mediaDragProbeY(
+                pointerY = 990f,
+                viewportHeight = 1_000f,
+                bottomOcclusion = 80f
+            )
+        )
+        assertEquals(
+            600f,
+            mediaDragProbeY(
+                pointerY = 600f,
+                viewportHeight = 1_000f,
+                bottomOcclusion = 80f
+            )
+        )
+    }
 }

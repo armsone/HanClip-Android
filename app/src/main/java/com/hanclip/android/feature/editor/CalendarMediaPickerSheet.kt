@@ -101,6 +101,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick as semanticsOnClick
 import androidx.compose.ui.semantics.onLongClick as semanticsOnLongClick
@@ -184,6 +185,7 @@ fun CalendarMediaPickerSheet(
         mutableStateOf(null)
     }
     var isTodaySelectionArmed by rememberSaveable(title) { mutableStateOf(false) }
+    var isMediaDragActive by remember { mutableStateOf(false) }
     var pendingBulkImportUris by remember { mutableStateOf<List<Uri>?>(null) }
     var sortOrder by rememberSaveable(saver = MediaSortOrderStateSaver) {
         mutableStateOf(MediaSortOrder.TakenOldest)
@@ -414,6 +416,7 @@ fun CalendarMediaPickerSheet(
                 pendingRecentScrollDate = pendingRecentScrollDate,
                 onRecentScrollHandled = { pendingRecentScrollDate = null },
                 onRecentUserScroll = { isTodaySelectionArmed = false },
+                onDragActiveChange = { isMediaDragActive = it },
                 onSortOrderChange = {
                     isTodaySelectionArmed = false
                     sortOrder = it
@@ -451,7 +454,7 @@ fun CalendarMediaPickerSheet(
             }
         }
 
-        if (displayedMode != MediaPickerSheetMode.Videos) {
+        if (displayedMode != MediaPickerSheetMode.Videos && !isMediaDragActive) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -1676,6 +1679,7 @@ private fun CalendarMediaStrip(
     pendingRecentScrollDate: LocalDate?,
     onRecentScrollHandled: () -> Unit,
     onRecentUserScroll: () -> Unit,
+    onDragActiveChange: (Boolean) -> Unit,
     onSortOrderChange: (MediaSortOrder) -> Unit,
     onOpenVideoDurationFilter: () -> Unit,
     onSelectAll: () -> Unit,
@@ -1691,6 +1695,7 @@ private fun CalendarMediaStrip(
     val currentSelectedUris by rememberUpdatedState(selectedUris)
     val currentOnToggle by rememberUpdatedState(onToggle)
     val currentOnReplaceSelection by rememberUpdatedState(onReplaceSelection)
+    val currentOnDragActiveChange by rememberUpdatedState(onDragActiveChange)
     var dragSelects by remember { mutableStateOf(true) }
     var dragAnchorUri by remember { mutableStateOf<Uri?>(null) }
     var dragInitialSelection by remember { mutableStateOf<List<Uri>?>(null) }
@@ -1699,6 +1704,8 @@ private fun CalendarMediaStrip(
     var edgeDragSpeedPxPerSecond by remember { mutableStateOf(0f) }
     var dragPosition by remember { mutableStateOf<Offset?>(null) }
     var mediaColumnCount by rememberSaveable { mutableIntStateOf(5) }
+    val density = LocalDensity.current
+    val bottomDragOcclusionPx = with(density) { 72.dp.toPx() }
     val currentEdgeDragSpeedPxPerSecond by rememberUpdatedState(edgeDragSpeedPxPerSecond)
     val currentDragPosition by rememberUpdatedState(dragPosition)
     fun applyDragSelection(current: Uri) {
@@ -1717,11 +1724,16 @@ private fun CalendarMediaStrip(
         while (edgeDragDirection != 0) {
             gridState.scrollBy(edgeDragDirection * currentEdgeDragSpeedPxPerSecond * 0.016f)
             currentDragPosition?.let { position ->
+                val probeY = mediaDragProbeY(
+                    pointerY = position.y,
+                    viewportHeight = gridState.layoutInfo.viewportSize.height.toFloat(),
+                    bottomOcclusion = bottomDragOcclusionPx
+                )
                 val info = gridState.layoutInfo.visibleItemsInfo.firstOrNull { cell ->
                     position.x >= cell.offset.x &&
                         position.x < cell.offset.x + cell.size.width &&
-                        position.y >= cell.offset.y &&
-                        position.y < cell.offset.y + cell.size.height
+                        probeY >= cell.offset.y &&
+                        probeY < cell.offset.y + cell.size.height
                 }
                 val item = info?.let { itemByKey[it.key.toString()] }
                 if (item != null && item.uri != lastDraggedUri) {
@@ -1892,6 +1904,7 @@ private fun CalendarMediaStrip(
                                 detectDragGestures(
                                     onDragStart = { position ->
                                         onRecentUserScroll()
+                                        currentOnDragActiveChange(true)
                                         dragPosition = position
                                         mediaAt(position.x, position.y)?.let { item ->
                                             dragSelects = item.uri !in currentSelectedUris
@@ -1902,6 +1915,7 @@ private fun CalendarMediaStrip(
                                         }
                                     },
                                     onDragEnd = {
+                                        currentOnDragActiveChange(false)
                                         dragAnchorUri = null
                                         dragInitialSelection = null
                                         lastDraggedUri = null
@@ -1910,6 +1924,7 @@ private fun CalendarMediaStrip(
                                         dragPosition = null
                                     },
                                     onDragCancel = {
+                                        currentOnDragActiveChange(false)
                                         dragAnchorUri = null
                                         dragInitialSelection = null
                                         lastDraggedUri = null
@@ -1921,19 +1936,38 @@ private fun CalendarMediaStrip(
                                         change.consume()
                                         dragPosition = change.position
                                         val edgePx = 105.dp.toPx()
+                                        val topEdgeProgress = mediaDragEdgeProgress(
+                                            pointerY = change.position.y,
+                                            viewportHeight = size.height.toFloat(),
+                                            edgeSize = edgePx,
+                                            bottomOcclusion = bottomDragOcclusionPx,
+                                            direction = -1
+                                        )
+                                        val bottomEdgeProgress = mediaDragEdgeProgress(
+                                            pointerY = change.position.y,
+                                            viewportHeight = size.height.toFloat(),
+                                            edgeSize = edgePx,
+                                            bottomOcclusion = bottomDragOcclusionPx,
+                                            direction = 1
+                                        )
                                         edgeDragDirection = when {
-                                            change.position.y < edgePx -> -1
-                                            change.position.y > size.height - edgePx -> 1
+                                            topEdgeProgress > 0f -> -1
+                                            bottomEdgeProgress > 0f -> 1
                                             else -> 0
                                         }
                                         val edgeProgress = when (edgeDragDirection) {
-                                            -1 -> ((edgePx - change.position.y) / edgePx)
-                                            1 -> ((change.position.y - (size.height - edgePx)) / edgePx)
+                                            -1 -> topEdgeProgress
+                                            1 -> bottomEdgeProgress
                                             else -> 0f
-                                        }.coerceIn(0f, 1f)
+                                        }
                                         edgeDragSpeedPxPerSecond =
                                             (120f + 1_180f * edgeProgress * edgeProgress).dp.toPx()
-                                        mediaAt(change.position.x, change.position.y)?.let { item ->
+                                        val probeY = mediaDragProbeY(
+                                            pointerY = change.position.y,
+                                            viewportHeight = size.height.toFloat(),
+                                            bottomOcclusion = bottomDragOcclusionPx
+                                        )
+                                        mediaAt(change.position.x, probeY)?.let { item ->
                                             if (item.uri != lastDraggedUri) {
                                                 lastDraggedUri = item.uri
                                                 applyDragSelection(item.uri)
@@ -2050,6 +2084,34 @@ internal fun <T> dragSelectionFromAnchor(
         val removing = range.toSet()
         initialSelection.filterNot { it in removing }
     }
+}
+
+internal fun mediaDragEdgeProgress(
+    pointerY: Float,
+    viewportHeight: Float,
+    edgeSize: Float,
+    bottomOcclusion: Float,
+    direction: Int
+): Float {
+    if (edgeSize <= 0f || viewportHeight <= 0f) return 0f
+    return when (direction) {
+        -1 -> ((edgeSize - pointerY) / edgeSize).coerceIn(0f, 1f)
+        1 -> {
+            val effectiveBottom = (viewportHeight - bottomOcclusion)
+                .coerceAtLeast(edgeSize)
+            ((pointerY - (effectiveBottom - edgeSize)) / edgeSize).coerceIn(0f, 1f)
+        }
+        else -> 0f
+    }
+}
+
+internal fun mediaDragProbeY(
+    pointerY: Float,
+    viewportHeight: Float,
+    bottomOcclusion: Float
+): Float {
+    val effectiveBottom = (viewportHeight - bottomOcclusion - 1f).coerceAtLeast(0f)
+    return pointerY.coerceIn(0f, effectiveBottom)
 }
 
 internal enum class TodaySelectionAction {
