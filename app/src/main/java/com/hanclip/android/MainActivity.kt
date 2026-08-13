@@ -3,19 +3,28 @@ package com.hanclip.android
 import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.core.view.WindowCompat
+import androidx.core.content.FileProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hanclip.android.core.navigation.HanClipQuickAction
 import com.hanclip.android.core.safety.ImportFileTransaction
 import com.hanclip.android.core.safety.UserAssetFileTransaction
 import com.hanclip.android.core.safety.ProjectFileTransaction
 import com.hanclip.android.core.theme.HanClipTheme
+import com.hanclip.android.core.update.AppUpdateDialog
+import com.hanclip.android.core.update.AppUpdateState
+import com.hanclip.android.core.update.GitHubAppUpdateService
 import com.hanclip.android.feature.browser.BrowserFavoritesStore
 import java.io.File
 
@@ -24,6 +33,10 @@ class MainActivity : ComponentActivity() {
     private var sharedBrowserFavorites by mutableStateOf<List<String>>(emptyList())
     private var sharedBrowserFavoritesImportAttempted by mutableStateOf(false)
     private var quickAction by mutableStateOf<HanClipQuickAction?>(null)
+    private val appUpdateService by lazy {
+        GitHubAppUpdateService(this, installedVersionCode())
+    }
+    private var pendingUpdateInstallFile: File? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,6 +55,8 @@ class MainActivity : ComponentActivity() {
         quickAction = intent.extractQuickAction()
         setContent {
             HanClipTheme {
+                val appUpdateState by appUpdateService.state.collectAsStateWithLifecycle()
+                var ignoredUpdateVersion by rememberSaveable { mutableStateOf<Int?>(null) }
                 HanClipApp(
                     sharedMediaUris = sharedMediaUris,
                     sharedBrowserFavorites = sharedBrowserFavorites,
@@ -57,7 +72,39 @@ class MainActivity : ComponentActivity() {
                     onQuickActionHandled = ::clearHandledQuickAction,
                     onKeepScreenOnChanged = ::setKeepScreenOn
                 )
+                val updateVersion = when (val update = appUpdateState) {
+                    is AppUpdateState.Available -> update.release.versionCode
+                    is AppUpdateState.Downloading -> update.release.versionCode
+                    is AppUpdateState.Ready -> update.release.versionCode
+                    AppUpdateState.Checking,
+                    AppUpdateState.Idle -> null
+                }
+                if (updateVersion != null && ignoredUpdateVersion != updateVersion) {
+                    AppUpdateDialog(
+                        state = appUpdateState,
+                        onDownload = {
+                            (appUpdateState as? AppUpdateState.Available)?.let { available ->
+                                appUpdateService.download(available.release)
+                            }
+                        },
+                        onInstall = {
+                            (appUpdateState as? AppUpdateState.Ready)?.let { ready ->
+                                requestUpdateInstall(ready.apkFile)
+                            }
+                        },
+                        onLater = { ignoredUpdateVersion = updateVersion }
+                    )
+                }
             }
+        }
+        appUpdateService.checkForUpdate()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val pendingFile = pendingUpdateInstallFile ?: return
+        if (canRequestPackageInstalls()) {
+            window.decorView.post { requestUpdateInstall(pendingFile) }
         }
     }
 
@@ -90,9 +137,68 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun requestUpdateInstall(apkFile: File) {
+        if (!apkFile.isFile) {
+            showToast("업데이트 파일을 찾을 수 없습니다.")
+            return
+        }
+        if (!canRequestPackageInstalls()) {
+            pendingUpdateInstallFile = apkFile
+            val intent = Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.fromParts("package", packageName, null)
+            )
+            runCatching { startActivity(intent) }
+                .onFailure {
+                    pendingUpdateInstallFile = null
+                    showToast("업데이트 설치 권한 설정을 열 수 없습니다.")
+                }
+            return
+        }
+
+        val contentUri = runCatching {
+            FileProvider.getUriForFile(this, "$packageName.fileprovider", apkFile)
+        }.getOrElse {
+            showToast("업데이트 파일을 열 수 없습니다.")
+            return
+        }
+        pendingUpdateInstallFile = null
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(contentUri, ApkMimeType)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        runCatching { startActivity(intent) }
+            .onFailure { showToast("Android 설치 화면을 열 수 없습니다.") }
+    }
+
+    private fun canRequestPackageInstalls(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+            packageManager.canRequestPackageInstalls()
+
+    @Suppress("DEPRECATION")
+    private fun installedVersionCode(): Int {
+        val packageInfo = packageManager.getPackageInfo(packageName, 0)
+        val version = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            packageInfo.longVersionCode
+        } else {
+            packageInfo.versionCode.toLong()
+        }
+        return version.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+    }
+
+    private fun showToast(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
     override fun onDestroy() {
         setKeepScreenOn(false)
+        appUpdateService.close()
         super.onDestroy()
+    }
+
+    private companion object {
+        const val ApkMimeType = "application/vnd.android.package-archive"
     }
 }
 

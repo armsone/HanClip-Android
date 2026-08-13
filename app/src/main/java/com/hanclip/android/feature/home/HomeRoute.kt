@@ -2026,6 +2026,9 @@ private fun importantInfoItems(): List<Pair<String, String>> = listOf(
     "첫 화면" to """
         앱 실행 후 영화 프리셋과 저장된 영화 목록이 보이는 홈 화면입니다.
     """.trimIndent(),
+    "앱 업데이트" to """
+        앱을 시작할 때 HanClip 공식 GitHub Release의 새 Android 버전을 확인합니다. 새 버전이 있으면 안내창에서 업데이트하거나 나중에 할 수 있습니다. 업데이트를 선택하면 APK의 저장소 주소, 태그, 파일명, 크기, 앱 ID, 버전과 현재 설치본의 서명을 확인한 뒤 Android 설치 화면을 엽니다. 자동으로 설치하지 않으며 기존 영화와 설정은 유지됩니다.
+    """.trimIndent(),
     "iPad 지원" to """
         iPad에서 세로·가로 방향과 분할 화면 크기에 맞춰 사용할 수 있습니다. 넓은 화면에서는 편집 콘텐츠의 읽기 좋은 폭을 유지하며 사진 선택, 공유 확장과 잠금 화면 위젯도 함께 사용할 수 있습니다.
     """.trimIndent(),

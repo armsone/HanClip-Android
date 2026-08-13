@@ -526,3 +526,10 @@ Android 작업이 다음 날까지 이어지면 그날 첫 소스 변경 전에 
 - 사진 드래그가 실제로 시작되면 하단 `필터·전날·오늘·해제·추가` 막대를 숨기고 손을 떼거나 취소하면 즉시 복원한다. 고정 버튼 높이도 드래그 자동 스크롤의 가려진 영역으로 반영해 손가락이 기존 버튼 위치까지 내려가기 전에 최고 속도에 도달하며, 그 아래에서도 선택 좌표는 마지막으로 보이는 미디어 행에 고정되어 스크롤 중 연속 선택을 이어간다.
 - 상단 자동 스크롤의 기존 속도와 단순 버튼 탭은 변경하지 않았다. 상·하단 최대 속도 대칭과 하단 좌표 제한을 정책 시험으로 고정했다.
 - SM-F968N에서 하향 드래그를 유지하는 동안 하단 5개 버튼이 모두 사라지고 자동 스크롤과 함께 선택이 39개까지 연속 증가했다. 손을 떼면 39개 선택을 유지한 채 버튼이 즉시 복원됐으며, 상단 취소로 선택을 폐기하고 추가·저장·제작은 실행하지 않았다.
+
+## 2026-08-14 GitHub 원터치 업데이트 · Android 빌드 544
+
+- Android 전용 배포 경로로 공식 `armsone/HanClip-Android`의 최신 안정 GitHub Release를 앱 시작 시 한 번 확인한다. 현재 빌드보다 높은 `android-vN`과 정확한 `HanClip-Android-vN.apk`만 안내하며 사용자가 `업데이트`를 눌러야 다운로드한다.
+- 다운로드 후 HTTPS 저장소 경로·크기·package name·versionCode·현재 설치본 인증서를 모두 확인하고, 다시 사용자가 선택해야 Android 설치 화면을 연다. 자동 설치하지 않으며 영화·컬렉션·설정 저장소는 변경하지 않는다.
+- iOS에는 없는 Android 직접 설치 배포 방식이다. 실제 배포는 소스 push가 아니라 `docs/GITHUB_UPDATES.md` 규칙에 맞는 안정 Release APK 공개가 필요하다.
+- 전체 JVM 시험, `assembleDebug`, `assembleDebugAndroidTest`, `lintDebug`, `assembleReleaseQa`가 통과했다. 디버그와 releaseQa의 SHA-256 인증서가 일치하고 releaseQa의 package/version/설치 권한을 확인했다. SM-F968N과 Android 10 SM-T500에 releaseQa 544를 데이터 보존 설치해 실행했으며 두 기기에서 안정 Release JSON 시험 2건씩 통과했다.
