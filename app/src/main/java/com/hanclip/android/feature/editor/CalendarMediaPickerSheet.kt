@@ -180,9 +180,6 @@ fun CalendarMediaPickerSheet(
     var recentKnownItems by remember(title) {
         mutableStateOf<Map<Uri, CalendarMediaItem>>(emptyMap())
     }
-    var pendingRecentDate by rememberSaveable(title, saver = NullableLocalDateStateSaver) {
-        mutableStateOf(null)
-    }
     var pendingRecentScrollDate by rememberSaveable(title, saver = NullableLocalDateStateSaver) {
         mutableStateOf(null)
     }
@@ -212,19 +209,19 @@ fun CalendarMediaPickerSheet(
             CalendarMediaRepository.loadMonth(context, visibleMonth)
         }
         value = visibleMonth to initialItems
-        var enrichedItems = initialItems
-        initialItems
+        val photoBatches = initialItems
             .filter { it.kind == ClipMediaKind.Photo }
             .chunked(12)
-            .forEach { batch ->
-                val motionUris = CalendarMediaRepository.findMotionPhotoUris(context, batch)
-                if (motionUris.isNotEmpty()) {
-                    enrichedItems = enrichedItems.map { item ->
-                        if (item.uri in motionUris) item.copy(kind = ClipMediaKind.LivePhoto) else item
-                    }
-                    value = visibleMonth to enrichedItems
+        val motionUris = mutableSetOf<Uri>()
+        photoBatches.forEachIndexed { batchIndex, batch ->
+            motionUris += CalendarMediaRepository.findMotionPhotoUris(context, batch)
+            val shouldPublish = batchIndex == 0 || batchIndex == photoBatches.lastIndex
+            if (shouldPublish && motionUris.isNotEmpty()) {
+                value = visibleMonth to initialItems.map { item ->
+                    if (item.uri in motionUris) item.copy(kind = ClipMediaKind.LivePhoto) else item
                 }
             }
+        }
     }
     val monthItems = loadedMonthItems
         ?.takeIf { (loadedMonth) -> loadedMonth == visibleMonth }
@@ -270,14 +267,6 @@ fun CalendarMediaPickerSheet(
         if (pickerMode == MediaPickerSheetMode.Recent) {
             recentScopeUris = recentScopeUris + visibleItems.map { it.uri }
             recentKnownItems = recentKnownItems + visibleItems.associateBy { it.uri }
-            if (loadedMonthItems?.first == visibleMonth) {
-                pendingRecentDate?.let { targetDate ->
-                    selectedUris = visibleItems
-                        .filter { it.date == targetDate }
-                        .map { it.uri }
-                    pendingRecentDate = null
-                }
-            }
         }
     }
     fun deselectionScopeUris(): Set<Uri> = if (pickerMode == MediaPickerSheetMode.Recent) {
@@ -325,12 +314,14 @@ fun CalendarMediaPickerSheet(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
             val moveToPreviousMonth = {
+                isTodaySelectionArmed = false
                 val newMonth = visibleMonth.minusMonths(1)
                 visibleMonth = newMonth
                 selectedDates = setOf(newMonth.atDay(1))
                 if (displayedMode != MediaPickerSheetMode.Recent) selectedUris = emptyList()
             }
             val moveToNextMonth = {
+                isTodaySelectionArmed = false
                 val newMonth = visibleMonth.plusMonths(1)
                 visibleMonth = newMonth
                 selectedDates = setOf(newMonth.atDay(1))
@@ -390,6 +381,7 @@ fun CalendarMediaPickerSheet(
                     selectedDates = selectedDates,
                     itemCountsByDate = itemsByDate.mapValues { it.value.size },
                     onToggleDate = { date ->
+                        isTodaySelectionArmed = false
                         selectedDates = if (date in selectedDates && selectedDates.size > 1) {
                             selectedDates - date
                         } else {
@@ -472,20 +464,31 @@ fun CalendarMediaPickerSheet(
                     CalendarDayActions(
                         palette = palette,
                         selectedCount = selectedUris.size,
+                        isTodaySelectionArmed = isTodaySelectionArmed,
                         canClear = selectedDates.isNotEmpty(),
                         onPreviousDay = {
-                            val target = (selectedDates.minOrNull() ?: LocalDate.now()).minusDays(1)
+                            isTodaySelectionArmed = false
+                            val target = previousDaySelectionTarget(selectedDates, LocalDate.now())
                             visibleMonth = YearMonth.from(target)
                             selectedDates = setOf(target)
                             selectedUris = emptyList()
                         },
                         onToday = {
                             val today = LocalDate.now()
-                            visibleMonth = YearMonth.from(today)
-                            selectedDates = setOf(today)
-                            selectedUris = emptyList()
+                            val todayMonth = YearMonth.from(today)
+                            if (isTodaySelectionArmed && visibleMonth == todayMonth) {
+                                selectedDates = setOf(today)
+                                selectedUris = itemsByDate[today].orEmpty().sortedBySortOrder(sortOrder).map { it.uri }
+                                isTodaySelectionArmed = false
+                            } else {
+                                visibleMonth = todayMonth
+                                selectedDates = emptySet()
+                                selectedUris = emptyList()
+                                isTodaySelectionArmed = true
+                            }
                         },
                         onClear = {
+                            isTodaySelectionArmed = false
                             selectedDates = emptySet()
                             selectedUris = emptyList()
                         },
@@ -515,16 +518,16 @@ fun CalendarMediaPickerSheet(
                         onDurationFilter = { showVideoDurationFilter = true },
                         onPreviousDay = {
                             isTodaySelectionArmed = false
-                            val anchor = selectedUris.firstOrNull()
-                                ?.let { uri -> recentKnownItems[uri]?.date }
-                                ?: LocalDate.now()
-                            val target = anchor.minusDays(1)
+                            val selectedMediaDates = selectedUris.mapNotNull { uri ->
+                                recentKnownItems[uri]?.date
+                            }
+                            val target = previousDaySelectionTarget(selectedMediaDates, LocalDate.now())
                             val targetMonth = YearMonth.from(target)
-                            if (targetMonth != visibleMonth) {
-                                pendingRecentDate = target
-                                visibleMonth = targetMonth
-                            } else {
-                                selectedUris = visibleItems.filter { it.date == target }.map { it.uri }
+                            val targetUris = visibleItems.filter { it.date == target }.map { it.uri }
+                            visibleMonth = targetMonth
+                            pendingRecentScrollDate = target
+                            if (targetUris.isNotEmpty()) {
+                                selectedUris = targetUris
                             }
                         },
                         onToday = {
@@ -1222,6 +1225,7 @@ private fun RecentDayActions(
 private fun CalendarDayActions(
     palette: HanClipPalette,
     selectedCount: Int,
+    isTodaySelectionArmed: Boolean,
     canClear: Boolean,
     onPreviousDay: () -> Unit,
     onToday: () -> Unit,
@@ -1234,7 +1238,13 @@ private fun CalendarDayActions(
         verticalAlignment = Alignment.CenterVertically
     ) {
         DayCircleButton("전날", palette, enabled = true, onClick = onPreviousDay)
-        DayCircleButton("오늘", palette, enabled = true, onClick = onToday)
+        DayCircleButton(
+            "오늘",
+            palette,
+            enabled = true,
+            emphasized = isTodaySelectionArmed,
+            onClick = onToday
+        )
         DayCircleButton("해제", palette, enabled = canClear, onClick = onClear)
         DayCircleButton("추가", palette, enabled = selectedCount > 0, onClick = onAdd)
     }
@@ -2038,6 +2048,11 @@ internal fun todaySelectionAction(
     isArmed -> TodaySelectionAction.Select
     else -> TodaySelectionAction.MoveAndArm
 }
+
+internal fun previousDaySelectionTarget(
+    selectedDates: Iterable<LocalDate>,
+    today: LocalDate
+): LocalDate = (selectedDates.minOrNull() ?: today).minusDays(1)
 
 @Composable
 private fun VideoDurationFilterDialog(

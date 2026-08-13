@@ -1,5 +1,6 @@
 package com.hanclip.android.feature.editor
 
+import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -25,6 +26,31 @@ class TodaySelectionPolicyTest {
         assertEquals(
             TodaySelectionAction.MoveOnly,
             todaySelectionAction(isArmed = false, hasTodayItems = false)
+        )
+    }
+
+    @Test
+    fun `previous day without a selection targets yesterday`() {
+        val today = LocalDate.of(2026, 8, 14)
+
+        assertEquals(
+            LocalDate.of(2026, 8, 13),
+            previousDaySelectionTarget(emptyList(), today)
+        )
+    }
+
+    @Test
+    fun `previous day uses the day before the earliest selected media date`() {
+        val today = LocalDate.of(2026, 8, 14)
+        val selectedDates = listOf(
+            LocalDate.of(2026, 8, 12),
+            LocalDate.of(2026, 8, 8),
+            LocalDate.of(2026, 8, 10)
+        )
+
+        assertEquals(
+            LocalDate.of(2026, 8, 7),
+            previousDaySelectionTarget(selectedDates, today)
         )
     }
 }

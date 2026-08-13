@@ -28,6 +28,8 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -44,6 +46,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
@@ -977,22 +980,11 @@ fun EditorRoute(
                 targetDurationSeconds = quickTargetDurationSeconds,
                 watermarkEnabled = state.watermarkSettings.isEnabled,
                 endingInfoEnabled = state.watermarkSettings.includesEndingInfoCard,
-                endingInfoDuration = state.watermarkSettings.normalizedEndingInfoCardDuration,
                 endingThemeTitle = state.watermarkSettings.endingInfoCardTheme.title,
                 musicTitle = state.backgroundMusicTitle,
                 captionText = state.watermarkSettings.text,
-                captionAppearance = buildCaptionAppearanceSummary(
-                    state.watermarkSettings.fontSize.title,
-                    state.watermarkSettings.position,
-                    state.watermarkSettings.shadowEnabled
-                ),
                 musicEnabled = state.backgroundMusicEnabled &&
                     (state.backgroundMusicUri != null || state.backgroundMusicSampleId != null),
-                musicVolume = state.backgroundMusicVolume,
-                originalAudioVolume = state.originalAudioVolume,
-                musicLoops = state.backgroundMusicLoopsToFillVideo,
-                musicFadeIn = state.backgroundMusicFadeInEnabled,
-                musicFadeOut = state.backgroundMusicFadeOutEnabled,
                 selectedRatio = state.outputAspectRatio,
                 palette = palette,
                 onTargetDurationChange = { quickTargetDurationSeconds = it.coerceAtLeast(0.2) },
@@ -2088,17 +2080,10 @@ private fun QuickDurationDialog(
     targetDurationSeconds: Double,
     watermarkEnabled: Boolean,
     endingInfoEnabled: Boolean,
-    endingInfoDuration: Double,
     endingThemeTitle: String,
     musicTitle: String?,
     musicEnabled: Boolean,
     captionText: String,
-    captionAppearance: String,
-    musicVolume: Double,
-    originalAudioVolume: Double,
-    musicLoops: Boolean,
-    musicFadeIn: Boolean,
-    musicFadeOut: Boolean,
     selectedRatio: OutputAspectRatio?,
     palette: HanClipPalette,
     onTargetDurationChange: (Double) -> Unit,
@@ -2116,6 +2101,9 @@ private fun QuickDurationDialog(
 ) {
     val recommendedDuration = sourceMediaCount.toDouble()
     val minimumDuration = (sourceMediaCount * 0.2).coerceAtLeast(0.2)
+    val navigationBottomPadding = WindowInsets.navigationBars
+        .asPaddingValues()
+        .calculateBottomPadding()
     var mediaMenuExpanded by remember { mutableStateOf(false) }
     var usesRecommendedDuration by rememberSaveable { mutableStateOf(true) }
     Dialog(
@@ -2132,9 +2120,13 @@ private fun QuickDurationDialog(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .statusBarsPadding()
-                    .navigationBarsPadding(),
-                contentPadding = PaddingValues(start = 20.dp, top = 6.dp, end = 20.dp, bottom = 88.dp),
+                    .statusBarsPadding(),
+                contentPadding = PaddingValues(
+                    start = 20.dp,
+                    top = 6.dp,
+                    end = 20.dp,
+                    bottom = 10.dp + navigationBottomPadding
+                ),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 stickyHeader {
@@ -2162,10 +2154,14 @@ private fun QuickDurationDialog(
                         }
                         Text(
                             "퀵모드 영상 길이",
+                            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                             color = palette.text,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 20.sp,
-                            lineHeight = 26.sp
+                            lineHeight = 26.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Box {
                             Surface(
@@ -2354,10 +2350,8 @@ private fun QuickDurationDialog(
                             QuickSettingRow(
                                 icon = Icons.Outlined.TextFields,
                                 title = "자막",
-                                detail = if (watermarkEnabled) captionText.ifBlank { "내용 없음" } else "안함",
-                                secondaryDetail = captionAppearance,
+                                detail = if (watermarkEnabled) captionText.ifBlank { "내용없음" } else "안함",
                                 palette = palette,
-                                minHeight = 82.dp,
                                 onOpen = onOpenText
                             ) {
                                 CompactChoice("사용", watermarkEnabled, palette, onClick = { onToggleWatermark(true) })
@@ -2368,9 +2362,7 @@ private fun QuickDurationDialog(
                                 icon = Icons.Outlined.LibraryMusic,
                                 title = "음악",
                                 detail = if (musicEnabled) musicTitle.orEmpty() else "안함",
-                                secondaryDetail = "음악 ${(musicVolume * 100).roundToInt()}% · 원본 ${(originalAudioVolume * 100).roundToInt()}% · 반복 ${if (musicLoops) "사용" else "안함"} · 페이드 ${if (musicFadeIn || musicFadeOut) "사용" else "안함"}",
                                 palette = palette,
-                                minHeight = 82.dp,
                                 onOpen = onOpenMusic
                             ) {
                                 CompactChoice("사용", musicEnabled, palette, onClick = { onToggleMusic(true) }, enabled = musicTitle != null)
@@ -2381,9 +2373,7 @@ private fun QuickDurationDialog(
                                 icon = Icons.Outlined.AutoFixHigh,
                                 title = "엔딩",
                                 detail = if (endingInfoEnabled) endingThemeTitle else "안함",
-                                secondaryDetail = "표시 시간 ${formatQuickDuration(endingInfoDuration)}",
                                 palette = palette,
-                                minHeight = 88.dp,
                                 onOpen = onOpenEnding
                             ) {
                                 CompactChoice("사용", endingInfoEnabled, palette, onClick = { onToggleEnding(true) })
@@ -2425,15 +2415,7 @@ private fun QuickDurationDialog(
                         }
                     }
                 }
-            }
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .background(palette.background)
-                    .padding(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 10.dp)
-            ) {
+                item {
                 Button(
                     modifier = Modifier.fillMaxWidth().height(58.dp),
                     onClick = onConfirm,
@@ -2441,6 +2423,7 @@ private fun QuickDurationDialog(
                     colors = ButtonDefaults.buttonColors(containerColor = palette.primary)
                 ) {
                     Text("이 시간으로 만들기", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, lineHeight = 22.sp)
+                }
                 }
             }
         }
@@ -2471,12 +2454,12 @@ private fun QuickRatioChoice(
                 modifier = Modifier
                     .size(32.dp)
                     .background(
-                        if (selected) palette.primary.copy(alpha = 0.14f) else Color.Transparent,
+                        if (selected) palette.primary else palette.solidPanel.copy(alpha = 0.82f),
                         RoundedCornerShape(8.dp)
                     )
                     .border(
                         if (selected) 2.dp else 1.dp,
-                        if (selected) palette.primary else palette.secondary.copy(alpha = 0.72f),
+                        if (selected) palette.primary else palette.text.copy(alpha = 0.68f),
                         RoundedCornerShape(8.dp)
                     ),
                 contentAlignment = Alignment.Center
@@ -2484,7 +2467,7 @@ private fun QuickRatioChoice(
                 if (label == "첫\n사진") {
                     Text(
                         label,
-                        color = if (selected) palette.primary else palette.secondary,
+                        color = if (selected) Color.White else palette.text.copy(alpha = 0.88f),
                         fontSize = 10.sp,
                         lineHeight = 10.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -2503,7 +2486,7 @@ private fun QuickRatioChoice(
                             .size(width = iconWidth, height = iconHeight)
                             .border(
                                 2.dp,
-                                if (selected) palette.primary else palette.secondary,
+                                if (selected) Color.White else palette.text.copy(alpha = 0.88f),
                                 RoundedCornerShape(2.dp)
                             )
                     )
@@ -2538,26 +2521,42 @@ private fun QuickSettingRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     detail: String,
-    secondaryDetail: String,
     palette: HanClipPalette,
-    minHeight: androidx.compose.ui.unit.Dp,
     onOpen: () -> Unit,
     actions: @Composable RowScope.() -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = minHeight)
+            .heightIn(min = 68.dp)
             .clickable(onClick = onOpen)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(icon, contentDescription = null, tint = palette.primary, modifier = Modifier.size(24.dp))
         Spacer(Modifier.width(9.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, color = palette.text, fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold)
-            Text(detail, color = palette.subText, fontSize = 15.sp, lineHeight = 21.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(secondaryDetail, color = palette.subText, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "$title :",
+                color = palette.text,
+                fontSize = 16.sp,
+                lineHeight = 22.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1
+            )
+            Spacer(Modifier.width(5.dp))
+            Text(
+                detail,
+                modifier = Modifier.weight(1f),
+                color = palette.subText,
+                fontSize = 15.sp,
+                lineHeight = 21.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(5.dp), content = actions)
     }
