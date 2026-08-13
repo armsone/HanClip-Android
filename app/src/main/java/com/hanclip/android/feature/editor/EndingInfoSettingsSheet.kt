@@ -24,7 +24,6 @@ import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,9 +60,6 @@ fun EndingInfoSettingsSheet(
             EndingInfoStop("Philippines Clark", "8. 9.")
         )
     }
-    LaunchedEffect(draft) {
-        onApply(draft)
-    }
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = palette.solidPanel
@@ -82,9 +78,17 @@ fun EndingInfoSettingsSheet(
             FullScreenSettingsHeader(
                 title = "엔딩",
                 titleIcon = Icons.Outlined.Map,
-                resetDescription = null,
+                resetDescription = "엔딩 설정 초기화",
                 palette = palette,
-                onReset = null,
+                onReset = { draft = resetEndingSettingsDraft(draft) },
+                onSave = if (draft != settings) {
+                    {
+                        onApply(draft)
+                        onDismiss()
+                    }
+                } else {
+                    null
+                },
                 onDismiss = onDismiss
             )
             EndingUsageControl(
@@ -211,12 +215,12 @@ private fun EndingThemePicker(
                 )
             ) {
                 Column(
-                    modifier = Modifier.height(35.dp),
+                    modifier = Modifier.height(50.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Text(endingThemeMark(theme), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    Text(theme.title, fontSize = 8.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text(endingThemeMark(theme), fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(theme.title, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                 }
             }
         }
@@ -235,12 +239,12 @@ private fun EndingDurationControl(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-            Text("표시 시간", color = palette.subText, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+            Text("표시 시간", color = palette.subText, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Normal)
             Spacer(Modifier.weight(1f))
             androidx.compose.material3.IconButton(
                 onClick = onDecrease,
                 enabled = duration > 1.0,
-                modifier = Modifier.size(width = 30.dp, height = 28.dp)
+                modifier = Modifier.size(48.dp)
             ) {
                 androidx.compose.material3.Icon(Icons.Outlined.Remove, "엔딩 시간 줄이기", modifier = Modifier.size(16.dp))
             }
@@ -249,13 +253,14 @@ private fun EndingDurationControl(
                 modifier = Modifier.size(width = 45.dp, height = 28.dp),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 color = palette.text,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                fontWeight = FontWeight.Medium
             )
             androidx.compose.material3.IconButton(
                 onClick = onIncrease,
                 enabled = duration < 10.0,
-                modifier = Modifier.size(width = 30.dp, height = 28.dp)
+                modifier = Modifier.size(48.dp)
             ) {
                 androidx.compose.material3.Icon(Icons.Outlined.Add, "엔딩 시간 늘리기", modifier = Modifier.size(16.dp))
             }
@@ -346,8 +351,9 @@ private fun EndingCaptionPresetGrid(
                                 preset.title,
                                 modifier = Modifier.weight(1f),
                                 color = palette.text,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                lineHeight = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
                                 maxLines = 1
                             )
                             Text(

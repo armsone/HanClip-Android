@@ -18,6 +18,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -162,6 +163,7 @@ import com.hanclip.android.core.model.MoviePreset
 import com.hanclip.android.core.model.OutputAspectRatio
 import com.hanclip.android.core.model.OutputQualityPreset
 import com.hanclip.android.core.model.VideoSegmentMode
+import com.hanclip.android.core.model.WatermarkPosition
 import com.hanclip.android.core.safety.steppedDefaultDuration
 import com.hanclip.android.core.settings.SleepPreventionMode
 import com.hanclip.android.core.theme.HanClipPalette
@@ -504,9 +506,12 @@ fun EditorRoute(
                     selectedRatio = state.outputAspectRatio,
                     selectedQuality = state.outputQualityPreset,
                     palette = palette,
-                    hasTextOverlay = state.watermarkSettings.shouldRenderText,
+                    hasTextOverlay = state.watermarkSettings.isEnabled,
+                    captionText = state.watermarkSettings.text,
+                    captionAppearance = buildCaptionAppearanceSummary(state.watermarkSettings.fontSize.title, state.watermarkSettings.position, state.watermarkSettings.shadowEnabled),
                     hasLogoOverlay = state.watermarkSettings.logoEnabled,
-                    hasMusic = state.backgroundMusicEnabled && state.backgroundMusicUri != null,
+                    hasMusic = state.backgroundMusicEnabled &&
+                        (state.backgroundMusicUri != null || state.backgroundMusicSampleId != null),
                     hasEnding = state.watermarkSettings.includesEndingInfoCard,
                     endingDuration = state.watermarkSettings.normalizedEndingInfoCardDuration,
                     endingThemeTitle = state.watermarkSettings.endingInfoCardTheme.title,
@@ -536,21 +541,31 @@ fun EditorRoute(
                     onOpenTextOverlay = {
                         isTextOverlaySheetVisible = true
                     },
+                    onToggleTextOverlay = { enabled ->
+                        viewModel.updateWatermarkSilently(state.watermarkSettings.copy(isEnabled = enabled))
+                    },
                     onOpenMusicSettings = ::openMusicSettings,
+                    onToggleMusic = { enabled ->
+                        if (enabled && state.backgroundMusicUri == null && state.backgroundMusicSampleId == null) {
+                            openMusicSettings()
+                        } else {
+                            viewModel.updateBackgroundMusicEnabled(enabled)
+                        }
+                    },
                     onToggleEnding = { enabled ->
-                        viewModel.updateEndingInfo(
+                        viewModel.updateWatermarkSilently(
                             state.watermarkSettings.copy(includesEndingInfoCard = enabled)
                         )
                     },
                     onDecreaseEndingDuration = {
-                        viewModel.updateEndingInfo(
+                        viewModel.updateWatermarkSilently(
                             state.watermarkSettings.copy(
                                 endingInfoCardDuration = state.watermarkSettings.normalizedEndingInfoCardDuration - 0.5
                             )
                         )
                     },
                     onIncreaseEndingDuration = {
-                        viewModel.updateEndingInfo(
+                        viewModel.updateWatermarkSilently(
                             state.watermarkSettings.copy(
                                 endingInfoCardDuration = state.watermarkSettings.normalizedEndingInfoCardDuration + 0.5
                             )
@@ -965,18 +980,30 @@ fun EditorRoute(
                 endingInfoDuration = state.watermarkSettings.normalizedEndingInfoCardDuration,
                 endingThemeTitle = state.watermarkSettings.endingInfoCardTheme.title,
                 musicTitle = state.backgroundMusicTitle,
-                musicEnabled = state.backgroundMusicEnabled && state.backgroundMusicUri != null,
+                captionText = state.watermarkSettings.text,
+                captionAppearance = buildCaptionAppearanceSummary(
+                    state.watermarkSettings.fontSize.title,
+                    state.watermarkSettings.position,
+                    state.watermarkSettings.shadowEnabled
+                ),
+                musicEnabled = state.backgroundMusicEnabled &&
+                    (state.backgroundMusicUri != null || state.backgroundMusicSampleId != null),
+                musicVolume = state.backgroundMusicVolume,
+                originalAudioVolume = state.originalAudioVolume,
+                musicLoops = state.backgroundMusicLoopsToFillVideo,
+                musicFadeIn = state.backgroundMusicFadeInEnabled,
+                musicFadeOut = state.backgroundMusicFadeOutEnabled,
                 selectedRatio = state.outputAspectRatio,
                 palette = palette,
                 onTargetDurationChange = { quickTargetDurationSeconds = it.coerceAtLeast(0.2) },
                 onToggleWatermark = { enabled ->
-                    viewModel.updateWatermark(state.watermarkSettings.copy(isEnabled = enabled))
+                    viewModel.updateWatermarkSilently(state.watermarkSettings.copy(isEnabled = enabled))
                 },
                 onToggleEnding = { enabled ->
-                    viewModel.updateEndingInfo(state.watermarkSettings.copy(includesEndingInfoCard = enabled))
+                    viewModel.updateWatermarkSilently(state.watermarkSettings.copy(includesEndingInfoCard = enabled))
                 },
                 onToggleMusic = { enabled ->
-                    if (enabled && state.backgroundMusicUri == null) {
+                    if (enabled && state.backgroundMusicUri == null && state.backgroundMusicSampleId == null) {
                         isQuickDurationVisible = false
                         reopenQuickAfterSettings = true
                         openMusicSettings()
@@ -1237,6 +1264,17 @@ fun EditorRoute(
                     loopsToFillVideo = state.backgroundMusicLoopsToFillVideo,
                     fadeInEnabled = state.backgroundMusicFadeInEnabled,
                     fadeOutEnabled = state.backgroundMusicFadeOutEnabled,
+                    hasSessionChanges = musicSettingsSnapshot?.let { snapshot ->
+                        snapshot.uri != state.backgroundMusicUri ||
+                            snapshot.title != state.backgroundMusicTitle ||
+                            snapshot.sampleId != state.backgroundMusicSampleId ||
+                            snapshot.enabled != state.backgroundMusicEnabled ||
+                            kotlin.math.abs(snapshot.musicVolume - state.backgroundMusicVolume) > 0.001 ||
+                            kotlin.math.abs(snapshot.originalAudioVolume - state.originalAudioVolume) > 0.001 ||
+                            snapshot.loopsToFillVideo != state.backgroundMusicLoopsToFillVideo ||
+                            snapshot.fadeInEnabled != state.backgroundMusicFadeInEnabled ||
+                            snapshot.fadeOutEnabled != state.backgroundMusicFadeOutEnabled
+                    } == true,
                     palette = palette,
                     fullScreen = true,
                     onUseSample = { sample ->
@@ -1698,7 +1736,7 @@ private fun ExportConfirmationDialog(
     val autoSegmentCount = state.renderableClips.count { it.isVideoSegmentChild }
     val estimatedRenderSize = estimatedRenderSize(state)
     val aspectRatioText = state.outputAspectRatio?.let(::outputRatioChipText)
-        ?: "자동 원본 비율 ${estimatedRenderSize.first}x${estimatedRenderSize.second}"
+        ?: "첫 사진 비율 ${estimatedRenderSize.first}x${estimatedRenderSize.second}"
     val musicText = when {
         state.backgroundMusicEnabled &&
             (state.backgroundMusicUri != null || state.backgroundMusicSampleId != null) ->
@@ -1994,7 +2032,7 @@ private fun PresetStatusPanel(
                     palette = palette
                 )
                 PresetStatusPill(
-                    text = selectedRatio?.title ?: "자동 원본 비율",
+                    text = selectedRatio?.title ?: "첫 사진",
                     active = selectedRatio != null,
                     palette = palette
                 )
@@ -2044,6 +2082,7 @@ private fun presetStatusDescription(preset: MoviePreset): String {
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun QuickDurationDialog(
     sourceMediaCount: Int,
     targetDurationSeconds: Double,
@@ -2053,6 +2092,13 @@ private fun QuickDurationDialog(
     endingThemeTitle: String,
     musicTitle: String?,
     musicEnabled: Boolean,
+    captionText: String,
+    captionAppearance: String,
+    musicVolume: Double,
+    originalAudioVolume: Double,
+    musicLoops: Boolean,
+    musicFadeIn: Boolean,
+    musicFadeOut: Boolean,
     selectedRatio: OutputAspectRatio?,
     palette: HanClipPalette,
     onTargetDurationChange: (Double) -> Unit,
@@ -2088,12 +2134,13 @@ private fun QuickDurationDialog(
                     .fillMaxSize()
                     .statusBarsPadding()
                     .navigationBarsPadding(),
-                contentPadding = PaddingValues(start = 20.dp, top = 6.dp, end = 20.dp, bottom = 6.dp),
+                contentPadding = PaddingValues(start = 20.dp, top = 6.dp, end = 20.dp, bottom = 111.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                item {
+                stickyHeader {
+                    Surface(color = palette.solidPanel) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -2116,8 +2163,9 @@ private fun QuickDurationDialog(
                         Text(
                             "퀵모드 영상 길이",
                             color = palette.text,
-                            fontWeight = FontWeight.Black,
-                            fontSize = 18.sp
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 20.sp,
+                            lineHeight = 26.sp
                         )
                         Box {
                             Surface(
@@ -2162,10 +2210,11 @@ private fun QuickDurationDialog(
                             }
                         }
                     }
+                    }
                 }
                 item {
                     Surface(
-                        modifier = Modifier.fillMaxWidth().height(51.dp),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                         shape = RoundedCornerShape(26.dp),
                         color = palette.secondary.copy(alpha = 0.08f),
                         border = BorderStroke(1.dp, palette.border)
@@ -2194,12 +2243,13 @@ private fun QuickDurationDialog(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
                             ) {
-                                Text("선택시간", color = palette.subText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("선택시간", color = palette.subText, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium)
                                 Text(
                                     formatQuickDuration(targetDurationSeconds),
                                     color = palette.primary,
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 20.sp
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 22.sp,
+                                    lineHeight = 28.sp
                                 )
                             }
                             Box(
@@ -2256,7 +2306,7 @@ private fun QuickDurationDialog(
                                             kotlin.math.abs(targetDurationSeconds - seconds) < 0.01
                                     }
                                     Button(
-                                        modifier = Modifier.weight(1f).height(54.dp),
+                                        modifier = Modifier.weight(1f).heightIn(min = 58.dp),
                                         onClick = {
                                             usesRecommendedDuration = choiceIndex == 6
                                             onTargetDurationChange(seconds)
@@ -2281,8 +2331,10 @@ private fun QuickDurationDialog(
                                                 } else {
                                                     formatQuickDuration(seconds)
                                                 },
-                                                fontSize = 10.sp,
-                                                maxLines = 1
+                                                fontSize = 12.sp,
+                                                lineHeight = 16.sp,
+                                                maxLines = 2,
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                             )
                                         }
                                     }
@@ -2302,8 +2354,10 @@ private fun QuickDurationDialog(
                             QuickSettingRow(
                                 icon = Icons.Outlined.TextFields,
                                 title = "자막",
-                                detail = if (watermarkEnabled) "사용" else "안함",
+                                detail = if (watermarkEnabled) captionText.ifBlank { "내용 없음" } else "안함",
+                                secondaryDetail = captionAppearance,
                                 palette = palette,
+                                minHeight = 82.dp,
                                 onOpen = onOpenText
                             ) {
                                 CompactChoice("사용", watermarkEnabled, palette, onClick = { onToggleWatermark(true) })
@@ -2314,18 +2368,22 @@ private fun QuickDurationDialog(
                                 icon = Icons.Outlined.LibraryMusic,
                                 title = "음악",
                                 detail = if (musicEnabled) musicTitle.orEmpty() else "안함",
+                                secondaryDetail = "음악 ${(musicVolume * 100).roundToInt()}% · 원본 ${(originalAudioVolume * 100).roundToInt()}% · 반복 ${if (musicLoops) "사용" else "안함"} · 페이드 ${if (musicFadeIn || musicFadeOut) "사용" else "안함"}",
                                 palette = palette,
+                                minHeight = 82.dp,
                                 onOpen = onOpenMusic
                             ) {
-                                CompactChoice("사용", musicEnabled, palette, onClick = { onToggleMusic(true) })
+                                CompactChoice("사용", musicEnabled, palette, onClick = { onToggleMusic(true) }, enabled = musicTitle != null)
                                 CompactChoice("안함", !musicEnabled, palette, onClick = { onToggleMusic(false) })
                             }
                             SettingDivider(palette)
                             QuickSettingRow(
                                 icon = Icons.Outlined.AutoFixHigh,
                                 title = "엔딩",
-                                detail = if (endingInfoEnabled) "$endingThemeTitle · ${formatQuickDuration(endingInfoDuration)}" else "안함",
+                                detail = if (endingInfoEnabled) endingThemeTitle else "안함",
+                                secondaryDetail = "표시 시간 ${formatQuickDuration(endingInfoDuration)}",
                                 palette = palette,
+                                minHeight = 88.dp,
                                 onOpen = onOpenEnding
                             ) {
                                 CompactChoice("사용", endingInfoEnabled, palette, onClick = { onToggleEnding(true) })
@@ -2367,16 +2425,19 @@ private fun QuickDurationDialog(
                         }
                     }
                 }
-                item {
-                    Button(
-                        modifier = Modifier.fillMaxWidth().height(93.dp),
-                        onClick = onConfirm,
-                        shape = RoundedCornerShape(47.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = palette.primary)
-                    ) {
-                        Text("이 시간으로 만들기", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    }
-                }
+            }
+            Button(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 20.dp, vertical = 6.dp)
+                    .height(93.dp),
+                onClick = onConfirm,
+                shape = RoundedCornerShape(47.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = palette.primary)
+            ) {
+                Text("이 시간으로 만들기", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, lineHeight = 22.sp)
             }
         }
     }
@@ -2473,23 +2534,26 @@ private fun QuickSettingRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     detail: String,
+    secondaryDetail: String,
     palette: HanClipPalette,
+    minHeight: androidx.compose.ui.unit.Dp,
     onOpen: () -> Unit,
     actions: @Composable RowScope.() -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 48.dp)
+            .heightIn(min = minHeight)
             .clickable(onClick = onOpen)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, contentDescription = null, tint = palette.primary, modifier = Modifier.size(20.dp))
+        Icon(icon, contentDescription = null, tint = palette.primary, modifier = Modifier.size(24.dp))
         Spacer(Modifier.width(9.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, color = palette.text, fontWeight = FontWeight.Bold)
-            Text(detail, color = palette.subText, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(title, color = palette.text, fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold)
+            Text(detail, color = palette.subText, fontSize = 15.sp, lineHeight = 21.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(secondaryDetail, color = palette.subText, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(5.dp), content = actions)
     }
@@ -3182,6 +3246,8 @@ private fun ProjectControls(
     selectedQuality: OutputQualityPreset,
     palette: HanClipPalette,
     hasTextOverlay: Boolean,
+    captionText: String,
+    captionAppearance: String,
     hasLogoOverlay: Boolean,
     hasMusic: Boolean,
     hasEnding: Boolean,
@@ -3207,7 +3273,9 @@ private fun ProjectControls(
     onSetVideoSegmentMode: (VideoSegmentMode) -> Unit,
     onSetLivePhotoMotion: (Boolean) -> Unit,
     onOpenTextOverlay: () -> Unit,
+    onToggleTextOverlay: (Boolean) -> Unit,
     onOpenMusicSettings: () -> Unit,
+    onToggleMusic: (Boolean) -> Unit,
     onToggleEnding: (Boolean) -> Unit,
     onDecreaseEndingDuration: () -> Unit,
     onIncreaseEndingDuration: () -> Unit,
@@ -3339,8 +3407,21 @@ private fun ProjectControls(
                     )
                 }
                 SettingDivider(palette)
-                CompactSettingRow(Icons.Outlined.Collections, "묶음사진", palette) {
-                    if (hasSimilarPhotoGroups) {
+                if (hasSimilarPhotoGroups) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 96.dp)
+                            .padding(horizontal = 14.dp, vertical = 7.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Outlined.Collections, contentDescription = null, tint = palette.subText, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(9.dp))
+                            Text("묶음사진", color = palette.subText, fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                         StepperPill(
                             value = "1/$similarPhotoRepresentativeInterval",
                             onDecrease = { onSetSimilarPhotoInterval(similarPhotoRepresentativeInterval - 1) },
@@ -3349,30 +3430,47 @@ private fun ProjectControls(
                             canIncrease = similarPhotoRepresentativeInterval < 20,
                             palette = palette
                         )
-                        CompactChoice(
-                            when (similarPhotoGroupMode) {
-                                VideoSegmentMode.Single -> "자동"
-                                VideoSegmentMode.Multiple -> "수동"
-                                VideoSegmentMode.All -> "전체"
-                            },
-                            true,
-                            palette,
-                            onClick = { onSetSimilarPhotoMode(similarPhotoGroupMode.next()) }
-                        )
-                    } else {
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(start = 27.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Text("선택 방식", color = palette.subText, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                            CompactChoice("자동", similarPhotoGroupMode == VideoSegmentMode.Single, palette, onClick = { onSetSimilarPhotoMode(VideoSegmentMode.Single) })
+                            CompactChoice("수동", similarPhotoGroupMode == VideoSegmentMode.Multiple, palette, onClick = { onSetSimilarPhotoMode(VideoSegmentMode.Multiple) })
+                            CompactChoice("전체", similarPhotoGroupMode == VideoSegmentMode.All, palette, onClick = { onSetSimilarPhotoMode(VideoSegmentMode.All) })
+                        }
+                    }
+                } else {
+                    CompactSettingRow(Icons.Outlined.Collections, "묶음사진", palette) {
                         Text("없음", color = palette.subText, style = MaterialTheme.typography.labelLarge)
                     }
                 }
                 SettingDivider(palette)
-                CompactSettingRow(Icons.Outlined.TextFields, "자막", palette, onOpenTextOverlay) {
-                    CompactChoice("사용", hasTextOverlay, palette, onOpenTextOverlay)
-                    CompactChoice("안함", !hasTextOverlay, palette, onOpenTextOverlay)
-                }
+                SummarySettingRow(
+                    icon = Icons.Outlined.TextFields,
+                    label = "자막",
+                    enabled = hasTextOverlay,
+                    primaryDetail = captionText.ifBlank { "내용 없음" },
+                    secondaryDetail = captionAppearance,
+                    minHeight = 82.dp,
+                    palette = palette,
+                    onOpen = onOpenTextOverlay,
+                    onToggle = onToggleTextOverlay
+                )
                 SettingDivider(palette)
-                CompactSettingRow(Icons.Outlined.LibraryMusic, "음악", palette, onOpenMusicSettings) {
-                    CompactChoice("사용", hasMusic, palette, onOpenMusicSettings)
-                    CompactChoice("안함", !hasMusic, palette, onOpenMusicSettings)
-                }
+                SummarySettingRow(
+                    icon = Icons.Outlined.LibraryMusic,
+                    label = "음악",
+                    enabled = hasMusic,
+                    primaryDetail = musicTitle ?: "선택된 음악 없음",
+                    secondaryDetail = "음악 ${(musicVolume * 100).roundToInt()}% · 원본 ${(originalAudioVolume * 100).roundToInt()}%",
+                    minHeight = 82.dp,
+                    palette = palette,
+                    onOpen = onOpenMusicSettings,
+                    onToggle = onToggleMusic
+                )
                 SettingDivider(palette)
                 EndingSettingRow(
                     enabled = hasEnding,
@@ -3414,7 +3512,7 @@ private fun ProjectControls(
                 FilterChip(
                     selected = selectedRatio == null,
                     onClick = { onSelectRatio(null) },
-                    label = { Text("자동 원본 비율") },
+                    label = { Text("첫 사진") },
                     colors = clearFilterChipColors(palette),
                     border = FilterChipDefaults.filterChipBorder(
                         enabled = true,
@@ -3458,12 +3556,6 @@ private fun ProjectControls(
     }
 }
 
-private fun VideoSegmentMode.next(): VideoSegmentMode = when (this) {
-    VideoSegmentMode.Single -> VideoSegmentMode.Multiple
-    VideoSegmentMode.Multiple -> VideoSegmentMode.All
-    VideoSegmentMode.All -> VideoSegmentMode.Single
-}
-
 private fun MoviePreset.settingIcon(): androidx.compose.ui.graphics.vector.ImageVector = when (this) {
     MoviePreset.NewMovie -> Icons.Outlined.MovieCreation
     MoviePreset.Quick -> Icons.Outlined.Bolt
@@ -3484,41 +3576,31 @@ private fun EndingSettingRow(
     onDecreaseDuration: () -> Unit,
     onIncreaseDuration: () -> Unit
 ) {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 48.dp)
-            .clickable(onClick = onOpen)
+            .heightIn(min = 88.dp)
             .padding(horizontal = 14.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Icon(
-            Icons.Outlined.Map,
-            contentDescription = null,
-            tint = palette.subText,
-            modifier = Modifier.size(18.dp)
-        )
-        Column(
-            modifier = Modifier.width(62.dp),
-            verticalArrangement = Arrangement.spacedBy(1.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text("엔딩 :", color = palette.subText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            Text(
-                themeTitle,
-                color = palette.subText,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Icon(Icons.Outlined.Map, contentDescription = null, tint = palette.subText, modifier = Modifier.size(18.dp))
+            Text("엔딩", color = palette.subText, fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).clickable(onClick = onOpen))
+            CompactChoice("사용", enabled, palette, onClick = { onToggle(true) })
+            CompactChoice("안함", !enabled, palette, onClick = { onToggle(false) })
         }
-        Surface(
-            shape = RoundedCornerShape(50),
-            color = palette.chip,
-            border = BorderStroke(1.dp, palette.border)
+        Row(
+            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(start = 27.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(themeTitle, color = palette.subText, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f).clickable(onClick = onOpen), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Surface(shape = RoundedCornerShape(50), color = palette.chip, border = BorderStroke(1.dp, palette.border)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(
                     onClick = onDecreaseDuration,
                     enabled = duration > 1.0,
@@ -3529,8 +3611,9 @@ private fun EndingSettingRow(
                 Text(
                     "%.1f초".format(duration),
                     color = palette.text,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    fontWeight = FontWeight.Medium
                 )
                 IconButton(
                     onClick = onIncreaseDuration,
@@ -3539,12 +3622,51 @@ private fun EndingSettingRow(
                 ) {
                     Icon(Icons.Outlined.Add, contentDescription = "엔딩 시간 늘리기", modifier = Modifier.size(13.dp))
                 }
+                }
             }
         }
-        Spacer(Modifier.weight(1f))
-        CompactChoice("사용", enabled, palette, onClick = { onToggle(true) })
-        CompactChoice("안함", !enabled, palette, onClick = { onToggle(false) })
     }
+}
+
+@Composable
+private fun SummarySettingRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    enabled: Boolean,
+    primaryDetail: String,
+    secondaryDetail: String,
+    minHeight: androidx.compose.ui.unit.Dp,
+    palette: HanClipPalette,
+    onOpen: () -> Unit,
+    onToggle: (Boolean) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().heightIn(min = minHeight).padding(horizontal = 14.dp, vertical = 7.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Row(modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = palette.subText, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(9.dp))
+            Text(label, color = palette.subText, fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).clickable(onClick = onOpen))
+            CompactChoice("사용", enabled, palette, onClick = { onToggle(true) })
+            Spacer(Modifier.width(5.dp))
+            CompactChoice("안함", !enabled, palette, onClick = { onToggle(false) })
+        }
+        Column(modifier = Modifier.fillMaxWidth().padding(start = 27.dp).clickable(onClick = onOpen)) {
+            Text(primaryDetail, color = palette.text, fontSize = 15.sp, lineHeight = 21.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(secondaryDetail, color = palette.subText, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+private fun buildCaptionAppearanceSummary(
+    sizeTitle: String,
+    position: WatermarkPosition,
+    shadowEnabled: Boolean
+): String {
+    val vertical = listOf("위", "위쪽", "가운데", "아래쪽", "아래")[position.gridRow]
+    val horizontal = listOf("왼쪽", "왼쪽 안", "가운데", "오른쪽 안", "오른쪽")[position.gridColumn]
+    return "$sizeTitle · $vertical $horizontal · 그림자 ${if (shadowEnabled) "사용" else "안함"}"
 }
 
 private fun EditorUiState.endingInfoStops(): List<EndingInfoStop> =
@@ -3576,7 +3698,7 @@ private fun CompactSettingRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 48.dp)
+            .heightIn(min = 56.dp)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -3586,10 +3708,11 @@ private fun CompactSettingRow(
         Text(
             label,
             color = palette.subText,
-            fontSize = 12.sp,
-            lineHeight = 16.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.weight(1f)
+            fontSize = 16.sp,
+            lineHeight = 22.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f),
+            maxLines = 1
         )
         Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically, content = content)
     }
@@ -3621,9 +3744,9 @@ private fun CompactChoice(
                 text,
                 modifier = Modifier.padding(horizontal = 10.dp),
                 color = if (!enabled) palette.subText.copy(alpha = 0.45f) else if (selected) Color.White else palette.text,
-                fontSize = 11.sp,
-                lineHeight = 14.sp,
-                fontWeight = FontWeight.Bold
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                fontWeight = FontWeight.SemiBold
             )
         }
     }
@@ -3646,9 +3769,9 @@ private fun StepperPill(
             Text(
                 value,
                 color = palette.text,
-                fontSize = 11.sp,
-                lineHeight = 14.sp,
-                fontWeight = FontWeight.Bold
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                fontWeight = FontWeight.Medium
             )
             IconButton(onClick = onIncrease, enabled = canIncrease, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Outlined.Add, contentDescription = "늘리기", modifier = Modifier.size(16.dp))
@@ -5162,7 +5285,7 @@ private fun BottomMakeBar(
                         FilterChip(
                             selected = selectedRatio == null,
                             onClick = { onSelectRatio(null); isRatioPickerVisible = false },
-                            label = { Text("자동") },
+                            label = { Text("첫 사진") },
                             colors = clearFilterChipColors(palette)
                         )
                     }
@@ -5198,7 +5321,26 @@ private fun BottomMakeBar(
                     border = BorderStroke(1.dp, palette.border),
                     colors = ButtonDefaults.outlinedButtonColors(containerColor = palette.chip, contentColor = palette.primary)
                 ) {
-                    Icon(Icons.Outlined.AspectRatio, contentDescription = "영상 비율")
+                    if (selectedRatio == null) {
+                        Text(
+                            text = "첫\n사진",
+                            color = palette.primary,
+                            fontSize = 10.sp,
+                            lineHeight = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 2
+                        )
+                    } else {
+                        Text(
+                            text = selectedRatio.title,
+                            color = palette.primary,
+                            fontSize = 9.sp,
+                            lineHeight = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
                 Button(
                     onClick = onMakeMovie,

@@ -26,6 +26,7 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -222,7 +223,11 @@ fun HomeRoute(
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
     val screenWidthDp = LocalConfiguration.current.screenWidthDp
-    val presetColumnCount = 3
+    val presetColumnCount = when {
+        LocalConfiguration.current.fontScale >= 1.6f -> 1
+        LocalConfiguration.current.fontScale >= 1.3f -> 2
+        else -> 3
+    }
     val standardProjectColumnCount = if (screenWidthDp >= 600) 2 else 1
     val collectionColumnCount = if (screenWidthDp >= 600) 3 else 2
     val coroutineScope = rememberCoroutineScope()
@@ -456,6 +461,8 @@ fun HomeRoute(
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                     showThemeSelection = true
                 },
+                onOpenInfo = { showSettingsInfo = true },
+                onOpenBrowser = onOpenBrowser,
                 onOpenAiShot = { onStartPreset(MoviePreset.AiShot) },
                 onOpenPhotos = onOpenPhotos,
                 onOpenCalendar = onOpenCalendar,
@@ -529,54 +536,8 @@ fun HomeRoute(
             collectionColumnCount = collectionColumnCount
         )
         item(key = "home-bottom-space") {
-            Spacer(Modifier.height(84.dp))
+            Spacer(Modifier.height(24.dp))
         }
-        }
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(bottom = 8.dp)
-                .size(48.dp)
-                .clearAndSetSemantics {
-                    contentDescription = "카피라이터 설정, 길게 눌러 음악 브라우저 열기"
-                    onClick(label = "카피라이터 설정 열기") {
-                        showSettingsInfo = true
-                        true
-                    }
-                    onLongClick(label = "음악 브라우저 열기") {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onOpenBrowser()
-                        true
-                    }
-                }
-                .combinedClickable(
-                    onClick = { showSettingsInfo = true },
-                    onLongClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onOpenBrowser()
-                    },
-                    onLongClickLabel = "음악 브라우저 열기"
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Surface(
-                modifier = Modifier.size(44.dp),
-                shape = CircleShape,
-                color = palette.secondary.copy(alpha = 0.18f).compositeOver(palette.solidPanel),
-                border = BorderStroke(1.dp, palette.primary.copy(alpha = 0.42f)),
-                shadowElevation = 7.dp
-            ) {
-                Text(
-                    "i",
-                    modifier = Modifier.wrapContentSize(Alignment.Center),
-                    color = palette.primary,
-                    fontFamily = FontFamily.Serif,
-                    fontSize = 18.sp,
-                    lineHeight = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
         }
         }
         if (showSettingsInfo) {
@@ -720,10 +681,10 @@ fun HomeRoute(
                         editableRemovalCandidate = null
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE45D42))
-                ) { Text("프로젝트 제거") }
+                ) { Text("삭제") }
             },
-            title = { Text("편집 프로젝트 제거") },
-            text = { Text("목록과 저장 정보에서 제거합니다. 갤러리에 저장된 MP4는 삭제하지 않습니다.") }
+            title = { Text("이 영화를 삭제할까요?") },
+            text = { Text("삭제한 영화는 복구할 수 없습니다. 갤러리에 저장된 MP4는 삭제하지 않습니다.") }
         )
     }
     editableMemoCandidate?.let { summary ->
@@ -986,7 +947,7 @@ private fun ThemeSelectionDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    "SELECT THEME",
+                    "테마 선택",
                     color = selectedPalette.text,
                     fontWeight = FontWeight.SemiBold,
                     style = MaterialTheme.typography.titleMedium
@@ -1042,7 +1003,7 @@ private fun ThemePaletteSummary(mode: HanClipThemeMode) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    "COLOR SYSTEM",
+                    "색상 구성",
                     color = palette.subText,
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.labelSmall
@@ -1230,12 +1191,15 @@ private fun HomeHeader(
     palette: HanClipPalette,
     onCycleTheme: () -> Unit,
     onOpenThemeSelection: () -> Unit,
+    onOpenInfo: () -> Unit,
+    onOpenBrowser: () -> Unit,
     onOpenAiShot: () -> Unit,
     onOpenPhotos: () -> Unit,
     onOpenCalendar: () -> Unit,
     onOpenFiles: () -> Unit
 ) {
     var showMediaMenu by remember { mutableStateOf(false) }
+    val hapticFeedback = LocalHapticFeedback.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1262,7 +1226,51 @@ private fun HomeHeader(
         ) {
             HanClipBrandCapsule(palette)
         }
-        Box {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clearAndSetSemantics {
+                        contentDescription = "카피라이터 설정, 길게 눌러 음악 브라우저 열기"
+                        onClick(label = "카피라이터 설정 열기") {
+                            onOpenInfo()
+                            true
+                        }
+                        onLongClick(label = "음악 브라우저 열기") {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onOpenBrowser()
+                            true
+                        }
+                    }
+                    .combinedClickable(
+                        onClick = onOpenInfo,
+                        onLongClick = {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onOpenBrowser()
+                        },
+                        onLongClickLabel = "음악 브라우저 열기"
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    modifier = Modifier.size(44.dp),
+                    shape = CircleShape,
+                    color = palette.secondary.copy(alpha = 0.18f).compositeOver(palette.solidPanel),
+                    border = BorderStroke(1.dp, palette.primary.copy(alpha = 0.42f)),
+                    shadowElevation = 7.dp
+                ) {
+                    Text(
+                        "i",
+                        modifier = Modifier.wrapContentSize(Alignment.Center),
+                        color = palette.primary,
+                        fontFamily = FontFamily.Serif,
+                        fontSize = 18.sp,
+                        lineHeight = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            Box {
             Surface(
                 modifier = Modifier
                     .size(58.dp)
@@ -1304,6 +1312,7 @@ private fun HomeHeader(
                     showMediaMenu = false
                     onOpenFiles()
                 }
+            }
             }
         }
     }
@@ -1351,21 +1360,21 @@ fun HanClipBrandCapsule(palette: HanClipPalette? = null) {
         Row(
             modifier = Modifier
                 .padding(horizontal = 10.dp, vertical = 7.dp)
-                .width(154.dp),
+                .width(126.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Image(
                 painter = painterResource(R.drawable.logo_mark),
                 contentDescription = null,
-                modifier = Modifier.size(35.2.dp),
+                modifier = Modifier.size(30.dp),
                 contentScale = ContentScale.Fit,
                 colorFilter = ColorFilter.tint(brandColor)
             )
             Text(
                 text = "HanClip",
-                fontSize = 26.sp,
-                lineHeight = 32.sp,
+                fontSize = 22.sp,
+                lineHeight = 28.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = brandColor,
                 maxLines = 1,
@@ -2006,7 +2015,7 @@ private fun importantInfoIcon(title: String): ImageVector = when (title) {
 
 private fun importantInfoItems(): List<Pair<String, String>> = listOf(
     "카피라이터" to """
-        첫 화면 하단의 i 원형 유리 버튼입니다. 카피라이터 설정과 설정 정보를 보여주는 창입니다.
+        첫 화면 상단의 i 원형 버튼입니다. 카피라이터 설정과 설정 정보를 보여주는 창입니다.
     """.trimIndent(),
     "로고" to """
         상단의 앱 심볼과 HanClip 글자 부분입니다. 화면에 따라 닫기, 첫 화면 이동, 테마 선택 같은 동작의 기준점이 됩니다.
@@ -2403,10 +2412,13 @@ private fun PresetGrid(
         MoviePreset.Life,
         MoviePreset.Golf
     )
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         HomeSectionTitle("영화 프리셋", Icons.Outlined.GridView, palette)
         orderedPresets.chunked(columnCount).forEach { rowPresets ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.height(IntrinsicSize.Max),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 rowPresets.forEach { preset ->
                     PresetTile(
                         modifier = Modifier.weight(1f),
@@ -2442,7 +2454,8 @@ private fun PresetTile(
     val cardShape = RoundedCornerShape(8.dp)
     Box(
         modifier = modifier
-            .height(108.dp)
+            .fillMaxHeight()
+            .heightIn(min = 120.dp)
             .clip(cardShape)
             .background(
                 Brush.linearGradient(
@@ -2459,7 +2472,7 @@ private fun PresetTile(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 6.dp, vertical = 12.dp),
+                .padding(start = 5.dp, top = 15.dp, end = 5.dp, bottom = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
@@ -2489,22 +2502,26 @@ private fun PresetTile(
                     )
                 }
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(7.dp))
             Text(
                 text = preset.title,
-                fontSize = 12.sp,
-                lineHeight = 16.sp,
-                fontWeight = FontWeight.Bold,
+                modifier = Modifier.fillMaxWidth(),
+                fontSize = 15.sp,
+                lineHeight = 18.sp,
+                fontWeight = FontWeight.SemiBold,
                 color = palette.text,
-                maxLines = 1,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = preset.detail,
-                fontSize = 9.sp,
-                lineHeight = 12.sp,
+                modifier = Modifier.fillMaxWidth(),
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
                 color = palette.subText,
-                maxLines = 1,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
         }
@@ -2519,7 +2536,7 @@ private fun HomeSectionTitle(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.End,
+        horizontalArrangement = Arrangement.Start,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
@@ -2537,10 +2554,10 @@ private fun HomeSectionTitle(
         Spacer(Modifier.size(7.dp))
         Text(
             title,
-            color = palette.text.copy(alpha = 0.76f),
-            fontSize = 12.sp,
-            lineHeight = 16.sp,
-            fontWeight = FontWeight.Black
+            color = palette.text.copy(alpha = 0.82f),
+            fontSize = 15.sp,
+            lineHeight = 21.sp,
+            fontWeight = FontWeight.SemiBold
         )
     }
 }
@@ -2684,8 +2701,9 @@ private fun SavedProjectHeader(
         Text(
             "$count/$HomeSavedMovieSlotCount",
             color = palette.subText,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+            fontWeight = FontWeight.Medium
         )
         Spacer(Modifier.weight(1f))
         Surface(
@@ -2703,8 +2721,9 @@ private fun SavedProjectHeader(
         Text(
             "영화 목록",
             color = palette.text.copy(alpha = 0.76f),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold
+            fontSize = 15.sp,
+            lineHeight = 21.sp,
+            fontWeight = FontWeight.SemiBold
         )
     }
 }

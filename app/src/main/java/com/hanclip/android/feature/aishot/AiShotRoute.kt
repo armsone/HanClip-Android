@@ -907,13 +907,13 @@ private fun AiShotTopBar(
                     if (isReady) "AiShot" else statusText,
                     color = Color.White,
                     fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1
                 )
             }
         }
         Surface(
-            modifier = Modifier.height(40.dp),
+            modifier = Modifier.height(48.dp),
             color = Color.Black.copy(alpha = 0.52f),
             shape = RoundedCornerShape(999.dp),
             shadowElevation = 5.dp,
@@ -1044,26 +1044,35 @@ private fun AiShotSensitivityButton(
 ) {
     Surface(
         onClick = onClick,
-        modifier = modifier.semantics { this.selected = selected },
+        modifier = modifier.height(48.dp).semantics { this.selected = selected },
         shape = RoundedCornerShape(6.dp),
-        color = if (selected) accentColor else Color.Transparent,
-        border = if (selected) {
-            androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.24f))
-        } else {
-            null
-        }
+        color = Color.Transparent
     ) {
         Box(
-            modifier = Modifier.height(27.dp),
+            modifier = Modifier.height(48.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text,
-                color = if (selected) accentForeground else Color.White.copy(alpha = 0.72f),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1
-            )
+            Surface(
+                modifier = Modifier.fillMaxWidth().height(32.dp),
+                shape = RoundedCornerShape(6.dp),
+                color = if (selected) accentColor else Color.Transparent,
+                border = if (selected) {
+                    androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.24f))
+                } else {
+                    null
+                }
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text,
+                        color = if (selected) accentForeground else Color.White.copy(alpha = 0.72f),
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1
+                    )
+                }
+            }
         }
     }
 }

@@ -167,8 +167,9 @@ internal fun FullScreenSettingsHeader(
         Text(
             title,
             color = palette.text.copy(alpha = 0.78f),
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Black
+            fontSize = 17.sp,
+            lineHeight = 23.sp,
+            fontWeight = FontWeight.SemiBold
         )
     }
 }

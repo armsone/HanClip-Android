@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -71,6 +72,7 @@ import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
@@ -144,6 +146,7 @@ fun OnlineMusicBrowserRoute(
     val palette = HanClipThemeStore.load(context).currentPalette
     HanClipSystemBars(palette.solidPanel)
     var favorites by remember { mutableStateOf(BrowserFavoritesStore.load(context)) }
+    var favoriteRemovalCandidate by remember { mutableStateOf<String?>(null) }
     var isFavoritePanelVisible by remember { mutableStateOf(false) }
     var isFavoriteManagerVisible by remember { mutableStateOf(false) }
     var targetUrl by rememberSaveable {
@@ -337,13 +340,14 @@ fun OnlineMusicBrowserRoute(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                    .heightIn(min = 58.dp)
+                    .padding(horizontal = 12.dp, vertical = 5.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(48.dp)
                         .combinedClickable(
                             onClick = ::closeOrGoBack,
                             onLongClick = {
@@ -369,7 +373,7 @@ fun OnlineMusicBrowserRoute(
                 BasicTextField(
                     modifier = Modifier
                         .weight(1f)
-                        .height(32.dp)
+                        .height(48.dp)
                         .background(
                             palette.panel.copy(alpha = 0.72f),
                             androidx.compose.foundation.shape.CircleShape
@@ -410,7 +414,7 @@ fun OnlineMusicBrowserRoute(
                 )
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(48.dp)
                         .combinedClickable(
                             onClick = {
                                 if (isPageLoading) {
@@ -443,7 +447,7 @@ fun OnlineMusicBrowserRoute(
                 }
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(48.dp)
                         .combinedClickable(onClick = { webView?.reload() }),
                     contentAlignment = Alignment.Center
                 ) {
@@ -451,7 +455,7 @@ fun OnlineMusicBrowserRoute(
                 }
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(48.dp)
                         .combinedClickable(
                             onClick = { isFavoritePanelVisible = !isFavoritePanelVisible },
                             onLongClick = {
@@ -613,13 +617,35 @@ fun OnlineMusicBrowserRoute(
                     isFavoritePanelVisible = false
                 },
                 onRemove = { favorite ->
-                    favorites = favorites.filterNot { it == favorite }
-                    BrowserFavoritesStore.save(context, favorites)
+                    favoriteRemovalCandidate = favorite
                 },
                 onMakeHome = { favorite ->
                     favorites = listOf(favorite) + favorites.filterNot { it == favorite }
                     BrowserFavoritesStore.save(context, favorites)
                 }
+            )
+        }
+        favoriteRemovalCandidate?.let { favorite ->
+            AlertDialog(
+                onDismissRequest = { favoriteRemovalCandidate = null },
+                dismissButton = {
+                    OutlinedButton(onClick = { favoriteRemovalCandidate = null }) { Text("취소") }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            favorites = favorites.filterNot { it == favorite }
+                            BrowserFavoritesStore.save(context, favorites)
+                            favoriteRemovalCandidate = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE45D42), contentColor = Color.White)
+                    ) { Text("삭제") }
+                },
+                title = { Text("즐겨찾기를 삭제할까요?") },
+                text = { Text(browserFavoriteTitle(favorite)) },
+                containerColor = palette.solidPanel,
+                titleContentColor = palette.text,
+                textContentColor = palette.subText
             )
         }
         fullscreenContent?.let { content ->
@@ -727,7 +753,7 @@ private fun BrowserFavoritesFloatingPanel(
                         fontWeight = FontWeight.Black
                     )
                 }
-                IconButton(onClick = onManage, modifier = Modifier.size(32.dp)) {
+                IconButton(onClick = onManage, modifier = Modifier.size(48.dp)) {
                     Icon(
                         Icons.Outlined.Tune,
                         contentDescription = "즐겨찾기 편집",
@@ -1096,13 +1122,13 @@ private fun BrowserFavoriteRow(
     ) {
         Box(
             modifier = Modifier
-                .size(34.dp)
+                .size(48.dp)
                 .combinedClickable(
-                    onClick = onRemove,
+                    onClick = {},
                     onLongClick = onMakeHome,
                     onLongClickLabel = "홈페이지로 지정"
                 )
-                .semantics { contentDescription = "${browserFavoriteTitle(favorite)} 삭제" },
+                .semantics { contentDescription = "${browserFavoriteTitle(favorite)} 아이콘, 길게 눌러 홈페이지로 지정" },
             contentAlignment = Alignment.Center
         ) {
             Icon(Icons.Outlined.Public, contentDescription = null, tint = palette.primary, modifier = Modifier.size(18.dp))
@@ -1136,6 +1162,9 @@ private fun BrowserFavoriteRow(
                 }
             }
         }
+        IconButton(onClick = onRemove, modifier = Modifier.size(48.dp)) {
+            Icon(Icons.Outlined.Delete, contentDescription = "${browserFavoriteTitle(favorite)} 즐겨찾기 삭제", tint = palette.subText)
+        }
     }
 }
 
@@ -1147,6 +1176,8 @@ private fun BrowserFavoriteManager(
     onShare: () -> Unit,
     onClose: () -> Unit
 ) {
+    var pendingRemoval by remember { mutableStateOf<String?>(null) }
+    var isRemoveAllConfirmationVisible by remember { mutableStateOf(false) }
     BackHandler(onBack = onClose)
     Surface(modifier = Modifier.fillMaxSize(), color = palette.solidPanel) {
         Column(
@@ -1162,7 +1193,7 @@ private fun BrowserFavoriteManager(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 OutlinedButton(
-                    onClick = { onFavoritesChange(emptyList()) },
+                    onClick = { isRemoveAllConfirmationVisible = true },
                     enabled = favorites.isNotEmpty()
                 ) {
                     Icon(Icons.Outlined.Delete, contentDescription = null)
@@ -1241,9 +1272,9 @@ private fun BrowserFavoriteManager(
                                     Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = "아래로 이동")
                                 }
                                 IconButton(onClick = {
-                                    onFavoritesChange(favorites.filterNot { it == favorite })
+                                    pendingRemoval = favorite
                                 }) {
-                                    Icon(Icons.Outlined.Delete, contentDescription = "삭제")
+                                    Icon(Icons.Outlined.Delete, contentDescription = "${browserFavoriteTitle(favorite)} 삭제")
                                 }
                             }
                         }
@@ -1256,6 +1287,46 @@ private fun BrowserFavoriteManager(
                 style = MaterialTheme.typography.bodySmall
             )
         }
+    }
+    pendingRemoval?.let { favorite ->
+        AlertDialog(
+            onDismissRequest = { pendingRemoval = null },
+            dismissButton = { OutlinedButton(onClick = { pendingRemoval = null }) { Text("취소") } },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onFavoritesChange(favorites.filterNot { it == favorite })
+                        pendingRemoval = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE45D42), contentColor = Color.White)
+                ) { Text("삭제") }
+            },
+            title = { Text("즐겨찾기를 삭제할까요?") },
+            text = { Text(browserFavoriteTitle(favorite)) },
+            containerColor = palette.solidPanel,
+            titleContentColor = palette.text,
+            textContentColor = palette.subText
+        )
+    }
+    if (isRemoveAllConfirmationVisible) {
+        AlertDialog(
+            onDismissRequest = { isRemoveAllConfirmationVisible = false },
+            dismissButton = { OutlinedButton(onClick = { isRemoveAllConfirmationVisible = false }) { Text("취소") } },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onFavoritesChange(emptyList())
+                        isRemoveAllConfirmationVisible = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE45D42), contentColor = Color.White)
+                ) { Text("전체삭제") }
+            },
+            title = { Text("즐겨찾기를 모두 삭제할까요?") },
+            text = { Text("삭제한 즐겨찾기는 복구할 수 없습니다.") },
+            containerColor = palette.solidPanel,
+            titleContentColor = palette.text,
+            textContentColor = palette.subText
+        )
     }
 }
 

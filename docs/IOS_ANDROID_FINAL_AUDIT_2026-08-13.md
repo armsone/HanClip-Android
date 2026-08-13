@@ -1,5 +1,7 @@
 # HanClip iOS → Android 최종 소스 감사
 
+> 기준 갱신: 이 감사의 Android 판정은 보존하되, 2026-08-13 iPhone 최종 미커밋 작업 트리와 빌드 `1.0.1 (3.11.44)`의 제품 계약은 `reference/ios-current/design-spec/ANDROID_FULL_PORT_SPEC_2026-08-13.md`가 우선한다. 새 기술서에는 오늘 변경된 편집 2단 구조, 자막 자동 사용, 엔딩 저장·취소 세션, `첫 사진` 2줄 표기뿐 아니라 기존 명세의 구형 항목도 포함된다. 해당 증분의 Android 구현 상태는 재감사 전까지 미검증이다.
+
 - 기준 시점: 2026-08-13
 - iOS 기준 원본: `/Users/armsone/git/HanClip` (`31e60ec`)
 - Android 비교본: `/Users/armsone/git/HanClip-Android` (`98131db` 이후 수정 포함)
@@ -856,3 +858,15 @@ B09 권한 시스템 UI, D08 사진/파일 저장 시스템 UI. 둘 다 사용�
 | purchase manager | `CopyrightPurchaseManager.swift` | 없음 | A14 |
 
 역대조 결과, 위 iOS root presentation과 app-extension/URL/shortcut/purchase 진입점은 모두 최소 한 개 감사 ID에 연결했다. 다만 **실기기에서만 나타나는 OS picker 변형, 제조사 모션포토 변형, 폴드 hinge, 접근성 focus 순서, GPU/codec별 출력은 소스만으로 완전 확인할 수 없어 미검증**이며 동일 판정하지 않았다.
+
+## 2026-08-13 당일 최종 디자인 재감사 부록
+
+이 부록은 위의 과거 집계 이후 iPhone `3.11.44` 당일 작업트리와 Android `527` 작업트리를 다시 비교한 결과이며, 당일 편집·디자인 항목에는 이 부록을 우선 적용한다.
+
+- 폰트 전문가가 12개 주요 화면군과 명시적 타이포그래피 지정을 전수 감사했고, 전역 시스템 sans 계층과 조작 UI 12sp 하한을 적용했다. 렌더 미리보기 내부 축소 글자는 제외했다.
+- 1차 적용 후 iPhone 작업 task가 최종 Swift를 기준으로 홈·편집·설정 세션을 대조했다. P0 기능 차이는 발견하지 않았고 홈 카드·섹션 위계·음악 세션·퀵 요약을 P1로 확정했다.
+- UI 디자이너가 홈·컬렉션·편집·퀵·자막·음악·엔딩·미디어 선택·트림·AiShot·브라우저·시사회를 2차 전수 리뷰했다. Android 48dp 터치와 Fold 3/2/1열은 플랫폼 고유 보호 조건으로 유지했다.
+- 2차 적용 뒤 iPhone task가 다시 최종 재검수했고, 홈 프리셋 제목 방향, 컬렉션 MaruBuri/점선 수치, 퀵 실제 상세 정보, 음악 부모 스냅숏 기준과 AiShot visual 크기를 보정했다.
+- 직접 검증: `:app:testDebugUnitTest`, `:app:assembleDebug`, `git diff --check` 통과. `SM-F968N`에 `adb install -r` 성공, 설치 버전 `1.0.1 (529)` 확인, 홈 전체 문구와 접근성 설명 노출 및 `홈 퀵모드 → 영화 제작 → 사진 자동 진입` 확인.
+- 실기기 최종 홈 캡처: `/tmp/hanclip-home-527-top.png`. 빈 프로젝트를 저장하거나 사용자 콘텐츠를 삭제하지 않았고 `connectedDebugAndroidTest`는 실행하지 않았다.
+- 미검증: fontScale 1.3/1.6/2.0의 당일 변경분 사람 시각 AT, Fold 펼침/회전의 당일 변경분, TalkBack 실제 음성 탐색, 퀵 고정 헤더·고정 CTA의 사람 조작 및 iPhone 픽셀 동등성, 실기기 사진첩이 빈 상태라 실제 사진 선택 뒤 퀵 길이 화면으로 이어지는 마지막 단계. 마지막 단계는 선택 미디어 반영 뒤 기존 `LaunchedEffect`가 퀵 화면을 여는 코드와 컴파일로 확인했으나 사람 AT로 완료 보고하지 않는다.

@@ -788,6 +788,16 @@ class EditorViewModel : ViewModel() {
         }
     }
 
+    fun updateWatermarkSilently(settings: WatermarkSettings) {
+        _uiState.update {
+            it.copy(
+                watermarkSettings = settings,
+                alertMessage = null,
+                undoDeleteMessage = null
+            )
+        }
+    }
+
     fun updateEndingInfo(settings: WatermarkSettings) {
         _uiState.update {
             it.copy(

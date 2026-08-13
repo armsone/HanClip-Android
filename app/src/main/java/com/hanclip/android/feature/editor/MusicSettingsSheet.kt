@@ -80,6 +80,7 @@ fun MusicSettingsSheet(
     loopsToFillVideo: Boolean,
     fadeInEnabled: Boolean,
     fadeOutEnabled: Boolean,
+    hasSessionChanges: Boolean,
     palette: HanClipPalette,
     fullScreen: Boolean = false,
     onUseSample: (BackgroundMusicSample) -> Unit,
@@ -151,7 +152,7 @@ fun MusicSettingsSheet(
                         onFadeInChange(true)
                         onFadeOutChange(true)
                     },
-                    onSave = onSave,
+                    onSave = onSave.takeIf { hasSessionChanges },
                     onDismiss = onDismiss
                 )
             } else {
@@ -231,7 +232,7 @@ fun MusicSettingsSheet(
                     }
                     Box(Modifier.fillMaxWidth().height(1.dp).background(palette.border))
                     OutlinedButton(
-                        modifier = Modifier.fillMaxWidth().height(42.dp),
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
                         onClick = onOpenBrowser,
                         shape = RoundedCornerShape(8.dp),
                         border = BorderStroke(1.dp, palette.border),
@@ -245,7 +246,7 @@ fun MusicSettingsSheet(
                     }
                     Box(Modifier.fillMaxWidth().height(1.dp).background(palette.border))
                     OutlinedButton(
-                        modifier = Modifier.fillMaxWidth().height(42.dp),
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
                         onClick = onPickFile,
                         shape = RoundedCornerShape(8.dp),
                         border = BorderStroke(1.dp, palette.border),
@@ -348,7 +349,7 @@ private fun MusicUsageSegmentedControl(
         contentAlignment = Alignment.Center
     ) {
         Surface(
-            modifier = Modifier.fillMaxWidth().height(28.dp),
+            modifier = Modifier.fillMaxWidth().height(36.dp),
             shape = RoundedCornerShape(50),
             color = palette.secondary.copy(alpha = 0.13f)
         ) {
@@ -369,8 +370,9 @@ private fun MusicUsageSegmentedControl(
                         Text(
                             title,
                             color = if (selected) Color.White else palette.subText,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
@@ -517,19 +519,21 @@ private fun SampleMusicButton(
                     sample.title,
                     color = if (selected) palette.primary else palette.text,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     sample.detail,
                     color = palette.subText,
-                    fontSize = 10.sp,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            IconButton(onClick = onTogglePreview, modifier = Modifier.size(30.dp)) {
+            IconButton(onClick = onTogglePreview, modifier = Modifier.size(48.dp)) {
                 Icon(
                     if (isPreviewing) Icons.Outlined.PauseCircle else Icons.Outlined.PlayCircle,
                     contentDescription = if (isPreviewing) "미리듣기 정지" else "미리듣기",

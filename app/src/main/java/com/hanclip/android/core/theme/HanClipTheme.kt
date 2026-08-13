@@ -68,6 +68,7 @@ fun HanClipTheme(
     }
     MaterialTheme(
         colorScheme = colors,
+        typography = HanClipTypography,
         shapes = Shapes(
             extraSmall = RoundedCornerShape(8.dp),
             small = RoundedCornerShape(12.dp),

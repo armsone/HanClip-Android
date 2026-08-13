@@ -117,7 +117,7 @@ fun TextOverlaySheet(
     if (fullScreen) FullScreenDialogSystemBars(palette.solidPanel)
     val context = LocalContext.current
     val scrollState = rememberScrollState()
-    var draft by rememberSaveable(settings) { mutableStateOf(settings) }
+    var draft by rememberSaveable(settings) { mutableStateOf(captionSettingsDraftOnOpen(settings)) }
     var activeCaptionPreset by remember { mutableStateOf<CaptionStylePreset?>(null) }
     var captionPresetAppearances by remember(context) {
         mutableStateOf(loadCaptionPresetAppearances(context))
@@ -297,8 +297,9 @@ fun TextOverlaySheet(
                             Text(
                                 label,
                                 color = palette.primary,
-                                fontSize = 10.5.sp,
-                                fontWeight = FontWeight.Bold
+                                fontSize = 12.sp,
+                                lineHeight = 16.sp,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
                     }

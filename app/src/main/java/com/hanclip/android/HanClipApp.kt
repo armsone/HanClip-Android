@@ -324,6 +324,9 @@ fun HanClipApp(
                     if (preset == MoviePreset.AiShot) {
                         navController.navigate(HanClipDestination.AiShot.route)
                     } else {
+                        if (preset == MoviePreset.Quick) {
+                            pendingEditorImportAction = EditorImportAction.Photo
+                        }
                         navController.navigate(HanClipDestination.Editor.routeFor(preset))
                     }
                 },

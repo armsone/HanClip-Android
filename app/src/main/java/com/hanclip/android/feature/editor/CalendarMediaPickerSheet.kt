@@ -1009,7 +1009,7 @@ private fun CalendarMediaPreviewDialog(
                     ) {
                         IconButton(
                             onClick = { if (player.isPlaying) player.pause() else player.play() },
-                            modifier = Modifier.size(44.dp)
+                            modifier = Modifier.size(48.dp)
                         ) {
                             Icon(
                                 if (isVideoPlaying) Icons.Outlined.PauseCircle else Icons.Outlined.PlayCircle,
@@ -1048,7 +1048,7 @@ private fun CalendarMediaPreviewDialog(
                                     Player.REPEAT_MODE_OFF
                                 }
                             },
-                            modifier = Modifier.size(44.dp)
+                            modifier = Modifier.size(48.dp)
                         ) {
                             Icon(
                                 Icons.Outlined.Repeat,

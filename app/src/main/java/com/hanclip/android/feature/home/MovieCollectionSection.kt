@@ -75,8 +75,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -92,6 +96,7 @@ import androidx.compose.ui.semantics.onClick as semanticsOnClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -105,6 +110,7 @@ import com.hanclip.android.core.project.CollectionVideoCompressionInfo
 import com.hanclip.android.core.project.CollectionVideoSizeOption
 import com.hanclip.android.core.project.MovieCollectionStore
 import com.hanclip.android.core.theme.HanClipPalette
+import com.hanclip.android.feature.editor.fontFamilyForName
 import java.text.SimpleDateFormat
 import java.io.File
 import java.util.Date
@@ -419,8 +425,9 @@ private fun CollectionHeader(count: Int, palette: HanClipPalette) {
         Text(
             text = "$count/${MovieCollectionStore.MaximumMovieCount}",
             color = palette.subText,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 12.sp
+            fontWeight = FontWeight.Medium,
+            fontSize = 13.sp,
+            lineHeight = 18.sp
         )
         Spacer(Modifier.weight(1f))
         Surface(
@@ -438,8 +445,9 @@ private fun CollectionHeader(count: Int, palette: HanClipPalette) {
         Text(
             text = "컬렉션",
             color = palette.text.copy(alpha = 0.76f),
-            fontWeight = FontWeight.Bold,
-            fontSize = 12.sp
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 15.sp,
+            lineHeight = 21.sp
         )
     }
 }
@@ -452,6 +460,8 @@ private fun CollectionImportCard(
     onClick: () -> Unit,
     palette: HanClipPalette
 ) {
+    val context = LocalContext.current
+    val maruBuri = remember { fontFamilyForName(context, "maruburi") }
     val shape = RoundedCornerShape(12.dp)
     Box(
         modifier = modifier
@@ -466,7 +476,20 @@ private fun CollectionImportCard(
                     )
                 )
             )
-            .border(1.dp, palette.secondary.copy(alpha = 0.40f), shape)
+            .drawBehind {
+                inset(0.6.dp.toPx()) {
+                    drawRoundRect(
+                        color = palette.secondary.copy(alpha = 0.34f),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(11.4.dp.toPx()),
+                        style = Stroke(
+                            width = 1.2.dp.toPx(),
+                            pathEffect = PathEffect.dashPathEffect(
+                                floatArrayOf(5.dp.toPx(), 4.dp.toPx())
+                            )
+                        )
+                    )
+                }
+            }
             .clickable(enabled = !isImporting, onClick = onClick)
             .clearAndSetSemantics {
                 contentDescription = if (isImporting) {
@@ -488,7 +511,7 @@ private fun CollectionImportCard(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(11.dp)
         ) {
             Text(
                 "HANCLIP",
@@ -512,16 +535,17 @@ private fun CollectionImportCard(
             Text(
                 if (isImporting) "IMPORTING" else "ADD A FILM",
                 color = palette.secondary,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 14.sp,
-                letterSpacing = 1.1.sp
+                fontFamily = maruBuri,
+                fontWeight = FontWeight.Normal,
+                fontSize = 15.sp,
+                letterSpacing = 1.2.sp
             )
             Text(
                 "COLLECTION",
                 color = palette.secondary.copy(alpha = 0.72f),
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 8.sp,
-                letterSpacing = 2.2.sp
+                letterSpacing = 2.4.sp
             )
         }
     }

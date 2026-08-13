@@ -3,7 +3,8 @@
 ## 목적/기준
 
 - Android 개발자가 스크린샷 없이 최신 iOS UI와 상태 수명을 재현하기 위한 source-of-truth 문서.
-- 기준 작업 트리: `/Users/armsone/git/HanClip`, commit `31e60ec5feb100b3dfcec78d47040e54e2d682ca`, 2026-08-12 KST.
+- 기준 작업 트리: `/Users/armsone/git/HanClip`, commit `31e60ec5feb100b3dfcec78d47040e54e2d682ca`와 2026-08-13 최종 미커밋 작업 트리, iOS 빌드 `1.0.1 (3.11.44)`.
+- 2026-08-13 최종 작업 트리와 아래 기존 문서가 충돌하면 `ANDROID_FULL_PORT_SPEC_2026-08-13.md`를 우선한다.
 - 조사 중 iOS Swift/asset/project 파일은 수정하지 않았다. `reference/ios-current/design-spec` 문서만 추가했다.
 - 추가 스크린샷 촬영은 위임 지시에 따라 중단했다. 이전에 확보된 4개 PNG는 `reference/ios-current/home/`에 보존되어 있으나 구현 기준은 이 문서다.
 
@@ -18,6 +19,7 @@
 | [DATA_CONTRACTS.md](DATA_CONTRACTS.md) | 프로젝트·클립·자막·음악·엔딩·컬렉션·AiShot 데이터와 마이그레이션 계약 | 완료 |
 | [ACCEPTANCE_TESTS.md](ACCEPTANCE_TESTS.md) | P0/P1/P2 수용 테스트, 기기 매트릭스, 출시 판정 | 완료 |
 | [HANDOFF.md](HANDOFF.md) | Android 현행 감사, 수정 계획, CCMB 주간 사용량 산정 지시 | 완료 |
+| [ANDROID_FULL_PORT_SPEC_2026-08-13.md](ANDROID_FULL_PORT_SPEC_2026-08-13.md) | 2026-08-13 iPhone 최종 작업 트리·오늘 변경·Android 전수 이식 요구사항 | 완료(최우선 증분) |
 | [screens/HOME.md](screens/HOME.md) | home/presets/integrated projects/collection/media menu | 완료 |
 | [screens/MEDIA_SELECTION.md](screens/MEDIA_SELECTION.md) | photos/calendar/filter/sort/gesture/preview/import | 완료 |
 | [screens/EDITOR.md](screens/EDITOR.md) | editor/clip settings/add/reorder/clip preview | 완료 |
