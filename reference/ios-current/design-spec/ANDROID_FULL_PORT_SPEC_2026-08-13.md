@@ -139,7 +139,7 @@ i tap → COPYRIGHT, i 0.55s long press → BROWSER.
 | i | 하단이 아닌 상단. tap=카피라이터, 0.55s long=브라우저, custom action 브라우저 열기 | 상단 유지, TalkBack custom action 또는 overflow. 하단 i 금지 |
 | logo | tap=다음 theme+2초 notice, 0.6s long=theme panel | click/long-click 경합 분리 |
 | preset 문구 | 새 영화/모든 것의 시작; 퀵모드/고르면 바로 영화로; AiShot/스마트한 레코딩; 여행 영화/여행을 추억으로; 인생 영화/삶의 순간을 한 편으로; 골프 영화/공도 넣고 기억도 넣고 | 문구/순서 동일. golf/AiShot custom asset |
-| preset grid | horizontal14, x8/y10, radius8, icon40, minHeight120. title15 최대2줄, subtitle13 최대2줄 | 동일 높이 3→2→1열 adaptive. 사용자 지정으로 subtitle만 iOS 대비 80%인 10.4sp/14.4sp 적용 |
+| preset grid | horizontal14, x8/y10, radius8, icon40, minHeight120. title15 최대2줄, subtitle13 최대2줄 | 동일 높이 3→2→1열 adaptive. 카드 내부를 첨부 기준처럼 3개 균등 영역으로 나눠 icon/title/subtitle를 각각 중앙 배치. 사용자 지정으로 subtitle만 iOS 대비 80%인 10.4sp/14.4sp 적용 |
 | 영화 | 일반/AiShot kind별 section, 같은 store와 총 limit10. kind icon/date/time/meta/memo/pin | limit/kind/stable project 유지 |
 | 삭제 | swipe는 72 red trash reveal만. minDistance24, horizontal ratio1.35, threshold -82. trash/accessibility action 뒤 alert: 이 영화를 삭제할까요? / 삭제한 영화는 복구할 수 없습니다. | P0: reveal→explicit delete→confirm. TalkBack도 confirm. 영구 삭제 직결 금지 |
 | 컬렉션 | max30. 0~29 add, 30 hide. phone2열, poster1:1.38/radius12, pin/order/context/compress/AI | 기존 contract. 600dp+ 3열은 parity 기록 |

@@ -2481,58 +2481,74 @@ private fun PresetTile(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 5.dp, top = 15.dp, end = 5.dp, bottom = 12.dp),
+                .padding(horizontal = 5.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(
-                        Brush.linearGradient(
-                            listOf(palette.primary, palette.secondary)
-                        )
-                    ),
+                    .weight(1f)
+                    .fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                if (preset == MoviePreset.AiShot) {
-                    Image(
-                        painter = painterResource(R.drawable.aishot_icon),
-                        contentDescription = null,
-                        modifier = Modifier.size(25.dp),
-                        colorFilter = ColorFilter.tint(Color.White)
-                    )
-                } else if (icon != null) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(21.dp)
-                    )
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(palette.primary, palette.secondary)
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (preset == MoviePreset.AiShot) {
+                        Image(
+                            painter = painterResource(R.drawable.aishot_icon),
+                            contentDescription = null,
+                            modifier = Modifier.size(25.dp),
+                            colorFilter = ColorFilter.tint(Color.White)
+                        )
+                    } else if (icon != null) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(21.dp)
+                        )
+                    }
                 }
             }
-            Spacer(Modifier.height(7.dp))
-            Text(
-                text = preset.title,
-                modifier = Modifier.fillMaxWidth(),
-                fontSize = 15.sp,
-                lineHeight = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = palette.text,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = preset.detail,
-                modifier = Modifier.fillMaxWidth(),
-                fontSize = 10.4.sp,
-                lineHeight = 14.4.sp,
-                color = palette.subText,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
+            Box(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = preset.title,
+                    modifier = Modifier.fillMaxWidth(),
+                    fontSize = 15.sp,
+                    lineHeight = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = palette.text,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Box(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = preset.detail,
+                    modifier = Modifier.fillMaxWidth(),
+                    fontSize = 10.4.sp,
+                    lineHeight = 14.4.sp,
+                    color = palette.subText,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
