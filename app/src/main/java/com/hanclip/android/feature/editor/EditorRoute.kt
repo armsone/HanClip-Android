@@ -2113,13 +2113,14 @@ private fun QuickDurationDialog(
     val navigationBottomPadding = WindowInsets.navigationBars
         .asPaddingValues()
         .calculateBottomPadding()
+    val quickBottomSafePadding = maxOf(navigationBottomPadding, 72.dp)
     var mediaMenuExpanded by remember { mutableStateOf(false) }
     var usesRecommendedDuration by rememberSaveable { mutableStateOf(true) }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false
+            decorFitsSystemWindows = true
         )
     ) {
         FullScreenDialogSystemBars(palette.solidPanel)
@@ -2134,7 +2135,7 @@ private fun QuickDurationDialog(
                     start = 20.dp,
                     top = 6.dp,
                     end = 20.dp,
-                    bottom = 10.dp + navigationBottomPadding
+                    bottom = 82.dp + quickBottomSafePadding
                 ),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
@@ -2424,15 +2425,30 @@ private fun QuickDurationDialog(
                         }
                     }
                 }
-                item {
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(
+                        start = 20.dp,
+                        end = 20.dp,
+                        bottom = 12.dp + quickBottomSafePadding
+                    )
+            ) {
                 Button(
                     modifier = Modifier.fillMaxWidth().height(58.dp),
                     onClick = onConfirm,
                     shape = RoundedCornerShape(29.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = palette.primary)
                 ) {
-                    Text("이 시간으로 만들기", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, lineHeight = 22.sp)
-                }
+                    Text(
+                        "이 시간으로 만들기",
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 17.sp,
+                        lineHeight = 22.sp
+                    )
                 }
             }
         }

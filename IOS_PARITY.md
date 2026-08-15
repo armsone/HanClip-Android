@@ -533,3 +533,13 @@ Android 작업이 다음 날까지 이어지면 그날 첫 소스 변경 전에 
 - 다운로드 후 HTTPS 저장소 경로·크기·package name·versionCode·현재 설치본 인증서를 모두 확인하고, 다시 사용자가 선택해야 Android 설치 화면을 연다. 자동 설치하지 않으며 영화·컬렉션·설정 저장소는 변경하지 않는다.
 - iOS에는 없는 Android 직접 설치 배포 방식이다. 실제 배포는 소스 push가 아니라 `docs/GITHUB_UPDATES.md` 규칙에 맞는 안정 Release APK 공개가 필요하다.
 - 전체 JVM 시험, `assembleDebug`, `assembleDebugAndroidTest`, `lintDebug`, `assembleReleaseQa`가 통과했다. 디버그와 releaseQa의 SHA-256 인증서가 일치하고 releaseQa의 package/version/설치 권한을 확인했다. SM-F968N과 Android 10 SM-T500에 releaseQa 544를 데이터 보존 설치해 실행했으며 두 기기에서 안정 Release JSON 시험 2건씩 통과했다.
+
+## 2026-08-15 매치업 홈 카탈로그·테마 알림
+
+- 매치업 스킬 기준으로 iOS 호출 화면 23종을 다시 목록화하고 Android phone의 홈 기본·미디어 메뉴·테마 탭·카피라이터·fontScale 2.0 상태를 고정 캡처했다.
+- 최신 iOS Swift와 Android가 프리셋 높이 `74 + 72`, 3/2/1열, 내부 3등분, 설명 10.4 크기를 공유함을 확인했다. 기존 iPhone PNG는 최신 타이포 변경 전 자료이므로 구조 참고용으로만 기록했다.
+- Android에서 빠져 있던 로고 짧은 탭의 `“<테마>로 변경했습니다.”` 2초 캡슐을 iOS와 동일한 문구·위치·크기로 복원했다.
+- 최신 iOS 앱의 새 시뮬레이터 빌드와 나머지 화면의 양쪽 자동 캡처는 읽기 전용 정책 및 현재 캡처 자산 범위 때문에 후속 매치업으로 남긴다.
+- 퀵모드 실제 상태를 1.0/1.3배에서 재캡처해 1.3배 첫 진입 때 만들기 CTA가 내비게이션 아래로 절반 잘리는 회귀를 발견했다. CTA를 고정 하단 구조로 복원하고 시스템 내비게이션 inset의 에뮬레이터 편차를 포함하는 안전 여백과 목록 하단 보상 공간을 분리했다. 첫 진입에서는 CTA 전체, 아래로 스크롤한 상태에서는 화면 비율 6개 전체와 CTA를 함께 확인했다.
+- 사진 선택은 에뮬레이터의 한 제스처에서 건너뛴 셀까지 8개를 선택한 뒤 손가락을 반대로 되돌렸을 때 앵커부터 현재 위치까지 3개만 남는 중간 상태를 캡처했다. 드래그 중 하단 버튼 행이 숨겨지는 것도 두 상태에서 확인했고 `MediaDragSelectionPolicyTest` 전체가 통과했다.
+- Android 빌드 545 배포 후보에서 전체 JVM 시험, `assembleDebug`, `assembleDebugAndroidTest`, `lintDebug`, `assembleReleaseQa`가 통과했다. 기존 544 설치본과 인증서가 일치하는 releaseQa를 `SM-F968N`에 데이터 보존 방식으로 업데이트했고, 545 실행과 영화 목록 2개·컬렉션 4개 보존을 확인했다.

@@ -130,6 +130,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.input.pointer.pointerInput
@@ -240,6 +241,7 @@ fun HomeRoute(
         mutableStateOf(HanClipThemeStore.loadVisibleOrder(context))
     }
     var showThemeSelection by remember { mutableStateOf(false) }
+    var themeNotice by remember { mutableStateOf<String?>(null) }
     var showSettingsInfo by remember { mutableStateOf(false) }
     val palette = themeMode.currentPalette
     HanClipSystemBars(palette.solidPanel)
@@ -433,6 +435,11 @@ fun HomeRoute(
     val collectionPhotoPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia(50)
     ) { uris -> importCollectionUris(MediaSelectionContract.normalize(uris).uris) }
+    LaunchedEffect(themeNotice) {
+        val currentNotice = themeNotice ?: return@LaunchedEffect
+        delay(2_000)
+        if (themeNotice == currentNotice) themeNotice = null
+    }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -456,8 +463,10 @@ fun HomeRoute(
                 onCycleTheme = {
                     val modes = orderedThemeModes
                     val currentIndex = modes.indexOf(themeMode).coerceAtLeast(0)
-                    themeMode = modes[(currentIndex + 1) % modes.size]
-                    HanClipThemeStore.save(context, themeMode)
+                    val nextMode = modes[(currentIndex + 1) % modes.size]
+                    themeMode = nextMode
+                    HanClipThemeStore.save(context, nextMode)
+                    themeNotice = "${nextMode.displayName}로 변경했습니다."
                 },
                 onOpenThemeSelection = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -551,6 +560,24 @@ fun HomeRoute(
                 onWatermarkSettingsChange = onWatermarkSettingsChange,
                 onDismiss = { showSettingsInfo = false }
             )
+        }
+        themeNotice?.let { notice ->
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 70.dp),
+                shape = RoundedCornerShape(999.dp),
+                color = palette.primary
+            ) {
+                Text(
+                    text = notice,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
     }
     if (showThemeSelection) {
@@ -837,6 +864,7 @@ private const val HomeThumbnailMinLongEdgePx = 192
 private const val HomeThumbnailMaxLongEdgePx = 640
 private const val HomeStripMinLongEdgePx = 64
 private const val HomeStripMaxLongEdgePx = 192
+private const val CreatorGitHubUrl = "https://github.com/armsone"
 
 private object HomeMovieFrameCache {
     private val thumbnails = object : LruCache<String, Bitmap>(HomeThumbnailCacheSizeKb) {
@@ -1478,6 +1506,7 @@ private fun SettingsInfoScreen(
                         onChange = onSleepPreventionModeChange
                     )
                 }
+                item { CreatorGitHubCard(palette) }
                 item { SpecialThanksCard(palette) }
                 importantInfoItems().forEach { item ->
                     item {
@@ -1772,6 +1801,35 @@ private fun SleepPreventionInfoCard(
 }
 
 @Composable
+private fun CreatorGitHubCard(palette: HanClipPalette) {
+    val uriHandler = LocalUriHandler.current
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                role = Role.Button,
+                onClickLabel = "만든 사람 GitHub 열기",
+                onClick = { uriHandler.openUri(CreatorGitHubUrl) }
+            ),
+        shape = RoundedCornerShape(18.dp),
+        color = palette.secondary.copy(alpha = 0.08f),
+        border = BorderStroke(1.dp, palette.border)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Outlined.Public, contentDescription = null, tint = palette.primary)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("만든 사람", color = palette.text, fontWeight = FontWeight.Black, fontSize = 17.sp)
+                Text("GitHub · github.com/armsone", color = palette.subText, fontSize = 14.sp)
+            }
+        }
+    }
+}
+
+@Composable
 private fun SpecialThanksCard(palette: HanClipPalette) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -2020,8 +2078,11 @@ private fun importantInfoItems(): List<Pair<String, String>> = listOf(
     "카피라이터" to """
         첫 화면 상단의 i 원형 버튼입니다. 카피라이터 설정과 설정 정보를 보여주는 창입니다.
     """.trimIndent(),
+    "만든 사람 GitHub" to """
+        카피라이터 설정의 만든 사람 카드를 누르면 앱 제작자 armsone의 GitHub 페이지를 기본 브라우저로 엽니다.
+    """.trimIndent(),
     "로고" to """
-        상단의 앱 심볼과 HanClip 글자 부분입니다. 화면에 따라 닫기, 첫 화면 이동, 테마 선택 같은 동작의 기준점이 됩니다.
+        상단의 앱 심볼과 HanClip 글자 부분입니다. 첫 화면에서 누르면 다음 테마로 바뀌고 2초 동안 변경된 테마를 알려주며, 길게 누르면 테마 선택창을 엽니다. 화면에 따라 닫기와 첫 화면 이동의 기준점으로도 사용합니다.
     """.trimIndent(),
     "첫 화면" to """
         앱 실행 후 영화 프리셋과 저장된 영화 목록이 보이는 홈 화면입니다.
