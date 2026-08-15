@@ -67,6 +67,7 @@ import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.AutoFixHigh
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Flight
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.DragIndicator
@@ -566,8 +567,14 @@ fun HomeRoute(
         if (showSettingsInfo) {
             SettingsInfoScreen(
                 palette = palette,
+                themeMode = themeMode,
+                orderedThemeModes = orderedThemeModes,
                 sleepPreventionMode = sleepPreventionMode,
                 watermarkSettings = watermarkSettings,
+                onThemeModeChange = { mode ->
+                    themeMode = mode
+                    HanClipThemeStore.save(context, mode)
+                },
                 onSleepPreventionModeChange = onSleepPreventionModeChange,
                 onWatermarkSettingsChange = onWatermarkSettingsChange,
                 onDismiss = { showSettingsInfo = false }
@@ -877,6 +884,7 @@ private const val HomeThumbnailMaxLongEdgePx = 640
 private const val HomeStripMinLongEdgePx = 64
 private const val HomeStripMaxLongEdgePx = 192
 private const val CreatorGitHubUrl = "https://github.com/armsone"
+private const val OfficialSiteUrl = "https://nasfinder.com"
 
 private object HomeMovieFrameCache {
     private val thumbnails = object : LruCache<String, Bitmap>(HomeThumbnailCacheSizeKb) {
@@ -1430,14 +1438,18 @@ fun HanClipBrandCapsule(palette: HanClipPalette? = null) {
 @Composable
 private fun SettingsInfoScreen(
     palette: HanClipPalette,
+    themeMode: HanClipThemeMode,
+    orderedThemeModes: List<HanClipThemeMode>,
     sleepPreventionMode: SleepPreventionMode,
     watermarkSettings: WatermarkSettings,
+    onThemeModeChange: (HanClipThemeMode) -> Unit,
     onSleepPreventionModeChange: (SleepPreventionMode) -> Unit,
     onWatermarkSettingsChange: (WatermarkSettings) -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     var watermarkExpanded by remember { mutableStateOf(false) }
+    var themeMenuExpanded by remember { mutableStateOf(false) }
     BackHandler(onBack = onDismiss)
     Box(
         modifier = Modifier
@@ -1517,7 +1529,17 @@ private fun SettingsInfoScreen(
                         )
                     }
                 }
-                item { CreatorGitHubCard(palette) }
+                item {
+                    ThemeSettingsCard(
+                        palette = palette,
+                        selectedMode = themeMode,
+                        orderedModes = orderedThemeModes,
+                        expanded = themeMenuExpanded,
+                        onExpandedChange = { themeMenuExpanded = it },
+                        onSelect = onThemeModeChange
+                    )
+                }
+                item { CreatorLinks(palette) }
                 item {
                     CopyrightWatermarkCard(
                         palette = palette,
@@ -1552,6 +1574,62 @@ private fun SettingsInfoScreen(
                     Spacer(Modifier.height(24.dp))
                 }
             }
+    }
+}
+
+@Composable
+private fun ThemeSettingsCard(
+    palette: HanClipPalette,
+    selectedMode: HanClipThemeMode,
+    orderedModes: List<HanClipThemeMode>,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onSelect: (HanClipThemeMode) -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button) { onExpandedChange(!expanded) },
+        shape = RoundedCornerShape(16.dp),
+        color = palette.secondary.copy(alpha = 0.08f),
+        border = BorderStroke(1.dp, palette.border)
+    ) {
+        Box {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(role = Role.Button) { onExpandedChange(true) }
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Icon(Icons.Outlined.Palette, contentDescription = null, tint = palette.primary)
+                Text("테마 설정", color = palette.text, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                Text(selectedMode.displayName, color = palette.subText, fontSize = 13.sp)
+                Icon(Icons.Outlined.ExpandMore, contentDescription = null, tint = palette.primary)
+            }
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { onExpandedChange(false) }
+            ) {
+                orderedModes.forEach { mode ->
+                    DropdownMenuItem(
+                        text = { Text(mode.displayName) },
+                        leadingIcon = {
+                            Icon(
+                                if (mode == selectedMode) Icons.Outlined.Check else Icons.Outlined.Palette,
+                                contentDescription = null
+                            )
+                        },
+                        onClick = {
+                            onSelect(mode)
+                            onExpandedChange(false)
+                        }
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -1622,7 +1700,9 @@ private fun CopyrightWatermarkCard(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(role = Role.Button) { onExpandedChange(!expanded) },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -1634,7 +1714,6 @@ private fun CopyrightWatermarkCard(
                 )
                 Text(
                     "워터마크",
-                    modifier = Modifier.weight(1f),
                     color = palette.subText,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
@@ -1653,13 +1732,12 @@ private fun CopyrightWatermarkCard(
                     palette = palette,
                     onClick = { onChange(settings.copy(logoEnabled = false)) }
                 )
-                IconButton(onClick = { onExpandedChange(!expanded) }) {
-                    Icon(
-                        if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                        if (expanded) "워터마크 설정 접기" else "워터마크 설정 펼치기",
-                        tint = palette.primary
-                    )
-                }
+                Spacer(Modifier.weight(1f))
+                Icon(
+                    if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                    if (expanded) "워터마크 설정 접기" else "워터마크 설정 펼치기",
+                    tint = palette.primary
+                )
             }
             if (expanded) {
                 Text("로고", color = palette.subText, fontWeight = FontWeight.Bold)
@@ -2069,15 +2147,41 @@ private fun SleepPreventionInfoCard(
 }
 
 @Composable
-private fun CreatorGitHubCard(palette: HanClipPalette) {
+private fun CreatorLinks(palette: HanClipPalette) {
     val uriHandler = LocalUriHandler.current
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        CreatorLinkCard(
+            palette = palette,
+            icon = Icons.Outlined.AccountCircle,
+            title = "만든 사람 · github.com/armsone",
+            accessibilityLabel = "만든 사람 GitHub 열기",
+            onClick = { uriHandler.openUri(CreatorGitHubUrl) }
+        )
+        CreatorLinkCard(
+            palette = palette,
+            icon = Icons.Outlined.Public,
+            title = "공식 사이트 · nasfinder.com",
+            accessibilityLabel = "공식 사이트 열기",
+            onClick = { uriHandler.openUri(OfficialSiteUrl) }
+        )
+    }
+}
+
+@Composable
+private fun CreatorLinkCard(
+    palette: HanClipPalette,
+    icon: ImageVector,
+    title: String,
+    accessibilityLabel: String,
+    onClick: () -> Unit
+) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(
                 role = Role.Button,
-                onClickLabel = "만든 사람 GitHub 열기",
-                onClick = { uriHandler.openUri(CreatorGitHubUrl) }
+                onClickLabel = accessibilityLabel,
+                onClick = onClick
             ),
         shape = RoundedCornerShape(14.dp),
         color = palette.secondary.copy(alpha = 0.08f)
@@ -2087,9 +2191,9 @@ private fun CreatorGitHubCard(palette: HanClipPalette) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Outlined.AccountCircle, contentDescription = null, tint = palette.subText)
+            Icon(icon, contentDescription = null, tint = palette.subText)
             Text(
-                "만든 사람 · github.com/armsone",
+                title,
                 modifier = Modifier.weight(1f),
                 color = palette.subText,
                 fontWeight = FontWeight.SemiBold,
@@ -2135,8 +2239,11 @@ private fun ImportantInfoRow(
     body: String,
     palette: HanClipPalette
 ) {
+    var expanded by remember(title) { mutableStateOf(false) }
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button) { expanded = !expanded },
         shape = RoundedCornerShape(14.dp),
         color = palette.panel,
         border = BorderStroke(1.dp, palette.border)
@@ -2164,12 +2271,27 @@ private fun ImportantInfoRow(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text(title, color = palette.text, fontWeight = FontWeight.Bold)
-                Text(
-                    body,
-                    color = palette.subText,
-                    style = MaterialTheme.typography.bodySmall
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        title,
+                        modifier = Modifier.weight(1f),
+                        color = palette.text,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Icon(
+                        if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                        contentDescription = if (expanded) "내용 접기" else "내용 펼치기",
+                        tint = palette.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                if (expanded) {
+                    Text(
+                        body,
+                        color = palette.subText,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
         }
     }
@@ -2206,11 +2328,14 @@ private fun EmbeddedFontCopyrightRow(
     palette: HanClipPalette
 ) {
     val context = LocalContext.current
+    var expanded by remember { mutableStateOf(false) }
     val paragraphs = remember(body) {
         body.split("\n\n").filterNot { it.trim() == "[[embedded_font_size_table]]" }
     }
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button) { expanded = !expanded },
         shape = RoundedCornerShape(14.dp),
         color = palette.panel,
         border = BorderStroke(1.dp, palette.border)
@@ -2230,10 +2355,24 @@ private fun EmbeddedFontCopyrightRow(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("내장 서체 저작권", color = palette.text, fontWeight = FontWeight.Bold)
-                paragraphs.forEachIndexed { index, paragraph ->
-                    Text(paragraph, color = palette.subText, style = MaterialTheme.typography.bodySmall)
-                    if (index == 0) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "내장 서체 저작권",
+                        modifier = Modifier.weight(1f),
+                        color = palette.text,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Icon(
+                        if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                        contentDescription = if (expanded) "내용 접기" else "내용 펼치기",
+                        tint = palette.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                if (expanded) {
+                    paragraphs.forEachIndexed { index, paragraph ->
+                        Text(paragraph, color = palette.subText, style = MaterialTheme.typography.bodySmall)
+                        if (index == 0) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -2267,6 +2406,7 @@ private fun EmbeddedFontCopyrightRow(
                                     )
                                 }
                             }
+                        }
                         }
                     }
                 }

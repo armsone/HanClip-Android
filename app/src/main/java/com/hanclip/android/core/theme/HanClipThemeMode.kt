@@ -3,6 +3,9 @@ package com.hanclip.android.core.theme
 import android.content.Context
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
@@ -156,6 +159,8 @@ object HanClipThemeStore {
     private const val PreferencesName = "hanclip_home_theme_preferences"
     private const val ThemeModeKey = "hanClipThemeMode"
     private const val CustomThemeOrderKey = "hanClipCustomThemeOrder"
+    internal var revision by mutableIntStateOf(0)
+        private set
 
     fun load(context: Context): HanClipThemeMode {
         val raw = context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
@@ -168,6 +173,7 @@ object HanClipThemeStore {
             .edit()
             .putString(ThemeModeKey, mode.storageValue)
             .apply()
+        revision += 1
     }
 
     fun loadVisibleOrder(context: Context): List<HanClipThemeMode> {

@@ -34,6 +34,7 @@ fun HanClipTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
+    HanClipThemeStore.revision
     val mode = HanClipThemeStore.load(LocalContext.current)
     val palette = mode.currentPalette
     val usesDarkColors = mode == HanClipThemeMode.Dark ||
