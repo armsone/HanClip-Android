@@ -1,135 +1,110 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
+  "capturedAt": "2026-08-15T11:22:00+09:00",
   "sourceOfTruth": {
     "platform": "ios",
-    "commit": "31e60ec5feb100b3dfcec78d47040e54e2d682ca",
-    "build": "1.0.1 (3.11.44)",
-    "frozenAt": "2026-08-13T22:19:34+09:00",
-    "spec": "reference/ios-current/design-spec/ANDROID_FULL_PORT_SPEC_2026-08-13.md"
+    "repository": "/Users/armsone/git/HanClip",
+    "head": "31e60ec5feb100b3dfcec78d47040e54e2d682ca",
+    "dirty": true,
+    "appVersion": "1.0.1 (3.11.47)",
+    "manifest": "reference/matchup/ios/MANIFEST.json"
   },
-  "androidBaseline": {
-    "commit": "347ac14",
-    "dirtyFilesAtStart": [
-      "PROJECT_RULES.md",
-      "app/src/main/java/com/hanclip/android/feature/home/HomeRoute.kt"
-    ],
-    "appVersion": "1.0.1 (544)"
+  "androidCandidate": {
+    "repository": "/Users/armsone/git/HanClip-Android",
+    "baseHead": "c230ddb2df5ea056861959ef1e6283e7153cfea2",
+    "dirty": true,
+    "appVersionAtCapture": "1.0.1 (545)",
+    "captureApk": "app/build/outputs/apk/debug/app-debug.apk",
+    "captureApkSha256": "42685346a0b3cbbea9e410a4ccb4b1e2e7a121f349c591a879d0ee76cd18b39b",
+    "releaseCandidateVersion": "1.0.1 (546)",
+    "releaseCandidateApk": "app/build/outputs/apk/releaseQa/app-releaseQa.apk",
+    "releaseCandidateApkSha256": "83cdf966782f4b965a72815611c190f2acb4b7b2627e2493fcaaf3fe0e487816"
   },
-  "representativeLayouts": [
-    {
-      "id": "phone_light_font_1",
-      "platform": "android",
-      "device": "StarterApp_API_37",
-      "resolutionPx": "1080x2424",
-      "densityDpi": 420,
-      "orientation": "portrait",
-      "theme": "light",
-      "fontScale": 1.0
-    },
-    {
-      "id": "phone_dark_font_2",
-      "platform": "android",
-      "device": "StarterApp_API_37",
-      "resolutionPx": "1080x2424",
-      "densityDpi": 420,
-      "orientation": "portrait",
-      "theme": "dark",
-      "fontScale": 2.0
-    }
-  ],
+  "primaryProfile": {
+    "id": "P0-fresh-empty-v1",
+    "device": "StarterApp_API_37",
+    "runtime": "Android API 37",
+    "resolutionPx": "1206x2622",
+    "densityDpi": 480,
+    "logicalViewportDp": "402x874",
+    "orientation": "portrait",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "fontScale": 1.0,
+    "systemAppearance": "light",
+    "themeModeAtLaunch": "automatic",
+    "fixture": "fresh install; zero saved projects; zero collection movies"
+  },
   "pairedStates": [
     {
-      "id": "home_default",
-      "route": "HOME",
-      "ios": "reference/ios-current/home/home-empty-top.png",
-      "android": "reference/matchup/android/phone/home_default.png",
-      "status": "reference-image-older-than-current-ios-spec",
-      "allowedNativeDifferences": ["status bar", "navigation bar", "Android 48dp hit areas"]
+      "id": "HOME.empty.automatic-light",
+      "ios": "reference/matchup/ios/current/home_empty_default.png",
+      "android": "reference/matchup/android/phone/home_empty_default_r03.png",
+      "androidSha256": "5b7f58eaf9a9f5f06e918212c48523dd7da19aa5e1110f2b75658cd288ec3ff8",
+      "status": "paired-reviewed",
+      "note": "iOS automatic-light initial vertical gap is tracked as an iOS runtime defect and is not copied"
     },
     {
-      "id": "home_media_add_menu",
-      "route": "MEDIA_MENU",
-      "ios": "reference/ios-current/home/home-media-add-menu.png",
-      "android": "reference/matchup/android/phone/home_media_add_menu.png",
-      "status": "captured"
+      "id": "MEDIA_MENU.open.automatic-light",
+      "ios": "reference/matchup/ios/current/media_menu_open.png",
+      "android": "reference/matchup/android/phone/media_menu_open_r03.png",
+      "androidSha256": "e6261a9e8858f88e0cca1bfc3c2c74cba5d922c02f566c798dd566aa81958d8d",
+      "status": "paired-reviewed"
     },
     {
-      "id": "home_theme_short_tap",
-      "route": "THEME",
-      "ios": "reference/ios-current/home/home-theme-short-tap.png",
-      "android": "reference/matchup/android/phone/home_theme_short_tap.png",
-      "status": "android-fixed-and-captured"
+      "id": "HOME.empty.dark",
+      "ios": "reference/matchup/ios/current/home_empty_dark.png",
+      "android": "reference/matchup/android/phone/home_empty_dark_r03.png",
+      "androidSha256": "2bb9e557ea0056a564cf659bbeeb81f4d348016d49ef5f73da6d1a9b7dccec6d",
+      "status": "paired-reviewed"
     },
     {
-      "id": "copyright_top",
-      "route": "COPYRIGHT",
-      "ios": "reference/ios-current/home/copyright-top.png",
-      "android": "reference/matchup/android/phone/copyright_top.png",
-      "status": "captured"
+      "id": "COPYRIGHT.collapsed.dark",
+      "ios": "reference/matchup/ios/current/copyright_collapsed_dark.png",
+      "android": "reference/matchup/android/phone/copyright_collapsed_dark_r03.png",
+      "androidSha256": "a61dde0d587a2c0e82383e009f8ec498406d417d1db9032df1c26d3b823840e3",
+      "status": "common-geometry-passed; product-content-exception"
     },
     {
-      "id": "home_font_2_dark",
-      "route": "HOME",
-      "ios": null,
-      "android": "reference/matchup/android/phone/home_font_2_dark.png",
-      "status": "android-accessibility-only"
-    },
-    {
-      "id": "quick_photo_entry",
-      "route": "PHOTO",
-      "ios": null,
-      "android": "reference/matchup/android/phone/quick_photo_entry.png",
-      "status": "android-captured-ios-spec-only"
-    },
-    {
-      "id": "quick_photo_selected",
-      "route": "PHOTO",
-      "ios": null,
-      "android": "reference/matchup/android/phone/quick_photo_selected.png",
-      "status": "android-captured-ios-spec-only"
-    },
-    {
-      "id": "photo_drag_active",
-      "route": "PHOTO",
-      "ios": null,
-      "android": "reference/matchup/android/phone/photo_drag_active.png",
-      "status": "android-behavior-verified-ios-spec-only"
-    },
-    {
-      "id": "photo_drag_reverse_active",
-      "route": "PHOTO",
-      "ios": null,
-      "android": "reference/matchup/android/phone/photo_drag_reverse_active.png",
-      "status": "android-behavior-verified-ios-spec-only"
-    },
-    {
-      "id": "quick_duration_default",
-      "route": "QUICK_DURATION",
-      "ios": null,
-      "android": "reference/matchup/android/phone/quick_duration_default.png",
-      "status": "android-captured-ios-spec-only"
-    },
-    {
-      "id": "quick_duration_font_1_3",
-      "route": "QUICK_DURATION",
-      "ios": null,
-      "android": "reference/matchup/android/phone/quick_duration_font_1_3.png",
-      "status": "android-fixed-and-captured"
-    },
-    {
-      "id": "quick_duration_font_1_3_bottom",
-      "route": "QUICK_DURATION",
-      "ios": null,
-      "android": "reference/matchup/android/phone/quick_duration_font_1_3_bottom.png",
-      "status": "android-fixed-and-captured",
-      "allowedNativeDifferences": ["Android navigation bar", "scroll position"]
+      "id": "COPYRIGHT.expanded.dark",
+      "ios": "reference/matchup/ios/current/copyright_expanded_dark.png",
+      "android": "reference/matchup/android/phone/copyright_expanded_dark_r03.png",
+      "androidSha256": "69b3528b23c2e65daa220a2f89e44acd7d96bb5c8ac4c54820d1753e3c16de46",
+      "status": "product-content-exception",
+      "exception": "Android test-period free controls remain available; StoreKit purchase cards are not copied"
     }
   ],
-  "routeInventory": [
-    "HOME", "MEDIA_MENU", "PHOTO", "CALENDAR", "IMPORT", "QUICK_DURATION",
-    "EDITOR", "CLIP_TRIM", "TEXT", "MUSIC", "BROWSER", "ENDING",
-    "GENERATION", "PREVIEW", "RELEASE", "COLLECTION", "COLLECTION_PLAYER",
-    "COLLECTION_POSTER_AI", "COLLECTION_COMPRESS", "AISHOT", "THEME",
-    "COPYRIGHT", "PERMISSION_ALERT"
-  ]
+  "functionalTraces": [
+    {
+      "id": "COPYRIGHT.default-and-persistence",
+      "result": "pass",
+      "steps": [
+        "fresh install exposes logoEnabled=true",
+        "select Instagram and enter hanclip_test",
+        "switch to HanClip and back to Instagram",
+        "force-stop and cold launch",
+        "reopen COPYRIGHT and expand"
+      ],
+      "observed": [
+        "shared preference hanClipCopyrightPlatform=instagram",
+        "shared preference hanClipCopyrightAddress.instagram=hanclip_test",
+        "post-relaunch accessibility tree contains content-desc=인스타그램 and text=hanclip_test"
+      ]
+    },
+    {
+      "id": "SLEEP.AiShot.always-on",
+      "result": "pass",
+      "evidence": "SleepPreventionPolicyTest: AiShot returns true for AlwaysOn, AlwaysOff, and Automatic"
+    }
+  ],
+  "allowedExceptions": [
+    "OS-owned status bar and navigation bar",
+    "Android test-period free copyright product state versus iOS StoreKit purchase state",
+    "external dynamic web body in BROWSER captures"
+  ],
+  "coverage": {
+    "stablePairedStates": 5,
+    "fullRouteInventoryComplete": false,
+    "reason": "current iOS pass produced five stable paired-ready states; all uncaptured inventory rows remain unverified"
+  }
 }

@@ -5,10 +5,12 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color as AndroidColor
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.util.LruCache
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -51,6 +53,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.LibraryBooks
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.automirrored.outlined.Undo
 import androidx.compose.material.icons.outlined.Collections
 import androidx.compose.material.icons.outlined.Close
@@ -60,6 +63,7 @@ import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.AddPhotoAlternate
+import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.AutoFixHigh
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.CalendarMonth
@@ -90,6 +94,7 @@ import androidx.compose.material.icons.outlined.Timelapse
 import androidx.compose.material.icons.outlined.TravelExplore
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.VideoFile
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.AlertDialog
@@ -104,6 +109,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -121,10 +127,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -146,6 +154,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -158,12 +167,15 @@ import com.hanclip.android.core.model.WatermarkSettings
 import com.hanclip.android.core.model.drawableResId
 import com.hanclip.android.core.project.ExportHistoryStore
 import com.hanclip.android.core.project.ExportedMovieSummary
+import com.hanclip.android.core.project.CopyrightIconStore
 import com.hanclip.android.core.project.CollectedMovie
 import com.hanclip.android.core.project.CollectionVideoSizeOption
 import com.hanclip.android.core.project.MovieCollectionStore
 import com.hanclip.android.core.project.hanClipCompletionTitle
 import com.hanclip.android.core.safety.InsufficientStorageException
 import com.hanclip.android.core.settings.SleepPreventionMode
+import com.hanclip.android.core.settings.CopyrightWatermarkStore
+import com.hanclip.android.core.settings.resetCopyrightWatermark
 import com.hanclip.android.core.theme.HanClipPalette
 import com.hanclip.android.core.theme.HanClipThemeMode
 import com.hanclip.android.core.theme.HanClipThemeStore
@@ -1322,7 +1334,8 @@ private fun HomeHeader(
             DropdownMenu(
                 expanded = showMediaMenu,
                 onDismissRequest = { showMediaMenu = false },
-                shape = RoundedCornerShape(28.dp),
+                offset = DpOffset(x = 0.dp, y = (-58).dp),
+                shape = RoundedCornerShape(34.dp),
                 containerColor = palette.solidPanel,
                 shadowElevation = 12.dp
             ) {
@@ -1356,7 +1369,7 @@ private fun HomeMediaMenuItem(
     onClick: () -> Unit
 ) {
     DropdownMenuItem(
-        text = { Text(label, color = palette.text, fontWeight = FontWeight.SemiBold) },
+        text = { Text(label, color = palette.text, fontWeight = FontWeight.Normal) },
         leadingIcon = {
             if (label == "AiShot") {
                 Image(
@@ -1370,7 +1383,7 @@ private fun HomeMediaMenuItem(
             }
         },
         onClick = onClick,
-        modifier = Modifier.width(190.dp)
+        modifier = Modifier.width(250.dp).height(44.dp)
     )
 }
 
@@ -1423,6 +1436,7 @@ private fun SettingsInfoScreen(
     onWatermarkSettingsChange: (WatermarkSettings) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
     var watermarkExpanded by remember { mutableStateOf(false) }
     BackHandler(onBack = onDismiss)
     Box(
@@ -1459,8 +1473,21 @@ private fun SettingsInfoScreen(
                                     Icon(Icons.Outlined.Close, "카피라이터 설정 닫기", tint = palette.primary)
                                 }
                                 IconButton(onClick = {
-                                    onWatermarkSettingsChange(WatermarkSettings())
-                                    onSleepPreventionModeChange(SleepPreventionMode.Automatic)
+                                    val (textColor, shadowColor) = copyrightDefaultColors(
+                                        context = context,
+                                        platform = watermarkSettings.platform,
+                                        customIconPath = watermarkSettings.customCopyrightIconPath
+                                    )
+                                    onWatermarkSettingsChange(
+                                        watermarkSettings.resetCopyrightWatermark(
+                                            storedAddress = CopyrightWatermarkStore.loadAddress(
+                                                context,
+                                                watermarkSettings.platform
+                                            ),
+                                            defaultTextColorHex = textColor,
+                                            defaultShadowColorHex = shadowColor
+                                        )
+                                    )
                                 }) {
                                     Icon(Icons.AutoMirrored.Outlined.Undo, "카피라이터 설정 초기화", tint = palette.primary)
                                 }
@@ -1470,8 +1497,8 @@ private fun SettingsInfoScreen(
                 }
                 item {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
+                        modifier = Modifier.fillMaxWidth().padding(start = 18.dp),
+                        horizontalArrangement = Arrangement.Start,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Surface(
@@ -1486,10 +1513,11 @@ private fun SettingsInfoScreen(
                             "카피라이터 설정",
                             color = palette.text.copy(alpha = 0.78f),
                             fontSize = 15.sp,
-                            fontWeight = FontWeight.Black
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
+                item { CreatorGitHubCard(palette) }
                 item {
                     CopyrightWatermarkCard(
                         palette = palette,
@@ -1506,7 +1534,6 @@ private fun SettingsInfoScreen(
                         onChange = onSleepPreventionModeChange
                     )
                 }
-                item { CreatorGitHubCard(palette) }
                 item { SpecialThanksCard(palette) }
                 importantInfoItems().forEach { item ->
                     item {
@@ -1536,6 +1563,54 @@ private fun CopyrightWatermarkCard(
     onExpandedChange: (Boolean) -> Unit,
     onChange: (WatermarkSettings) -> Unit
 ) {
+    val context = LocalContext.current
+    val copyrightImagePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            runCatching { CopyrightIconStore.persist(context, uri) }
+                .onSuccess { path ->
+                    onChange(
+                        settings.copy(
+                            platform = WatermarkPlatform.Custom,
+                            customCopyrightIconPath = path,
+                            logoEnabled = true
+                        )
+                    )
+                }
+                .onFailure { error ->
+                    Toast.makeText(
+                        context,
+                        error.message ?: "사용자 이미지를 가져오지 못했습니다.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+        }
+    }
+
+    fun selectPlatform(platform: WatermarkPlatform) {
+        if (platform == WatermarkPlatform.HanClip &&
+            settings.logoEnabled && settings.platform == platform
+        ) {
+            onChange(settings.copy(logoEnabled = false))
+            return
+        }
+        val (textColor, shadowColor) = copyrightDefaultColors(
+            context = context,
+            platform = platform,
+            customIconPath = settings.customCopyrightIconPath
+        )
+        onChange(
+            settings.copy(
+                platform = platform,
+                address = CopyrightWatermarkStore.loadAddress(context, platform),
+                logoEnabled = true,
+                logoColorHex = textColor,
+                logoShadowColorHex = shadowColor
+            )
+        )
+    }
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
@@ -1565,12 +1640,14 @@ private fun CopyrightWatermarkCard(
                     fontWeight = FontWeight.Bold
                 )
                 CopyrightSegment(
+                    modifier = Modifier.width(54.dp),
                     text = "사용",
                     selected = settings.logoEnabled,
                     palette = palette,
                     onClick = { onChange(settings.copy(logoEnabled = true)) }
                 )
                 CopyrightSegment(
+                    modifier = Modifier.width(54.dp),
                     text = "안함",
                     selected = !settings.logoEnabled,
                     palette = palette,
@@ -1596,8 +1673,9 @@ private fun CopyrightWatermarkCard(
                                 modifier = Modifier.weight(1f),
                                 platform = platform,
                                 selected = settings.platform == platform,
+                                customIconPath = settings.customCopyrightIconPath,
                                 palette = palette,
-                                onClick = { onChange(settings.copy(platform = platform, logoEnabled = true)) }
+                                onClick = { selectPlatform(platform) }
                             )
                         }
                     }
@@ -1611,6 +1689,35 @@ private fun CopyrightWatermarkCard(
                     color = palette.subText,
                     style = MaterialTheme.typography.bodySmall
                 )
+                if (settings.logoEnabled && settings.platform != WatermarkPlatform.HanClip) {
+                    OutlinedTextField(
+                        value = settings.address,
+                        onValueChange = { onChange(settings.copy(address = it.take(120))) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = {
+                            Text(
+                                if (settings.platform == WatermarkPlatform.Custom) {
+                                    "표시할 자막"
+                                } else {
+                                    "${settings.platform.title} 한 줄 입력"
+                                }
+                            )
+                        }
+                    )
+                }
+                if (settings.logoEnabled && settings.platform == WatermarkPlatform.Custom) {
+                    Button(
+                        onClick = { copyrightImagePicker.launch(arrayOf("image/*")) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = palette.secondary.copy(alpha = 0.14f),
+                            contentColor = palette.primary
+                        )
+                    ) {
+                        Text("직접입력 이미지", fontWeight = FontWeight.Bold)
+                    }
+                }
                 Text("위치", color = palette.subText, fontWeight = FontWeight.Bold)
                 WatermarkPosition.entries.chunked(5).forEach { positions ->
                     Row(
@@ -1631,7 +1738,7 @@ private fun CopyrightWatermarkCard(
                                         contentDescription =
                                             "카피라이터 로고 위치, 위에서 ${position.gridRow + 1}번째, 왼쪽에서 ${position.gridColumn + 1}번째"
                                     }
-                                    .padding(vertical = 7.dp)
+                                    .padding(vertical = 10.dp)
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(
                                         if (settings.copyrightPosition == position) palette.secondary.copy(alpha = 0.28f)
@@ -1640,14 +1747,57 @@ private fun CopyrightWatermarkCard(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Surface(
-                                    modifier = Modifier.size(16.dp),
+                                    modifier = Modifier.size(14.dp),
                                     shape = CircleShape,
-                                    color = if (settings.copyrightPosition == position) palette.primary else Color.Transparent,
-                                    border = BorderStroke(2.dp, if (settings.copyrightPosition == position) palette.primary else palette.secondary)
-                                ) {}
+                                    color = Color.Transparent,
+                                    border = BorderStroke(2.dp, if (settings.copyrightPosition == position) palette.primary else palette.secondary.copy(alpha = 0.52f))
+                                ) {
+                                    if (settings.copyrightPosition == position) {
+                                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                            Surface(Modifier.size(7.dp), shape = CircleShape, color = palette.primary) {}
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
+                }
+                Text("색상", color = palette.subText, fontWeight = FontWeight.Bold)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    CopyrightColorControl(
+                        modifier = Modifier.weight(1f),
+                        title = "글자",
+                        colorHex = settings.logoColorHex,
+                        palette = palette,
+                        onChange = { onChange(settings.copy(logoColorHex = it)) }
+                    )
+                    CopyrightColorControl(
+                        modifier = Modifier.weight(1f),
+                        title = "그림자 색",
+                        colorHex = settings.logoShadowColorHex,
+                        palette = palette,
+                        onChange = { onChange(settings.copy(logoShadowColorHex = it)) }
+                    )
+                }
+                val shadowPercent = (settings.logoShadowOpacity.coerceIn(0.0, 1.0) * 100)
+                    .toInt()
+                Button(
+                    onClick = {
+                        val nextPercent = if (shadowPercent >= 100) 0 else shadowPercent + 10
+                        onChange(settings.copy(logoShadowOpacity = nextPercent / 100.0))
+                    },
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = palette.panel.copy(alpha = 0.72f),
+                        contentColor = palette.text
+                    )
+                ) {
+                    Text("그림자 투명도", fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.weight(1f))
+                    Text("$shadowPercent%", color = palette.primary, fontWeight = FontWeight.Bold)
                 }
             }
             Surface(
@@ -1673,13 +1823,14 @@ private fun CopyrightWatermarkCard(
 
 @Composable
 private fun CopyrightSegment(
+    modifier: Modifier = Modifier,
     text: String,
     selected: Boolean,
     palette: HanClipPalette,
     onClick: () -> Unit
 ) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .height(48.dp)
             .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
             .padding(vertical = 7.dp),
@@ -1706,9 +1857,15 @@ private fun CopyrightPlatformCell(
     modifier: Modifier,
     platform: WatermarkPlatform,
     selected: Boolean,
+    customIconPath: String,
     palette: HanClipPalette,
     onClick: () -> Unit
 ) {
+    val customBitmap = remember(platform, customIconPath) {
+        customIconPath
+            .takeIf { platform == WatermarkPlatform.Custom && it.isNotBlank() }
+            ?.let(BitmapFactory::decodeFile)
+    }
     Surface(
         modifier = modifier
             .height(58.dp)
@@ -1721,14 +1878,125 @@ private fun CopyrightPlatformCell(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Image(
-                painter = painterResource(platform.drawableResId),
-                contentDescription = platform.title,
-                modifier = Modifier.size(28.dp),
-                contentScale = ContentScale.Fit
-            )
+            if (customBitmap != null) {
+                Image(
+                    bitmap = customBitmap.asImageBitmap(),
+                    contentDescription = platform.title,
+                    modifier = Modifier.size(30.dp).clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Image(
+                    painter = painterResource(platform.drawableResId),
+                    contentDescription = platform.title,
+                    modifier = Modifier.size(28.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
         }
     }
+}
+
+@Composable
+private fun CopyrightColorControl(
+    modifier: Modifier,
+    title: String,
+    colorHex: String,
+    palette: HanClipPalette,
+    onChange: (String) -> Unit
+) {
+    var editorVisible by remember { mutableStateOf(false) }
+    var editedHex by remember(colorHex, editorVisible) { mutableStateOf(colorHex.uppercase()) }
+    val normalized = normalizeCopyrightColorHex(colorHex) ?: "#007644"
+    val previewColor = Color(AndroidColor.parseColor(normalized))
+
+    Surface(
+        modifier = modifier.height(48.dp).clickable { editorVisible = true },
+        shape = RoundedCornerShape(14.dp),
+        color = palette.panel.copy(alpha = 0.72f),
+        border = null
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(title, modifier = Modifier.weight(1f), color = palette.subText, fontWeight = FontWeight.Bold)
+            Surface(modifier = Modifier.size(24.dp), shape = CircleShape, color = previewColor) {}
+        }
+    }
+
+    if (editorVisible) {
+        AlertDialog(
+            onDismissRequest = { editorVisible = false },
+            title = { Text(title) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("RGB 색상을 6자리 HEX 값으로 입력하세요.")
+                    OutlinedTextField(
+                        value = editedHex,
+                        onValueChange = { editedHex = it.take(7).uppercase() },
+                        singleLine = true,
+                        label = { Text("#RRGGBB") }
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = normalizeCopyrightColorHex(editedHex) != null,
+                    onClick = {
+                        normalizeCopyrightColorHex(editedHex)?.let(onChange)
+                        editorVisible = false
+                    }
+                ) { Text("확인") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { editorVisible = false }) { Text("취소") }
+            }
+        )
+    }
+}
+
+private fun normalizeCopyrightColorHex(value: String): String? {
+    val digits = value.trim().removePrefix("#")
+    return digits.takeIf { it.matches(Regex("[0-9A-Fa-f]{6}")) }?.uppercase()?.let { "#$it" }
+}
+
+private fun copyrightDefaultColors(
+    context: Context,
+    platform: WatermarkPlatform,
+    customIconPath: String
+): Pair<String, String> {
+    val source = if (platform == WatermarkPlatform.Custom && customIconPath.isNotBlank()) {
+        BitmapFactory.decodeFile(customIconPath)
+    } else {
+        BitmapFactory.decodeResource(context.resources, platform.drawableResId)
+    } ?: return "#007644" to "#29AB87"
+    val sampled = Bitmap.createScaledBitmap(source, 40, 40, true)
+    val buckets = mutableMapOf<Int, IntArray>()
+    for (y in 0 until sampled.height) {
+        for (x in 0 until sampled.width) {
+            val color = sampled.getPixel(x, y)
+            if (AndroidColor.alpha(color) <= 96) continue
+            val red = AndroidColor.red(color)
+            val green = AndroidColor.green(color)
+            val blue = AndroidColor.blue(color)
+            val key = ((red / 24) shl 16) or ((green / 24) shl 8) or (blue / 24)
+            val values = buckets.getOrPut(key) { intArrayOf(0, 0, 0, 0) }
+            values[0] += 1
+            values[1] += red
+            values[2] += green
+            values[3] += blue
+        }
+    }
+    if (sampled !== source) sampled.recycle()
+    val dominant = buckets.values.maxByOrNull { it[0] } ?: return "#007644" to "#29AB87"
+    val count = dominant[0].coerceAtLeast(1)
+    val red = dominant[1] / count
+    val green = dominant[2] / count
+    val blue = dominant[3] / count
+    return String.format("#%02X%02X%02X", red, green, blue) to
+        String.format("#%02X%02X%02X", 255 - red, 255 - green, 255 - blue)
 }
 
 @Composable
@@ -1744,7 +2012,7 @@ private fun SleepPreventionInfoCard(
         border = BorderStroke(1.dp, palette.border)
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(
@@ -1811,20 +2079,30 @@ private fun CreatorGitHubCard(palette: HanClipPalette) {
                 onClickLabel = "만든 사람 GitHub 열기",
                 onClick = { uriHandler.openUri(CreatorGitHubUrl) }
             ),
-        shape = RoundedCornerShape(18.dp),
-        color = palette.secondary.copy(alpha = 0.08f),
-        border = BorderStroke(1.dp, palette.border)
+        shape = RoundedCornerShape(14.dp),
+        color = palette.secondary.copy(alpha = 0.08f)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 42.dp).padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Outlined.Public, contentDescription = null, tint = palette.primary)
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("만든 사람", color = palette.text, fontWeight = FontWeight.Black, fontSize = 17.sp)
-                Text("GitHub · github.com/armsone", color = palette.subText, fontSize = 14.sp)
-            }
+            Icon(Icons.Outlined.AccountCircle, contentDescription = null, tint = palette.subText)
+            Text(
+                "만든 사람 · github.com/armsone",
+                modifier = Modifier.weight(1f),
+                color = palette.subText,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Icon(
+                Icons.AutoMirrored.Outlined.OpenInNew,
+                contentDescription = null,
+                tint = palette.subText,
+                modifier = Modifier.size(14.dp)
+            )
         }
     }
 }
@@ -2076,10 +2354,7 @@ private fun importantInfoIcon(title: String): ImageVector = when (title) {
 
 private fun importantInfoItems(): List<Pair<String, String>> = listOf(
     "카피라이터" to """
-        첫 화면 상단의 i 원형 버튼입니다. 카피라이터 설정과 설정 정보를 보여주는 창입니다.
-    """.trimIndent(),
-    "만든 사람 GitHub" to """
-        카피라이터 설정의 만든 사람 카드를 누르면 앱 제작자 armsone의 GitHub 페이지를 기본 브라우저로 엽니다.
+        첫 화면 하단의 i 원형 유리 버튼입니다. 카피라이터 설정과 설정 정보를 보여주는 창이며, 만든 사람의 GitHub를 열 수 있습니다.
     """.trimIndent(),
     "로고" to """
         상단의 앱 심볼과 HanClip 글자 부분입니다. 첫 화면에서 누르면 다음 테마로 바뀌고 2초 동안 변경된 테마를 알려주며, 길게 누르면 테마 선택창을 엽니다. 화면에 따라 닫기와 첫 화면 이동의 기준점으로도 사용합니다.
@@ -2236,7 +2511,7 @@ private fun importantInfoItems(): List<Pair<String, String>> = listOf(
         컬렉션은 영화 포스터를 세로로 이어지는 2열 배열로 보여주며 영화 추가 포스터는 목록의 마지막에 배치합니다. 사진은 영화 제작과 같은 사진·달력 전환 화면을 사용하되 완성 영화를 가져오는 용도이므로 영상만 표시하고 선택합니다. 파일에서도 동영상만 가져옵니다. 가져오는 동안 진행바와 완료 개수를 표시합니다. 포스터를 길게 눌러 제목 수정, 공유, 컬렉션 제거를 사용하며 제목 수정 입력창은 글의 줄 수에 맞춰 커지고 키보드 위 가용 높이를 넘으면 내부에서 스크롤합니다.
     """.trimIndent(),
     "워터마크" to """
-        카피라이터에서 설정하는 기능입니다. 한클립 로고 또는 사용자가 선택한 표시를 결과 영상에 합성할지 결정합니다.
+        카피라이터에서 결과 영상에 합성할 표시를 설정하는 기능입니다. 기본 HanClip 로고나 플랫폼 아이콘을 고르고 플랫폼별 주소, 사용자 아이콘, 5×5 위치, 글자·그림자 색과 그림자 투명도를 조절합니다. 선택한 설정은 다음 영화에도 유지되며 초기화하면 자막 설정은 보존한 채 카피라이터 항목만 기본값으로 돌아갑니다.
     """.trimIndent(),
     "외부 호출 주소" to """
         Ai  hanclip://aishot
@@ -2484,7 +2759,7 @@ private fun PresetGrid(
         MoviePreset.Golf
     )
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        HomeSectionTitle("영화 프리셋", Icons.Outlined.GridView, palette)
+        HomeSectionTitle("영화 프리셋", Icons.Filled.GridView, palette)
         orderedPresets.chunked(columnCount).forEach { rowPresets ->
             Row(
                 modifier = Modifier.height(IntrinsicSize.Max),
@@ -2495,13 +2770,18 @@ private fun PresetGrid(
                         modifier = Modifier.weight(1f),
                         tileHeight = tileHeight,
                         preset = preset,
+                        iconResId = when (preset) {
+                            MoviePreset.NewMovie -> R.drawable.ic_film_stack
+                            MoviePreset.Golf -> R.drawable.ic_figure_golf
+                            else -> null
+                        },
                         icon = when (preset) {
-                            MoviePreset.NewMovie -> Icons.Outlined.VideoLibrary
+                            MoviePreset.NewMovie -> null
                             MoviePreset.Quick -> Icons.Outlined.Bolt
                             MoviePreset.AiShot -> null
                             MoviePreset.Travel -> Icons.Outlined.Flight
                             MoviePreset.Life -> Icons.Outlined.Favorite
-                            MoviePreset.Golf -> Icons.Outlined.SportsGolf
+                            MoviePreset.Golf -> null
                         },
                         palette = palette,
                         onClick = { onStartPreset(preset) }
@@ -2520,6 +2800,7 @@ private fun PresetTile(
     modifier: Modifier,
     tileHeight: androidx.compose.ui.unit.Dp,
     preset: MoviePreset,
+    iconResId: Int?,
     icon: ImageVector?,
     palette: HanClipPalette,
     onClick: () -> Unit
@@ -2529,6 +2810,19 @@ private fun PresetTile(
         modifier = modifier
             .fillMaxHeight()
             .height(tileHeight)
+            .then(
+                if (palette.solidPanel.luminance() >= 0.5f) {
+                    Modifier.shadow(
+                        elevation = 7.dp,
+                        shape = cardShape,
+                        clip = false,
+                        ambientColor = Color.Transparent,
+                        spotColor = palette.text.copy(alpha = 0.06f)
+                    )
+                } else {
+                    Modifier
+                }
+            )
             .clip(cardShape)
             .background(
                 Brush.linearGradient(
@@ -2572,12 +2866,19 @@ private fun PresetTile(
                             modifier = Modifier.size(25.dp),
                             colorFilter = ColorFilter.tint(Color.White)
                         )
+                    } else if (iconResId != null) {
+                        Icon(
+                            painter = painterResource(iconResId),
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(19.dp)
+                        )
                     } else if (icon != null) {
                         Icon(
                             imageVector = icon,
                             contentDescription = null,
                             tint = Color.White,
-                            modifier = Modifier.size(21.dp)
+                            modifier = Modifier.size(19.dp)
                         )
                     }
                 }
@@ -2801,7 +3102,7 @@ private fun SavedProjectHeader(
             color = palette.secondary.copy(alpha = 0.10f)
         ) {
             Icon(
-                Icons.Outlined.VideoLibrary,
+                painterResource(R.drawable.ic_rectangle_stack),
                 contentDescription = null,
                 tint = palette.primary.copy(alpha = 0.72f),
                 modifier = Modifier.padding(5.dp)

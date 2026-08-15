@@ -20,7 +20,7 @@ enum class SleepPreventionMode(
     Automatic(
         title = "오토",
         chipTitle = "작업중 유지",
-        detail = "AiShot 촬영, 사진/영상 가져오기, 완성본 만들기, 사진첩 저장 중에만 화면을 유지합니다."
+        detail = "렌더링, 사진/파일 가져오기, 저장 중에만 유지합니다."
     );
 
     fun next(): SleepPreventionMode {
@@ -34,6 +34,18 @@ enum class SleepPreventionMode(
         fun fromRawValue(rawValue: String?): SleepPreventionMode {
             return entries.firstOrNull { it.name == rawValue } ?: Default
         }
+    }
+}
+
+fun shouldKeepScreenOn(
+    mode: SleepPreventionMode,
+    isAiShotActive: Boolean,
+    isWorkActive: Boolean
+): Boolean {
+    return isAiShotActive || when (mode) {
+        SleepPreventionMode.AlwaysOn -> true
+        SleepPreventionMode.AlwaysOff -> false
+        SleepPreventionMode.Automatic -> isWorkActive
     }
 }
 

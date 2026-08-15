@@ -119,7 +119,7 @@ enum class WatermarkPlatform(val title: String, val mark: String) {
 
 data class WatermarkSettings(
     val isEnabled: Boolean = false,
-    val logoEnabled: Boolean = false,
+    val logoEnabled: Boolean = true,
     val address: String = "",
     val platform: WatermarkPlatform = WatermarkPlatform.HanClip,
     val text: String = CaptionDateFormatter.single(),

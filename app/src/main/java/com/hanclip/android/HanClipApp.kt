@@ -20,6 +20,7 @@ import androidx.navigation.compose.rememberNavController
 import com.hanclip.android.core.navigation.HanClipQuickAction
 import com.hanclip.android.core.settings.SleepPreventionMode
 import com.hanclip.android.core.settings.SleepPreventionStore
+import com.hanclip.android.core.settings.shouldKeepScreenOn
 import com.hanclip.android.core.model.MoviePreset
 import com.hanclip.android.core.media.SharedInboxStore
 import com.hanclip.android.core.project.DraftProjectStore
@@ -76,6 +77,10 @@ fun HanClipApp(
     var reportedFailedProjectCount by remember { mutableStateOf(0) }
     var editableProjectSummaries by remember {
         mutableStateOf<List<EditableProjectSummary>>(emptyList())
+    }
+
+    LaunchedEffect(editorViewModel, context) {
+        editorViewModel.loadCopyrightWatermark(context)
     }
     val editableDraftProjectSummaries = remember(editableProjectSummaries) {
         editableProjectSummaries.map { project ->
@@ -276,12 +281,11 @@ fun HanClipApp(
         editorState.isImportingMedia ||
         editorState.progressMessage.isNotBlank() ||
         isPreviewSavingVideo
-    val shouldKeepScreenOn = when (sleepPreventionMode) {
-        SleepPreventionMode.AlwaysOn -> true
-        SleepPreventionMode.AlwaysOff -> false
-        SleepPreventionMode.Automatic -> activeRoute == HanClipDestination.AiShot.route ||
-            shouldKeepScreenOnForWork
-    }
+    val shouldKeepScreenOn = shouldKeepScreenOn(
+        mode = sleepPreventionMode,
+        isAiShotActive = activeRoute == HanClipDestination.AiShot.route,
+        isWorkActive = shouldKeepScreenOnForWork
+    )
 
     LaunchedEffect(shouldKeepScreenOn) {
         onKeepScreenOnChanged(shouldKeepScreenOn)
@@ -431,7 +435,9 @@ fun HanClipApp(
                     sleepPreventionMode = mode
                     SleepPreventionStore.save(context, mode)
                 },
-                onWatermarkSettingsChange = editorViewModel::updateWatermark,
+                onWatermarkSettingsChange = { settings ->
+                    editorViewModel.updateCopyrightWatermark(context, settings)
+                },
                 onOpenBrowser = { navController.navigate(HanClipDestination.Browser.route) }
             )
         }

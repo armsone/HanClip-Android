@@ -2,6 +2,7 @@ package com.hanclip.android.core.model
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IOSParityDefaultsTest {
@@ -10,7 +11,7 @@ class IOSParityDefaultsTest {
         val settings = WatermarkSettings()
 
         assertFalse(settings.isEnabled)
-        assertFalse(settings.logoEnabled)
+        assertTrue(settings.logoEnabled)
         assertEquals(CaptionDateFormatter.single(), settings.text)
         assertEquals("poppins", settings.fontName)
         assertEquals("#FFE45C", settings.textColorHex)

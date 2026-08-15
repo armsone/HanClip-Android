@@ -29,6 +29,8 @@ import com.hanclip.android.core.model.VideoSegmentMode
 import com.hanclip.android.core.project.DraftProject
 import com.hanclip.android.core.project.DraftProjectStore
 import com.hanclip.android.core.project.EditorPreferenceStore
+import com.hanclip.android.core.settings.CopyrightWatermarkStore
+import com.hanclip.android.core.settings.withCopyrightWatermark
 import com.hanclip.android.core.project.EditableProjectStore
 import com.hanclip.android.core.project.ExportHistoryStore
 import com.hanclip.android.core.project.ExportRecoveryStore
@@ -788,6 +790,18 @@ class EditorViewModel : ViewModel() {
         }
     }
 
+    fun loadCopyrightWatermark(context: Context) {
+        val copyright = CopyrightWatermarkStore.load(context.applicationContext)
+        _uiState.update {
+            it.copy(watermarkSettings = it.watermarkSettings.withCopyrightWatermark(copyright))
+        }
+    }
+
+    fun updateCopyrightWatermark(context: Context, settings: WatermarkSettings) {
+        CopyrightWatermarkStore.save(context.applicationContext, settings)
+        updateWatermark(settings)
+    }
+
     fun updateWatermarkSilently(settings: WatermarkSettings) {
         _uiState.update {
             it.copy(
@@ -1049,7 +1063,9 @@ class EditorViewModel : ViewModel() {
                 defaultVideoSegmentMode = draft.defaultVideoSegmentMode,
                 outputAspectRatio = draft.outputAspectRatio,
                 outputQualityPreset = draft.outputQualityPreset,
-                watermarkSettings = draft.watermarkSettings,
+                watermarkSettings = draft.watermarkSettings.withCopyrightWatermark(
+                    CopyrightWatermarkStore.load(appContext)
+                ),
                 backgroundMusicUri = draft.backgroundMusicUri,
                 backgroundMusicTitle = draft.backgroundMusicTitle,
                 backgroundMusicSampleId = draft.backgroundMusicSampleId,
@@ -1090,7 +1106,9 @@ class EditorViewModel : ViewModel() {
                 defaultVideoSegmentMode = project.defaultVideoSegmentMode,
                 outputAspectRatio = project.outputAspectRatio,
                 outputQualityPreset = project.outputQualityPreset,
-                watermarkSettings = project.watermarkSettings,
+                watermarkSettings = project.watermarkSettings.withCopyrightWatermark(
+                    CopyrightWatermarkStore.load(appContext)
+                ),
                 backgroundMusicUri = project.backgroundMusicUri,
                 backgroundMusicTitle = project.backgroundMusicTitle,
                 backgroundMusicSampleId = project.backgroundMusicSampleId,
@@ -2184,7 +2202,11 @@ class EditorViewModel : ViewModel() {
             defaultVideoSegmentMode = VideoSegmentMode.Multiple,
             outputAspectRatio = outputAspectRatio,
             outputQualityPreset = outputQualityPreset,
-            watermarkSettings = presetWatermark(preset),
+            watermarkSettings = presetWatermark(preset).let { watermark ->
+                context?.let(CopyrightWatermarkStore::load)
+                    ?.let(watermark::withCopyrightWatermark)
+                    ?: watermark
+            },
             backgroundMusicUri = sampleMusic?.let { sampleBackgroundMusicUri(null, it) },
             backgroundMusicTitle = sampleMusic?.title,
             backgroundMusicSampleId = sampleMusic?.id,

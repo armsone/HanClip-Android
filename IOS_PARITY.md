@@ -14,6 +14,7 @@
 | 2026-08-10 | `88735597` + iOS 작업 트리 SHA-256 `c976c87b…b18513` | 이번 5% 작업 고정 기준. 커밋되지 않은 최신 iOS 컬렉션 압축·메타데이터 순서·전용 플레이어 변경까지 포함해 전체 Swift/Kotlin 기능 표면을 다시 대조 |
 | 2026-08-10 13:16 KST | `da55f9a9` + `EditorView.swift` `4f9161ec…4410` + `MovieCollectionStore.swift` `6ac28393…dfe1` | 사진·달력 재구축, Google Photos 전용 경로 제거, 컬렉션 개별/일괄 압축, 전용 플레이어 확대·이동·컨트롤 변경까지 다시 고정해 Android 빌드 518과 대조 |
 | 2026-08-13 22:19 KST | `31e60ec5` + iOS 최종 미커밋 작업 트리, 빌드 `1.0.1 (3.11.44)` | `ANDROID_FULL_PORT_SPEC_2026-08-13.md`로 오늘 변경과 기존 명세의 구형 항목을 전수 고정. Android 소스 반영 여부는 아직 재감사·미검증이며 완료로 계산하지 않음 |
+| 2026-08-15 11:22 KST | `31e60ec5` + tracked diff `b308fd79…f911`, 빌드 `1.0.1 (3.11.47)` | 402×874 동일 viewport의 immutable r03로 HOME light/dark, MEDIA_MENU, COPYRIGHT collapsed/expanded를 paired 검수. 이 5개와 sleep/카피라이터 persistence만 PASS이며 나머지 route는 미검증 유지 |
 
 Android 작업이 다음 날까지 이어지면 그날 첫 소스 변경 전에 iOS 커밋과 변경 파일을
 다시 확인하고 이 표를 갱신한다.
@@ -543,3 +544,11 @@ Android 작업이 다음 날까지 이어지면 그날 첫 소스 변경 전에 
 - 퀵모드 실제 상태를 1.0/1.3배에서 재캡처해 1.3배 첫 진입 때 만들기 CTA가 내비게이션 아래로 절반 잘리는 회귀를 발견했다. CTA를 고정 하단 구조로 복원하고 시스템 내비게이션 inset의 에뮬레이터 편차를 포함하는 안전 여백과 목록 하단 보상 공간을 분리했다. 첫 진입에서는 CTA 전체, 아래로 스크롤한 상태에서는 화면 비율 6개 전체와 CTA를 함께 확인했다.
 - 사진 선택은 에뮬레이터의 한 제스처에서 건너뛴 셀까지 8개를 선택한 뒤 손가락을 반대로 되돌렸을 때 앵커부터 현재 위치까지 3개만 남는 중간 상태를 캡처했다. 드래그 중 하단 버튼 행이 숨겨지는 것도 두 상태에서 확인했고 `MediaDragSelectionPolicyTest` 전체가 통과했다.
 - Android 빌드 545 배포 후보에서 전체 JVM 시험, `assembleDebug`, `assembleDebugAndroidTest`, `lintDebug`, `assembleReleaseQa`가 통과했다. 기존 544 설치본과 인증서가 일치하는 releaseQa를 `SM-F968N`에 데이터 보존 방식으로 업데이트했고, 545 실행과 영화 목록 2개·컬렉션 4개 보존을 확인했다.
+
+## 2026-08-15 강화 매치업 r03·기본 카피라이터 복구
+
+- iOS 3.11.47과 Android를 1206×2622, 402×874 logical viewport, ko-KR, Asia/Seoul, 기본 글자 크기, fresh-empty fixture로 고정했다. r03 원본 5개와 APK SHA-256은 iOS/Android 양쪽 작업에서 독립 재계산해 일치했다.
+- HOME automatic-light/dark의 146 카드·3열·14 inset·8/10 gap, light shadow, MEDIA_MENU 250×4×44, COPYRIGHT 공통 header/creator/sleep geometry가 PASS다. automatic-light 최초 세로 공백은 iOS runtime 결함으로 분류해 Android에 복제하지 않았다.
+- 기본 HanClip 카피라이터 로고를 `logoEnabled=true`로 복구하고 전역 설정을 프로젝트 caption과 분리 저장한다. 플랫폼별 주소, 사용자 아이콘, 5×5 위치, 글자/그림자색, 그림자 투명도를 카피라이터 화면에 다시 노출했다.
+- Instagram 주소 입력→HanClip 왕복→Instagram 복귀→force-stop/cold relaunch 뒤 플랫폼과 주소가 접근성 tree에 복원됨을 확인했다. AiShot은 AlwaysOff를 포함한 모든 화면 꺼짐 방지 모드에서 화면을 유지하며 관련 정책 시험 2개가 통과했다.
+- Android 테스트 기간 무료 editor는 승인된 product exception으로 유지하고 iOS StoreKit 구매 카드를 복제하지 않는다. THEME notice와 stable iOS pair가 없는 나머지 route/state는 완료로 계산하지 않는다.
