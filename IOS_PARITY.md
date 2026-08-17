@@ -564,3 +564,12 @@ Android 작업이 다음 날까지 이어지면 그날 첫 소스 변경 전에 
 - 기본 HanClip 카피라이터 로고를 `logoEnabled=true`로 복구하고 전역 설정을 프로젝트 caption과 분리 저장한다. 플랫폼별 주소, 사용자 아이콘, 5×5 위치, 글자/그림자색, 그림자 투명도를 카피라이터 화면에 다시 노출했다.
 - Instagram 주소 입력→HanClip 왕복→Instagram 복귀→force-stop/cold relaunch 뒤 플랫폼과 주소가 접근성 tree에 복원됨을 확인했다. AiShot은 AlwaysOff를 포함한 모든 화면 꺼짐 방지 모드에서 화면을 유지하며 관련 정책 시험 2개가 통과했다.
 - Android 테스트 기간 무료 editor는 승인된 product exception으로 유지하고 iOS StoreKit 구매 카드를 복제하지 않는다. THEME notice와 stable iOS pair가 없는 나머지 route/state는 완료로 계산하지 않는다.
+# 2026-08-17 iOS 작업 트리 델타
+
+| 항목 | Android 대응 | 검증 |
+|---|---|---|
+| 음악 기본 음량 75% | 새 음악·샘플·초기화 기본값을 75%로 통일 | 관련 JVM 테스트·컴파일 통과 |
+| 원본 소리 구간 자동 낮춤 | 0.15초 하강, 원본 구간 15%, 0.25초 복귀 및 0.4초 이하 간격 병합 | gain 정책 JVM 테스트 통과 |
+| 음악 설정 스위치·요약·저장 | 설정, 초안, 편집 프로젝트와 내보내기까지 연결 | 컴파일 통과 |
+| Google 기본 브라우저 | 기본 즐겨찾기 첫 항목과 빈 주소 기본값을 Google로 변경, 기존 Pixabay 첫 목록 마이그레이션 | 소스 역대조·컴파일 통과 |
+| iCloud Downloads 복사 | Android는 기존 공개 `Downloads/HanClip` 저장을 유지 | 플랫폼 차이 |

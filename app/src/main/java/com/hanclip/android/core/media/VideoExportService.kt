@@ -26,6 +26,7 @@ import android.text.style.ForegroundColorSpan
 import android.text.style.LineHeightSpan
 import android.text.style.StyleSpan
 import androidx.media3.common.Effect
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.container.MdtaMetadataEntry
@@ -81,11 +82,12 @@ data class VideoExportRequest(
     val frameRate: Int = HanClipExportFrameRate,
     val watermarkSettings: WatermarkSettings = WatermarkSettings(),
     val backgroundMusicUri: Uri? = null,
-    val backgroundMusicVolume: Double = 0.35,
+    val backgroundMusicVolume: Double = 0.75,
     val originalAudioVolume: Double = 1.0,
     val backgroundMusicLoopsToFillVideo: Boolean = true,
     val backgroundMusicFadeInEnabled: Boolean = true,
     val backgroundMusicFadeOutEnabled: Boolean = true,
+    val backgroundMusicAutomaticallyDucksOriginalAudio: Boolean = true,
     val madeAtMillis: Long = System.currentTimeMillis(),
     val shootingStartAtMillis: Long? = null,
     val shootingEndAtMillis: Long? = null,
@@ -506,6 +508,36 @@ class Media3TransformerExportService(
             hasFade = true
         }
         if (hasFade) processors += GainProcessor(fadeProvider.build())
+        if (request.backgroundMusicAutomaticallyDucksOriginalAudio) {
+            val ranges = BackgroundMusicDuckingPolicy.ranges(request.clips)
+            if (ranges.isNotEmpty()) {
+                processors += GainProcessor(object : GainProcessor.GainProvider {
+                    override fun getGainFactorAtSamplePosition(
+                        samplePosition: Long,
+                        sampleRate: Int,
+                    ): Float {
+                        val positionUs = samplePosition * 1_000_000L / sampleRate.coerceAtLeast(1)
+                        return BackgroundMusicDuckingPolicy.relativeGainAt(
+                            positionUs,
+                            request.backgroundMusicVolume,
+                            ranges,
+                        )
+                    }
+
+                    override fun isUnityUntil(samplePosition: Long, sampleRate: Int): Long {
+                        val positionUs = samplePosition * 1_000_000L / sampleRate.coerceAtLeast(1)
+                        if (BackgroundMusicDuckingPolicy.relativeGainAt(positionUs, request.backgroundMusicVolume, ranges) < 0.999f) {
+                            return C.TIME_UNSET
+                        }
+                        val nextUs = ranges.asSequence()
+                            .map { (it.startUs - BackgroundMusicDuckingPolicy.rampDownUs).coerceAtLeast(0L) }
+                            .firstOrNull { it > positionUs }
+                            ?: return C.TIME_END_OF_SOURCE
+                        return nextUs * sampleRate.coerceAtLeast(1) / 1_000_000L
+                    }
+                })
+            }
+        }
         return processors
     }
 

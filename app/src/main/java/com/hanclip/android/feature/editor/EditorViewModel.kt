@@ -74,12 +74,13 @@ data class EditorUiState(
     val backgroundMusicTitle: String? = null,
     val backgroundMusicSampleId: String? = null,
     val backgroundMusicEnabled: Boolean = false,
-    val backgroundMusicVolume: Double = 0.35,
+    val backgroundMusicVolume: Double = 0.75,
     val originalAudioVolume: Double = 1.0,
     val similarPhotoRepresentativeInterval: Int = 6,
     val backgroundMusicLoopsToFillVideo: Boolean = true,
     val backgroundMusicFadeInEnabled: Boolean = true,
     val backgroundMusicFadeOutEnabled: Boolean = true,
+    val backgroundMusicAutomaticallyDucksOriginalAudio: Boolean = true,
     val isExporting: Boolean = false,
     val isCancellingExport: Boolean = false,
     val exportedVideoUri: Uri? = null,
@@ -467,6 +468,7 @@ class EditorViewModel : ViewModel() {
                     backgroundMusicLoopsToFillVideo = state.backgroundMusicLoopsToFillVideo,
                     backgroundMusicFadeInEnabled = state.backgroundMusicFadeInEnabled,
                     backgroundMusicFadeOutEnabled = state.backgroundMusicFadeOutEnabled,
+                    backgroundMusicAutomaticallyDucksOriginalAudio = state.backgroundMusicAutomaticallyDucksOriginalAudio,
                     madeAtMillis = madeAtMillis,
                     shootingStartAtMillis = shootingStartAtMillis,
                     shootingEndAtMillis = shootingEndAtMillis,
@@ -856,7 +858,7 @@ class EditorViewModel : ViewModel() {
                 backgroundMusicTitle = displayNameForUri(appContext, uri),
                 backgroundMusicSampleId = null,
                 backgroundMusicEnabled = true,
-                backgroundMusicVolume = 0.35,
+                backgroundMusicVolume = 0.75,
                 alertMessage = "배경 음악을 MP4 완성본에 적용했습니다."
             )
         }
@@ -869,7 +871,7 @@ class EditorViewModel : ViewModel() {
                 backgroundMusicTitle = sample.title,
                 backgroundMusicSampleId = sample.id,
                 backgroundMusicEnabled = true,
-                backgroundMusicVolume = 0.35,
+                backgroundMusicVolume = 0.75,
                 alertMessage = "${sample.title} 음악을 MP4 완성본에 적용했습니다."
             )
         }
@@ -909,6 +911,10 @@ class EditorViewModel : ViewModel() {
         _uiState.update { it.copy(backgroundMusicFadeOutEnabled = enabled) }
     }
 
+    fun updateBackgroundMusicAutomaticDucking(enabled: Boolean) {
+        _uiState.update { it.copy(backgroundMusicAutomaticallyDucksOriginalAudio = enabled) }
+    }
+
     fun removeBackgroundMusic() {
         _uiState.update {
             it.copy(
@@ -916,7 +922,7 @@ class EditorViewModel : ViewModel() {
                 backgroundMusicTitle = null,
                 backgroundMusicSampleId = null,
                 backgroundMusicEnabled = false,
-                backgroundMusicVolume = 0.35,
+                backgroundMusicVolume = 0.75,
                 alertMessage = "MP4 완성본에서 배경 음악을 제거했습니다."
             )
         }
@@ -931,7 +937,8 @@ class EditorViewModel : ViewModel() {
         originalAudioVolume: Double,
         loopsToFillVideo: Boolean,
         fadeInEnabled: Boolean,
-        fadeOutEnabled: Boolean
+        fadeOutEnabled: Boolean,
+        automaticallyDucksOriginalAudio: Boolean,
     ) {
         _uiState.update {
             it.copy(
@@ -944,6 +951,7 @@ class EditorViewModel : ViewModel() {
                 backgroundMusicLoopsToFillVideo = loopsToFillVideo,
                 backgroundMusicFadeInEnabled = fadeInEnabled,
                 backgroundMusicFadeOutEnabled = fadeOutEnabled,
+                backgroundMusicAutomaticallyDucksOriginalAudio = automaticallyDucksOriginalAudio,
                 alertMessage = null
             )
         }
@@ -1079,6 +1087,7 @@ class EditorViewModel : ViewModel() {
                 backgroundMusicLoopsToFillVideo = draft.backgroundMusicLoopsToFillVideo,
                 backgroundMusicFadeInEnabled = draft.backgroundMusicFadeInEnabled,
                 backgroundMusicFadeOutEnabled = draft.backgroundMusicFadeOutEnabled,
+                backgroundMusicAutomaticallyDucksOriginalAudio = draft.backgroundMusicAutomaticallyDucksOriginalAudio,
                 importedMediaCount = draft.clips.count { clip -> clip.isRenderableClip },
                 alertMessage = recoveryMessage
             )
@@ -1122,6 +1131,7 @@ class EditorViewModel : ViewModel() {
                 backgroundMusicLoopsToFillVideo = project.backgroundMusicLoopsToFillVideo,
                 backgroundMusicFadeInEnabled = project.backgroundMusicFadeInEnabled,
                 backgroundMusicFadeOutEnabled = project.backgroundMusicFadeOutEnabled,
+                backgroundMusicAutomaticallyDucksOriginalAudio = project.backgroundMusicAutomaticallyDucksOriginalAudio,
                 importedMediaCount = project.clips.count { clip -> clip.isRenderableClip },
                 alertMessage = recoveryMessage,
                 undoDeleteMessage = null
@@ -1244,6 +1254,7 @@ class EditorViewModel : ViewModel() {
         backgroundMusicLoopsToFillVideo = backgroundMusicLoopsToFillVideo,
         backgroundMusicFadeInEnabled = backgroundMusicFadeInEnabled,
         backgroundMusicFadeOutEnabled = backgroundMusicFadeOutEnabled,
+        backgroundMusicAutomaticallyDucksOriginalAudio = backgroundMusicAutomaticallyDucksOriginalAudio,
         createdAtMillis = projectCreatedAtMillis
     )
 
@@ -2214,7 +2225,7 @@ class EditorViewModel : ViewModel() {
             backgroundMusicTitle = sampleMusic?.title,
             backgroundMusicSampleId = sampleMusic?.id,
             backgroundMusicEnabled = sampleMusic != null,
-            backgroundMusicVolume = 0.35,
+            backgroundMusicVolume = 0.75,
             originalAudioVolume = 1.0,
             similarPhotoRepresentativeInterval = similarPhotoRepresentativeInterval
         )

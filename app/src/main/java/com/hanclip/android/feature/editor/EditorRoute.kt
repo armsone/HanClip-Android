@@ -191,7 +191,8 @@ private data class MusicSettingsSnapshot(
     val originalAudioVolume: Double,
     val loopsToFillVideo: Boolean,
     val fadeInEnabled: Boolean,
-    val fadeOutEnabled: Boolean
+    val fadeOutEnabled: Boolean,
+    val automaticallyDucksOriginalAudio: Boolean,
 )
 
 @Composable
@@ -286,7 +287,8 @@ fun EditorRoute(
                 originalAudioVolume = state.originalAudioVolume,
                 loopsToFillVideo = state.backgroundMusicLoopsToFillVideo,
                 fadeInEnabled = state.backgroundMusicFadeInEnabled,
-                fadeOutEnabled = state.backgroundMusicFadeOutEnabled
+                fadeOutEnabled = state.backgroundMusicFadeOutEnabled,
+                automaticallyDucksOriginalAudio = state.backgroundMusicAutomaticallyDucksOriginalAudio,
             )
             if (!state.backgroundMusicEnabled &&
                 (state.backgroundMusicUri != null || state.backgroundMusicSampleId != null)
@@ -1260,7 +1262,8 @@ fun EditorRoute(
                             originalAudioVolume = snapshot.originalAudioVolume,
                             loopsToFillVideo = snapshot.loopsToFillVideo,
                             fadeInEnabled = snapshot.fadeInEnabled,
-                            fadeOutEnabled = snapshot.fadeOutEnabled
+                            fadeOutEnabled = snapshot.fadeOutEnabled,
+                            automaticallyDucksOriginalAudio = snapshot.automaticallyDucksOriginalAudio,
                         )
                     }
                 }
@@ -1288,6 +1291,7 @@ fun EditorRoute(
                     loopsToFillVideo = state.backgroundMusicLoopsToFillVideo,
                     fadeInEnabled = state.backgroundMusicFadeInEnabled,
                     fadeOutEnabled = state.backgroundMusicFadeOutEnabled,
+                    automaticallyDucksOriginalAudio = state.backgroundMusicAutomaticallyDucksOriginalAudio,
                     hasSessionChanges = musicSettingsSnapshot?.let { snapshot ->
                         snapshot.uri != state.backgroundMusicUri ||
                             snapshot.title != state.backgroundMusicTitle ||
@@ -1297,7 +1301,8 @@ fun EditorRoute(
                             kotlin.math.abs(snapshot.originalAudioVolume - state.originalAudioVolume) > 0.001 ||
                             snapshot.loopsToFillVideo != state.backgroundMusicLoopsToFillVideo ||
                             snapshot.fadeInEnabled != state.backgroundMusicFadeInEnabled ||
-                            snapshot.fadeOutEnabled != state.backgroundMusicFadeOutEnabled
+                            snapshot.fadeOutEnabled != state.backgroundMusicFadeOutEnabled ||
+                            snapshot.automaticallyDucksOriginalAudio != state.backgroundMusicAutomaticallyDucksOriginalAudio
                     } == true,
                     palette = palette,
                     fullScreen = true,
@@ -1319,6 +1324,7 @@ fun EditorRoute(
                     onLoopingChange = viewModel::updateBackgroundMusicLooping,
                     onFadeInChange = viewModel::updateBackgroundMusicFadeIn,
                     onFadeOutChange = viewModel::updateBackgroundMusicFadeOut,
+                    onAutomaticDuckingChange = viewModel::updateBackgroundMusicAutomaticDucking,
                     onSave = { closeMusicSettings(save = true) },
                     onDismiss = { closeMusicSettings(save = false) }
                 )
@@ -1776,7 +1782,7 @@ private fun ExportConfirmationDialog(
     val audioMixText = when {
         state.backgroundMusicEnabled &&
             (state.backgroundMusicUri != null || state.backgroundMusicSampleId != null) ->
-            "배경 ${percentText(state.backgroundMusicVolume)} · 원본 ${percentText(state.originalAudioVolume)}"
+            "배경 ${percentText(state.backgroundMusicVolume)} · 원본 ${percentText(state.originalAudioVolume)} · ${if (state.backgroundMusicAutomaticallyDucksOriginalAudio) "자동 낮춤" else "자동 낮춤 안함"}"
         state.renderableClips.any { it.mediaKind == ClipMediaKind.Video } ->
             "원본 ${percentText(state.originalAudioVolume)}"
         else -> "음악 없음"

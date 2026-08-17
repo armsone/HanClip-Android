@@ -80,6 +80,7 @@ fun MusicSettingsSheet(
     loopsToFillVideo: Boolean,
     fadeInEnabled: Boolean,
     fadeOutEnabled: Boolean,
+    automaticallyDucksOriginalAudio: Boolean,
     hasSessionChanges: Boolean,
     palette: HanClipPalette,
     fullScreen: Boolean = false,
@@ -92,6 +93,7 @@ fun MusicSettingsSheet(
     onLoopingChange: (Boolean) -> Unit,
     onFadeInChange: (Boolean) -> Unit,
     onFadeOutChange: (Boolean) -> Unit,
+    onAutomaticDuckingChange: (Boolean) -> Unit,
     onSave: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -146,11 +148,12 @@ fun MusicSettingsSheet(
                     onReset = {
                         BackgroundMusicSample.entries.firstOrNull()?.let(onUseSample)
                         onMusicEnabledChange(true)
-                        onMusicVolumeChange(0.35)
+                        onMusicVolumeChange(0.75)
                         onOriginalAudioVolumeChange(1.0)
                         onLoopingChange(true)
                         onFadeInChange(true)
                         onFadeOutChange(true)
+                        onAutomaticDuckingChange(true)
                     },
                     onSave = onSave.takeIf { hasSessionChanges },
                     onDismiss = onDismiss
@@ -297,6 +300,31 @@ fun MusicSettingsSheet(
                         enabled = true,
                         palette = palette,
                         onValueChange = onOriginalAudioVolumeChange
+                    )
+                }
+            }
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp),
+                color = palette.panel,
+                border = BorderStroke(1.dp, palette.border)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable(
+                        enabled = currentTitle != null,
+                    ) { onAutomaticDuckingChange(!automaticallyDucksOriginalAudio) }.padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("원본 소리 때 음악 낮춤", color = palette.text, fontWeight = FontWeight.SemiBold)
+                        Text("원본 소리가 있는 동안 음악을 15%로 낮춥니다.", color = palette.subText, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Switch(
+                        checked = automaticallyDucksOriginalAudio,
+                        onCheckedChange = onAutomaticDuckingChange,
+                        enabled = currentTitle != null,
                     )
                 }
             }

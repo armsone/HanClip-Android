@@ -127,6 +127,7 @@ import org.json.JSONObject
 import java.io.File
 import kotlinx.coroutines.delay
 
+private const val GoogleUrl = "https://www.google.com/"
 private const val PixabayMusicUrl = "https://pixabay.com/music/"
 private const val MixkitMusicUrl = "https://mixkit.co/free-stock-music/"
 
@@ -150,7 +151,7 @@ fun OnlineMusicBrowserRoute(
     var isFavoritePanelVisible by remember { mutableStateOf(false) }
     var isFavoriteManagerVisible by remember { mutableStateOf(false) }
     var targetUrl by rememberSaveable {
-        mutableStateOf(favorites.firstOrNull() ?: PixabayMusicUrl)
+        mutableStateOf(favorites.firstOrNull() ?: GoogleUrl)
     }
     var addressText by rememberSaveable { mutableStateOf(targetUrl) }
     var webView by remember { mutableStateOf<WebView?>(null) }
@@ -1336,6 +1337,7 @@ object BrowserFavoritesStore {
     const val ArchiveMimeType = "application/vnd.hanclip.browser-favorites+json"
     private const val ArchiveExtension = "hanclipfavorites"
     val DefaultFavorites = listOf(
+        GoogleUrl,
         PixabayMusicUrl,
         MixkitMusicUrl,
         "https://intosharp.com/"
@@ -1345,10 +1347,14 @@ object BrowserFavoritesStore {
         val preferences = context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
         if (!preferences.contains(FavoritesKey)) return DefaultFavorites
         val raw = preferences.getString(FavoritesKey, "").orEmpty()
-        return raw
+        val loaded = raw
             .split('\n')
             .map { it.trim() }
             .filter { it.isNotBlank() }
+        if (loaded.firstOrNull() == PixabayMusicUrl && GoogleUrl !in loaded) {
+            return listOf(GoogleUrl) + loaded
+        }
+        return loaded
     }
 
     fun save(context: Context, favorites: List<String>) {
@@ -1458,7 +1464,7 @@ fun browserFavoritesImportMessage(result: BrowserFavoritesMergeResult): String =
 
 private fun normalizedBrowserUrl(raw: String): String {
     val trimmed = raw.trim()
-    if (trimmed.isBlank()) return PixabayMusicUrl
+    if (trimmed.isBlank()) return GoogleUrl
     if (URLUtil.isNetworkUrl(trimmed)) return trimmed
     if (trimmed.contains(".") && !trimmed.contains(" ")) return "https://$trimmed"
     return "https://www.google.com/search?q=" + Uri.encode("$trimmed free music")

@@ -10,6 +10,19 @@ import kotlin.random.Random
 
 class VideoExportPolicyTest {
     @Test
+    fun backgroundMusicDuckingMergesShortGapsAndRampsAroundOriginalAudio() {
+        val ranges = listOf(
+            OriginalAudioRangeUs(1_000_000L, 2_000_000L),
+            OriginalAudioRangeUs(2_300_000L, 3_000_000L),
+        )
+        val target = BackgroundMusicDuckingPolicy.duckedAbsoluteVolume / 0.75f
+
+        assertEquals(1f, BackgroundMusicDuckingPolicy.relativeGainAt(800_000L, 0.75, ranges), 0.001f)
+        assertEquals(target, BackgroundMusicDuckingPolicy.relativeGainAt(1_000_000L, 0.75, ranges), 0.001f)
+        assertEquals(target, BackgroundMusicDuckingPolicy.relativeGainAt(2_500_000L, 0.75, ranges), 0.001f)
+        assertEquals(1f, BackgroundMusicDuckingPolicy.relativeGainAt(3_250_000L, 0.75, ranges), 0.001f)
+    }
+    @Test
     fun `photo zoom matches iOS scale and focal bounds`() {
         repeat(100) { seed ->
             val motion = randomPhotoZoomMotion(Random(seed))

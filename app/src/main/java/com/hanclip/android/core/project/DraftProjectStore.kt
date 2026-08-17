@@ -42,12 +42,13 @@ data class DraftProject(
     val backgroundMusicTitle: String? = null,
     val backgroundMusicSampleId: String? = null,
     val backgroundMusicEnabled: Boolean = backgroundMusicUri != null || backgroundMusicSampleId != null,
-    val backgroundMusicVolume: Double = 0.35,
+    val backgroundMusicVolume: Double = 0.75,
     val originalAudioVolume: Double = 1.0,
     val similarPhotoRepresentativeInterval: Int = 6,
     val backgroundMusicLoopsToFillVideo: Boolean = true,
     val backgroundMusicFadeInEnabled: Boolean = true,
     val backgroundMusicFadeOutEnabled: Boolean = true,
+    val backgroundMusicAutomaticallyDucksOriginalAudio: Boolean = true,
     val createdAtMillis: Long = System.currentTimeMillis(),
     val savedAtMillis: Long = System.currentTimeMillis()
 )
@@ -112,6 +113,7 @@ private fun DraftProject.toJson(): JSONObject {
         .put("backgroundMusicLoopsToFillVideo", backgroundMusicLoopsToFillVideo)
         .put("backgroundMusicFadeInEnabled", backgroundMusicFadeInEnabled)
         .put("backgroundMusicFadeOutEnabled", backgroundMusicFadeOutEnabled)
+        .put("backgroundMusicAutomaticallyDucksOriginalAudio", backgroundMusicAutomaticallyDucksOriginalAudio)
         .put("createdAtMillis", createdAtMillis)
         .put("savedAtMillis", savedAtMillis)
         .put("watermarkSettings", watermarkSettings.toJson())
@@ -162,13 +164,17 @@ private fun JSONObject.toDraftProject(): DraftProject {
             optString("backgroundMusicUri").let { it.isNotBlank() && it != "null" } ||
                 optString("backgroundMusicSampleId").let { it.isNotBlank() && it != "null" }
         ),
-        backgroundMusicVolume = optDouble("backgroundMusicVolume", 0.35).coerceIn(0.0, 1.0),
+        backgroundMusicVolume = optDouble("backgroundMusicVolume", 0.75).coerceIn(0.0, 1.0),
         originalAudioVolume = optDouble("originalAudioVolume", 1.0).coerceIn(0.0, 1.0),
         similarPhotoRepresentativeInterval = optInt("similarPhotoRepresentativeInterval", 6)
             .coerceIn(2, 12),
         backgroundMusicLoopsToFillVideo = optBoolean("backgroundMusicLoopsToFillVideo", true),
         backgroundMusicFadeInEnabled = optBoolean("backgroundMusicFadeInEnabled", true),
         backgroundMusicFadeOutEnabled = optBoolean("backgroundMusicFadeOutEnabled", true),
+        backgroundMusicAutomaticallyDucksOriginalAudio = optBoolean(
+            "backgroundMusicAutomaticallyDucksOriginalAudio",
+            true,
+        ),
         createdAtMillis = optLong("createdAtMillis", savedAtMillis).coerceAtMost(savedAtMillis),
         savedAtMillis = savedAtMillis
     )
