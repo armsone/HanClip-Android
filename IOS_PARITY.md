@@ -1,5 +1,17 @@
 # HanClip iOS → Android 동등성 추적
 
+## 2026-08-17 iOS 3.11.52 업데이트 매치업
+
+| Route/state ID | Element/anatomy | Dimension/action | Fixture/profile | iOS exact reference | Android observed | Difference | Required action | Evidence/confidence | Status/exception proof |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| quick_duration | 시간 정책 | 기능 | 사진·짧은 영상·다중 중요 구간 | 화면당 추천 1초·최소 0.1초, 짧은 원본 잔여 시간 재배분 | 같은 정책으로 변경 | 해소 | 실제 화면 기준 균등 재배분 | 소스·JVM 테스트, High | 구현·JVM 검증 완료, iOS 동시 캡처 필요 |
+| quick_duration | 만들기 CTA | 콘텐츠/상태 | 엔딩 사용/안함 | 화면 수와 예상 완성시간 표시 | 같은 계산 문구로 변경 | 해소 | 엔딩 포함 계산 문구 적용 | Android 1.3× 글자 캡처, High | Android 캡처 완료, iOS 동시 캡처 필요 |
+| editor | 프리셋 표시판 | 기능/Visual | 저장된 퀵 프로젝트 | 112×34 표시판 탭으로 길이 화면 재개 | 같은 크기·재진입 동작으로 변경 | 해소 | 퀵모드 표시판 버튼화 | 소스·빌드, Medium | 구현 완료, 저장 프로젝트 실화면 검증 필요 |
+| export_progress | 자막·로고 | Visual | 자막/로고 사용 | 최종 합성 위치 오버레이 | 진행 미리보기 오버레이 추가 | 해소 | 진행 미리보기 오버레이 추가 | 소스·빌드, Medium | 구현 완료, 내보내기 실화면 검증 필요 |
+| ending | 엔딩 생성 | 기능 | 위치 없는 미디어 | 촬영일/현재 날짜로 생성, 정지 프레임 | 위치 의존 제거·정지 프레임 적용 | 해소 | 위치 의존 제거·엔딩 줌 제외 | 소스·빌드, Medium | 구현 완료, 최종 MP4 검증 필요 |
+| caption_defaults | 기본 위치 | Visual/상태 | 신규 기본 설정 | upperCenter | UpperCenter | 해소 | UpperCenter로 변경 | JVM 테스트, High | 구현·JVM 검증 완료 |
+| video_segments | 중요 순간 간격 | 기능 | 인접 오디오 피크 | 구간 사이 max(0.75초, 선택길이×0.5) | 같은 최소 간격 적용 | 해소 | 최소 간격 추가 | JVM 테스트, High | 구현·JVM 검증 완료 |
+
 이 문서는 Android를 현재 iOS 구현에 맞추는 장기 작업의 기준표다. 전체 50개 항목을
 각 2점으로 평가한다. 소스와 실기기에서 확인된 동일 동작은 2점, 핵심 흐름은 있으나
 세부 수치·상태·화면이 다른 항목은 1점, 확인되지 않았거나 없는 항목은 0점이다.

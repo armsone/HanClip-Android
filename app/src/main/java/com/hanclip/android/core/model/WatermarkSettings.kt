@@ -123,7 +123,7 @@ data class WatermarkSettings(
     val address: String = "",
     val platform: WatermarkPlatform = WatermarkPlatform.HanClip,
     val text: String = CaptionDateFormatter.single(),
-    val position: WatermarkPosition = WatermarkPosition.TopLeading,
+    val position: WatermarkPosition = WatermarkPosition.UpperCenter,
     val fontName: String = "poppins",
     val textColorHex: String = "#FFE45C",
     val shadowEnabled: Boolean = true,

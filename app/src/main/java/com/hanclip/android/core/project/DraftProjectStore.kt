@@ -875,7 +875,7 @@ private fun JSONObject.toWatermarkSettings(): WatermarkSettings {
         address = optString("address", ""),
         platform = WatermarkPlatform.fromStoredValue(optString("platform", "hanclip")),
         text = optString("text", ""),
-        position = enumValueOrDefault(optString("position"), WatermarkPosition.TopLeading),
+        position = enumValueOrDefault(optString("position"), WatermarkSettings().position),
         fontName = optString("fontName", "poppins"),
         textColorHex = optString("textColorHex", "#FFE45C"),
         shadowEnabled = optBoolean("shadowEnabled", true),

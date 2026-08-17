@@ -167,6 +167,7 @@ import com.hanclip.android.core.model.OutputAspectRatio
 import com.hanclip.android.core.model.OutputQualityPreset
 import com.hanclip.android.core.model.VideoSegmentMode
 import com.hanclip.android.core.model.WatermarkPosition
+import com.hanclip.android.core.model.WatermarkSettings
 import com.hanclip.android.core.safety.steppedDefaultDuration
 import com.hanclip.android.core.settings.SleepPreventionMode
 import com.hanclip.android.core.theme.HanClipPalette
@@ -448,14 +449,14 @@ fun EditorRoute(
         state.isImportingMedia
     ) {
         if (state.preset == MoviePreset.Quick &&
-            state.clips.any { !it.isVideoSegmentChild } &&
+            quickContentClips(state.clips).isNotEmpty() &&
             !state.isImportingMedia &&
             viewModel.isNewEditingSession() &&
             quickDurationShownProjectId != state.activeProjectId
         ) {
             quickDurationShownProjectId = state.activeProjectId
-            quickTargetDurationSeconds = state.clips.count { !it.isVideoSegmentChild }
-                .toDouble()
+            quickTargetDurationSeconds = quickContentClips(state.clips).size
+                .coerceAtLeast(1).toDouble()
             isQuickDurationVisible = true
         }
     }
@@ -594,6 +595,16 @@ fun EditorRoute(
                     },
                     onToggleClipSettings = {
                         isClipSettingsExpanded = !isClipSettingsExpanded
+                    },
+                    onOpenQuickDuration = {
+                        val endingDuration = if (state.watermarkSettings.includesEndingInfoCard) {
+                            state.watermarkSettings.normalizedEndingInfoCardDuration
+                        } else {
+                            0.0
+                        }
+                        quickTargetDurationSeconds =
+                            (state.totalDurationSeconds - endingDuration).coerceAtLeast(0.1)
+                        isQuickDurationVisible = true
                     },
                     onCycleSleepPrevention = {
                         onSleepPreventionModeChange(sleepPreventionMode.next())
@@ -771,6 +782,7 @@ fun EditorRoute(
                         it.sourceWidth.toFloat() / it.sourceHeight.coerceAtLeast(1)
                     }
                     ?: 1f,
+                watermarkSettings = state.watermarkSettings,
                 isExporting = state.isExporting,
                 isCancelling = state.isCancellingExport,
                 onCancel = if (state.isCancellingExport) {
@@ -983,10 +995,21 @@ fun EditorRoute(
             )
         }
         if (isQuickDurationVisible) {
-            val sourceMediaCount = state.clips.count { !it.isVideoSegmentChild }.coerceAtLeast(1)
+            val contentSceneCount = quickContentClips(state.clips).size.coerceAtLeast(1)
+            val endingDuration = if (state.watermarkSettings.includesEndingInfoCard) {
+                state.watermarkSettings.normalizedEndingInfoCardDuration
+            } else {
+                0.0
+            }
             QuickDurationDialog(
-                sourceMediaCount = sourceMediaCount,
+                contentSceneCount = contentSceneCount,
+                sceneCount = contentSceneCount + if (endingDuration > 0.0) 1 else 0,
                 targetDurationSeconds = quickTargetDurationSeconds,
+                estimatedTotalDuration = quickEstimatedTotalDuration(
+                    clips = state.clips,
+                    targetDurationSeconds = quickTargetDurationSeconds,
+                    endingDurationSeconds = endingDuration
+                ),
                 watermarkEnabled = state.watermarkSettings.isEnabled,
                 endingInfoEnabled = state.watermarkSettings.includesEndingInfoCard,
                 endingThemeTitle = state.watermarkSettings.endingInfoCardTheme.title,
@@ -996,7 +1019,7 @@ fun EditorRoute(
                     (state.backgroundMusicUri != null || state.backgroundMusicSampleId != null),
                 selectedRatio = state.outputAspectRatio,
                 palette = palette,
-                onTargetDurationChange = { quickTargetDurationSeconds = it.coerceAtLeast(0.2) },
+                onTargetDurationChange = { quickTargetDurationSeconds = it.coerceAtLeast(0.1) },
                 onToggleWatermark = { enabled ->
                     viewModel.updateWatermarkSilently(state.watermarkSettings.copy(isEnabled = enabled))
                 },
@@ -2085,8 +2108,10 @@ private fun presetStatusDescription(preset: MoviePreset): String {
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
 private fun QuickDurationDialog(
-    sourceMediaCount: Int,
+    contentSceneCount: Int,
+    sceneCount: Int,
     targetDurationSeconds: Double,
+    estimatedTotalDuration: Double,
     watermarkEnabled: Boolean,
     endingInfoEnabled: Boolean,
     endingThemeTitle: String,
@@ -2108,14 +2133,16 @@ private fun QuickDurationDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
-    val recommendedDuration = sourceMediaCount.toDouble()
-    val minimumDuration = (sourceMediaCount * 0.2).coerceAtLeast(0.2)
+    val recommendedDuration = contentSceneCount.toDouble().coerceAtLeast(1.0)
+    val minimumDuration = (contentSceneCount * 0.1).coerceAtLeast(0.1)
     val navigationBottomPadding = WindowInsets.navigationBars
         .asPaddingValues()
         .calculateBottomPadding()
     val quickBottomSafePadding = maxOf(navigationBottomPadding, 72.dp)
     var mediaMenuExpanded by remember { mutableStateOf(false) }
-    var usesRecommendedDuration by rememberSaveable { mutableStateOf(true) }
+    var usesRecommendedDuration by rememberSaveable {
+        mutableStateOf(kotlin.math.abs(targetDurationSeconds - recommendedDuration) < 0.01)
+    }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -2333,7 +2360,7 @@ private fun QuickDurationDialog(
                                             Text(
                                                 if (choiceIndex < 6) {
                                                     if (seconds > rawSeconds) "최소 ${formatQuickDuration(seconds)}로 적용"
-                                                    else "최대 ${(rawSeconds * 5).toInt()}개"
+                                                    else "최대 ${(rawSeconds * 10).toInt()}개"
                                                 } else {
                                                     formatQuickDuration(seconds)
                                                 },
@@ -2443,7 +2470,7 @@ private fun QuickDurationDialog(
                     colors = ButtonDefaults.buttonColors(containerColor = palette.primary)
                 ) {
                     Text(
-                        "이 시간으로 만들기",
+                        "${sceneCount}개 화면을 ${formatQuickDuration(estimatedTotalDuration)}로 만들기",
                         color = Color.White,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 17.sp,
@@ -3102,6 +3129,7 @@ private fun WorkProgressOverlay(
     total: Int,
     previewClip: ClipItem?,
     previewAspectRatio: Float,
+    watermarkSettings: WatermarkSettings,
     isExporting: Boolean,
     isCancelling: Boolean,
     onCancel: (() -> Unit)? = null
@@ -3142,6 +3170,10 @@ private fun WorkProgressOverlay(
                     ) {
                         Box(Modifier.fillMaxSize()) {
                             ClipThumbnail(previewClip, Modifier.matchParentSize())
+                            ProgressWatermarkOverlay(
+                                settings = watermarkSettings,
+                                modifier = Modifier.matchParentSize().padding(10.dp)
+                            )
                             if (safeProgress != null && safeProgress < 1f) {
                                 Box(
                                     Modifier
@@ -3235,6 +3267,38 @@ private fun WorkProgressOverlay(
     }
 }
 
+@Composable
+private fun ProgressWatermarkOverlay(
+    settings: WatermarkSettings,
+    modifier: Modifier = Modifier
+) {
+    if (!settings.shouldRender) return
+    val context = LocalContext.current
+    Box(modifier) {
+        if (settings.shouldRenderText) {
+            Text(
+                text = settings.text,
+                modifier = Modifier.align(previewAlignment(settings.position)),
+                color = parseHexColor(settings.textColorHex),
+                fontFamily = fontFamilyForName(context, settings.fontName),
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                lineHeight = (14 * settings.lineSpacingScale.coerceIn(0.5, 2.0)).sp,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    shadow = previewTextShadow(settings)
+                )
+            )
+        }
+        if (settings.logoEnabled) {
+            CopyrightLogoPreview(
+                modifier = Modifier.align(previewAlignment(settings.copyrightPosition)),
+                settings = settings,
+                color = parseHexColor(settings.effectiveLogoColorHex)
+            )
+        }
+    }
+}
+
 private fun progressTitle(message: String, isExporting: Boolean): String {
     val cleanMessage = message.trim()
     val percent = Regex("""\d+%""").find(cleanMessage)?.value
@@ -3313,6 +3377,7 @@ private fun ProjectControls(
     onToggleReorder: () -> Unit,
     onToggleAdvancedSettings: () -> Unit,
     onToggleClipSettings: () -> Unit,
+    onOpenQuickDuration: () -> Unit,
     onCycleSleepPrevention: () -> Unit,
     onResetProject: () -> Unit
 ) {
@@ -3349,12 +3414,16 @@ private fun ProjectControls(
             )
             Spacer(Modifier.weight(1f))
             Surface(
+                modifier = Modifier
+                    .width(112.dp)
+                    .height(34.dp),
                 shape = RoundedCornerShape(50),
                 color = palette.chip,
-                border = BorderStroke(1.dp, palette.border)
+                border = BorderStroke(1.dp, palette.border),
+                onClick = if (preset == MoviePreset.Quick) onOpenQuickDuration else onToggleClipSettings
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
+                    modifier = Modifier.padding(horizontal = 11.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -3367,7 +3436,7 @@ private fun ProjectControls(
                     Text(
                         preset.title,
                         color = palette.subText,
-                        fontSize = 12.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1
                     )

@@ -108,7 +108,7 @@ data class EditorUiState(
         get() {
             val endingDuration = if (
                 watermarkSettings.includesEndingInfoCard &&
-                renderableClips.any(ClipItem::hasUsableSourceLocation)
+                renderableClips.isNotEmpty()
             ) {
                 watermarkSettings.normalizedEndingInfoCardDuration
             } else {
@@ -695,12 +695,15 @@ class EditorViewModel : ViewModel() {
     }
 
     fun applyQuickTargetDuration(targetDurationSeconds: Double) {
-        val state = _uiState.value
-        val sourceMediaCount = state.clips.count { !it.isVideoSegmentChild }.coerceAtLeast(1)
-        val perClipDuration = (targetDurationSeconds / sourceMediaCount.toDouble())
-            .coerceAtLeast(0.2)
-        _uiState.update { it.copy(defaultDurationSeconds = perClipDuration) }
-        applyDefaultDurationToAll()
+        _uiState.update { state ->
+            val plan = quickDurationPlan(state.clips, targetDurationSeconds)
+            state.copy(
+                clips = plan.clips,
+                defaultDurationSeconds = plan.defaultDurationSeconds,
+                alertMessage = null,
+                undoDeleteMessage = null
+            )
+        }
     }
 
     fun selectDefaultRangeForAllVideoClips() {

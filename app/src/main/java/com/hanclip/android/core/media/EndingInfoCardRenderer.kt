@@ -34,9 +34,7 @@ internal object EndingInfoCardRenderer {
         height: Int,
         settings: WatermarkSettings
     ): File? {
-        if (!settings.includesEndingInfoCard) return null
-        val located = clips.filter(ClipItem::hasUsableSourceLocation)
-        if (located.isEmpty()) return null
+        if (!settings.includesEndingInfoCard || clips.isEmpty()) return null
         val bitmap = Bitmap.createBitmap(max(2, width), max(2, height), Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val theme = settings.endingInfoCardTheme
@@ -164,6 +162,7 @@ internal object EndingInfoCardRenderer {
         }
 
         val dates = clips.mapNotNull(ClipItem::sourceCreatedAtMillis)
+            .ifEmpty { listOf(System.currentTimeMillis()) }
         val dateText = dateRange(dates)
         val stops = endingStops(context, clips).take(8)
         val heading = when (settings.endingInfoCardTheme) {

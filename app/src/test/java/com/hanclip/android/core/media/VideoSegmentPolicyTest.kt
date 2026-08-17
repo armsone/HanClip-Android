@@ -20,7 +20,7 @@ class VideoSegmentPolicyTest {
     @Test
     fun rejectsWindowsThatOverlapEvenWhenPeakDistanceLooksLargeEnough() {
         assertEquals(
-            listOf(3.0, 7.0),
+            listOf(3.0),
             VideoSegmentPolicy.nonOverlappingPeaks(
                 rawPeaks = listOf(3.0, 5.5, 7.0),
                 fallbackPeak = 5.0,
@@ -33,12 +33,25 @@ class VideoSegmentPolicyTest {
     @Test
     fun deduplicatesPeaksWithinFiftyMilliseconds() {
         assertEquals(
-            listOf(1.0, 2.0),
+            listOf(1.0, 3.0),
             VideoSegmentPolicy.nonOverlappingPeaks(
-                rawPeaks = listOf(1.0, 1.049, 2.0),
+                rawPeaks = listOf(1.0, 1.049, 3.0),
                 fallbackPeak = 1.0,
-                sourceDuration = 3.0,
+                sourceDuration = 4.0,
                 selectedDuration = 0.5
+            )
+        )
+    }
+
+    @Test
+    fun leavesBreathingRoomBetweenDistinctImportantMoments() {
+        assertEquals(
+            listOf(2.0, 6.0),
+            VideoSegmentPolicy.nonOverlappingPeaks(
+                rawPeaks = listOf(2.0, 4.1, 6.0),
+                fallbackPeak = 2.0,
+                sourceDuration = 8.0,
+                selectedDuration = 2.0
             )
         )
     }

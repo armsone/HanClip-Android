@@ -22,6 +22,7 @@ internal object VideoSegmentPolicy {
             }
         val selected = mutableListOf<Triple<Double, Double, Double>>()
         val safeLimit = limit.coerceIn(1, 12)
+        val minimumGap = max(0.75, safeDuration * 0.5)
         ranked.ifEmpty { listOf(safeSourceDuration / 2.0) }.forEach { peak ->
             if (selected.size >= safeLimit) return@forEach
             val start = max(
@@ -30,7 +31,8 @@ internal object VideoSegmentPolicy {
             )
             val end = start + safeDuration
             if (selected.all { (_, selectedStart, selectedEnd) ->
-                    end <= selectedStart + 0.001 || start >= selectedEnd - 0.001
+                    end + minimumGap <= selectedStart + 0.001 ||
+                        start >= selectedEnd + minimumGap - 0.001
                 }
             ) {
                 selected += Triple(peak, start, end)

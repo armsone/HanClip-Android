@@ -1,24 +1,24 @@
 {
   "schemaVersion": 2,
-  "capturedAt": "2026-08-15T11:22:00+09:00",
+  "capturedAt": "2026-08-17T11:10:00+09:00",
   "sourceOfTruth": {
     "platform": "ios",
     "repository": "/Users/armsone/git/HanClip",
-    "head": "31e60ec5feb100b3dfcec78d47040e54e2d682ca",
+    "head": "febd05c08e358fbc99dc6145e310f25920b950db",
     "dirty": true,
-    "appVersion": "1.0.1 (3.11.47)",
+    "appVersion": "1.0.1 (3.11.52)",
     "manifest": "reference/matchup/ios/MANIFEST.json"
   },
   "androidCandidate": {
     "repository": "/Users/armsone/git/HanClip-Android",
-    "baseHead": "c230ddb2df5ea056861959ef1e6283e7153cfea2",
+    "baseHead": "727aa7cff70b9d7bf0730ba5a153a42eb534e230",
     "dirty": true,
-    "appVersionAtCapture": "1.0.1 (545)",
+    "appVersionAtCapture": "1.0.1 (548)",
     "captureApk": "app/build/outputs/apk/debug/app-debug.apk",
-    "captureApkSha256": "42685346a0b3cbbea9e410a4ccb4b1e2e7a121f349c591a879d0ee76cd18b39b",
-    "releaseCandidateVersion": "1.0.1 (546)",
+    "captureApkSha256": "d02e33443731afdc046466c57123afacf27e57fc41cd8bac0811d101971b80fe",
+    "releaseCandidateVersion": "1.0.1 (548)",
     "releaseCandidateApk": "app/build/outputs/apk/releaseQa/app-releaseQa.apk",
-    "releaseCandidateApkSha256": "83cdf966782f4b965a72815611c190f2acb4b7b2627e2493fcaaf3fe0e487816"
+    "releaseCandidateApkSha256": "d385d36972ee9ad84ea9463b24a1c6fc94fa2e31a5b6f445546b971fd5e7aebb"
   },
   "primaryProfile": {
     "id": "P0-fresh-empty-v1",
@@ -72,6 +72,22 @@
       "androidSha256": "69b3528b23c2e65daa220a2f89e44acd7d96bb5c8ac4c54820d1753e3c16de46",
       "status": "product-content-exception",
       "exception": "Android test-period free controls remain available; StoreKit purchase cards are not copied"
+    },
+    {
+      "id": "QUICK_DURATION.one-photo.font-1.3",
+      "ios": null,
+      "android": "reference/matchup/android/phone/quick_duration_font_1_3.png",
+      "androidSha256": "9679a7062dceec50882fe8027b2383f229d35d52aa070c0f3c1953b5a3a847a1",
+      "status": "android-reviewed; ios-pair-required",
+      "note": "1080x2424, ko-KR, font scale 1.3; dynamic 1-screen/1-second CTA and 0.1-second minimum are visible without clipping"
+    },
+    {
+      "id": "QUICK_DURATION.one-photo.font-1.3.bottom",
+      "ios": null,
+      "android": "reference/matchup/android/phone/quick_duration_font_1_3_bottom.png",
+      "androidSha256": "8863289052fe62dfc10407bd47bcc639c69681d79a75130336f7a68d5797d1d0",
+      "status": "android-reviewed; ios-pair-required",
+      "note": "lower duration choices and CTA remain reachable at font scale 1.3"
     }
   ],
   "functionalTraces": [

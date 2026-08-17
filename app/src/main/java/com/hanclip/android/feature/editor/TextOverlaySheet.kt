@@ -1228,7 +1228,7 @@ private fun CaptionPreview(settings: WatermarkSettings) {
 }
 
 @Composable
-private fun CopyrightLogoPreview(
+internal fun CopyrightLogoPreview(
     modifier: Modifier = Modifier,
     settings: WatermarkSettings,
     color: Color
@@ -1361,7 +1361,7 @@ private fun CaptionStateChip(
     }
 }
 
-private fun previewTextShadow(settings: WatermarkSettings): Shadow? {
+internal fun previewTextShadow(settings: WatermarkSettings): Shadow? {
     if (!settings.shadowEnabled || settings.shadowOpacity <= 0.0) return null
     return Shadow(
         color = parseHexColor(settings.shadowColorHex).copy(
@@ -1876,7 +1876,7 @@ internal fun fontFamilyForName(context: android.content.Context, font: String): 
     }
 }
 
-private fun parseHexColor(hex: String): Color {
+internal fun parseHexColor(hex: String): Color {
     return runCatching { Color(android.graphics.Color.parseColor(hex)) }
         .getOrDefault(Color.White)
 }
@@ -2207,7 +2207,7 @@ private enum class CaptionTextPreset(val title: String) {
     }
 }
 
-private fun previewAlignment(position: WatermarkPosition): Alignment {
+internal fun previewAlignment(position: WatermarkPosition): Alignment {
     return when (position.gridRow) {
         0 -> when (position.gridColumn) {
             0, 1 -> Alignment.TopStart

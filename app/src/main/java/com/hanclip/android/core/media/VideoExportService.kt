@@ -418,7 +418,7 @@ class Media3TransformerExportService(
                 Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP
             )
         )
-        if (clip.usesPhotoZoom()) {
+        if (!isEndingInfoClip && clip.usesPhotoZoom()) {
             videoEffects += photoZoomEffect(
                 durationUs = (clip.durationSeconds * 1_000_000.0).toLong().coerceAtLeast(1L),
                 motion = randomPhotoZoomMotion()

@@ -18,6 +18,7 @@ class IOSParityDefaultsTest {
         assertEquals(0.75, settings.shadowOpacity, 0.0)
         assertEquals("#642BFF", settings.shadowColorHex)
         assertEquals(WatermarkFontSize.ExtraLarge, settings.fontSize)
+        assertEquals(WatermarkPosition.UpperCenter, settings.position)
         assertEquals("Live", LivePhotoMode.Motion.title)
         assertEquals(listOf(OutputQualityPreset.Standard), OutputQualityPreset.entries)
     }
