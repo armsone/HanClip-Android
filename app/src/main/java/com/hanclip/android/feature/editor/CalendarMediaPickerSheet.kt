@@ -84,6 +84,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberUpdatedState
@@ -127,6 +128,7 @@ import com.hanclip.android.core.theme.HanClipPalette
 import com.hanclip.android.core.safety.steppedMediaColumnCount
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
@@ -187,6 +189,7 @@ fun CalendarMediaPickerSheet(
     var isTodaySelectionArmed by rememberSaveable(title) { mutableStateOf(false) }
     var isMediaDragActive by remember { mutableStateOf(false) }
     var pendingBulkImportUris by remember { mutableStateOf<List<Uri>?>(null) }
+    val coroutineScope = rememberCoroutineScope()
     var sortOrder by rememberSaveable(saver = MediaSortOrderStateSaver) {
         mutableStateOf(MediaSortOrder.TakenOldest)
     }
@@ -471,10 +474,20 @@ fun CalendarMediaPickerSheet(
                         canClear = selectedDates.isNotEmpty(),
                         onPreviousDay = {
                             isTodaySelectionArmed = false
-                            val target = previousDaySelectionTarget(selectedDates, LocalDate.now())
-                            visibleMonth = YearMonth.from(target)
-                            selectedDates = setOf(target)
-                            selectedUris = emptyList()
+                            coroutineScope.launch {
+                                val availableDates = CalendarMediaRepository
+                                    .loadAll(context)
+                                    .filterByVideoDuration(videoDurationFilter)
+                                    .map(CalendarMediaItem::date)
+                                val target = previousAvailableMediaDate(
+                                    availableDates = availableDates,
+                                    selectedDates = selectedDates,
+                                    today = LocalDate.now()
+                                ) ?: return@launch
+                                visibleMonth = YearMonth.from(target)
+                                selectedDates = setOf(target)
+                                selectedUris = emptyList()
+                            }
                         },
                         onToday = {
                             val today = LocalDate.now()
@@ -524,12 +537,16 @@ fun CalendarMediaPickerSheet(
                             val selectedMediaDates = selectedUris.mapNotNull { uri ->
                                 recentKnownItems[uri]?.date
                             }
-                            val target = previousDaySelectionTarget(selectedMediaDates, LocalDate.now())
-                            val targetMonth = YearMonth.from(target)
-                            val targetUris = visibleItems.filter { it.date == target }.map { it.uri }
-                            visibleMonth = targetMonth
-                            pendingRecentScrollDate = target
-                            if (targetUris.isNotEmpty()) {
+                            val target = previousAvailableMediaDate(
+                                availableDates = visibleItems.map(CalendarMediaItem::date),
+                                selectedDates = selectedMediaDates,
+                                today = LocalDate.now()
+                            )
+                            if (target != null) {
+                                val targetMonth = YearMonth.from(target)
+                                val targetUris = visibleItems.filter { it.date == target }.map { it.uri }
+                                visibleMonth = targetMonth
+                                pendingRecentScrollDate = target
                                 selectedUris = targetUris
                             }
                         },
@@ -2129,10 +2146,24 @@ internal fun todaySelectionAction(
     else -> TodaySelectionAction.MoveAndArm
 }
 
-internal fun previousDaySelectionTarget(
+internal fun previousAvailableMediaDate(
+    availableDates: Iterable<LocalDate>,
     selectedDates: Iterable<LocalDate>,
     today: LocalDate
-): LocalDate = (selectedDates.minOrNull() ?: today).minusDays(1)
+): LocalDate? {
+    val distinctDates = availableDates.distinct()
+    val earliestSelectedDate = selectedDates.minOrNull()
+    if (earliestSelectedDate != null) {
+        return distinctDates.filter { it < earliestSelectedDate }.maxOrNull()
+    }
+
+    val yesterday = today.minusDays(1)
+    return distinctDates.minWithOrNull(
+        compareBy<LocalDate> { date ->
+            kotlin.math.abs(date.toEpochDay() - yesterday.toEpochDay())
+        }.thenBy { it }
+    )
+}
 
 @Composable
 private fun VideoDurationFilterDialog(

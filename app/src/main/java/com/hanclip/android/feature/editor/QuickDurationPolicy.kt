@@ -11,6 +11,39 @@ internal data class QuickDurationPlan(
     val clips: List<ClipItem>
 )
 
+internal const val QuickRecommendedSecondsPerScene = 0.7
+internal const val QuickMinimumSecondsPerScene = 0.2
+
+internal fun quickRecommendedDuration(sceneCount: Int): Double =
+    sceneCount.coerceAtLeast(1) * QuickRecommendedSecondsPerScene
+
+internal fun quickMinimumDuration(sceneCount: Int): Double =
+    sceneCount.coerceAtLeast(1) * QuickMinimumSecondsPerScene
+
+internal fun quickAvailableContentCapacity(clips: List<ClipItem>): Double =
+    quickContentClips(clips).sumOf(::quickDurationCapacity)
+
+/**
+ * Content target for "music duration matching": the portion of the movie filled with
+ * scenes, leaving room for the enabled ending card so the finished movie doesn't run
+ * longer than the selected music. Returns null when the match can't actually be
+ * produced (ending consumes all the music time, remaining time is below the minimum
+ * per-scene duration, or the selected content is too short to fill it).
+ */
+internal fun quickMusicTargetDuration(
+    musicDurationSeconds: Double?,
+    endingDurationSeconds: Double,
+    availableContentCapacitySeconds: Double,
+    sceneCount: Int
+): Double? {
+    val musicDuration = musicDurationSeconds?.takeIf { it.isFinite() && it > 0.0 } ?: return null
+    val contentTarget = (musicDuration - max(0.0, endingDurationSeconds)).coerceAtLeast(0.0)
+    val minimum = quickMinimumDuration(sceneCount)
+    if (contentTarget < minimum) return null
+    if (availableContentCapacitySeconds < contentTarget) return null
+    return contentTarget
+}
+
 internal fun quickContentClips(clips: List<ClipItem>): List<ClipItem> = clips
     .map { clip ->
         if (clip.isVideoSegmentChild) clip.copy(isVideoSegmentSelected = true) else clip
@@ -35,7 +68,7 @@ internal fun quickEstimatedTotalDuration(
     targetDurationSeconds: Double,
     endingDurationSeconds: Double
 ): Double {
-    val requestedDuration = max(0.1, targetDurationSeconds)
+    val requestedDuration = max(QuickMinimumSecondsPerScene, targetDurationSeconds)
     val availableDuration = quickContentClips(clips).sumOf { clip ->
         min(requestedDuration, quickDurationCapacity(clip))
     }
@@ -48,10 +81,10 @@ internal fun quickDurationPlan(
 ): QuickDurationPlan {
     val selectedClips = quickContentClips(clips)
     if (selectedClips.isEmpty()) {
-        return QuickDurationPlan(defaultDurationSeconds = 0.1, clips = clips)
+        return QuickDurationPlan(defaultDurationSeconds = QuickMinimumSecondsPerScene, clips = clips)
     }
 
-    val requestedDuration = max(0.1, targetDurationSeconds)
+    val requestedDuration = max(QuickMinimumSecondsPerScene, targetDurationSeconds)
     val allocatedDurations = allocateQuickDurations(
         capacities = selectedClips.map(::quickDurationCapacity),
         targetDurationSeconds = requestedDuration
@@ -83,7 +116,10 @@ internal fun quickDurationPlan(
     }
 
     return QuickDurationPlan(
-        defaultDurationSeconds = max(0.1, requestedDuration / selectedClips.size.toDouble()),
+        defaultDurationSeconds = max(
+            QuickMinimumSecondsPerScene,
+            requestedDuration / selectedClips.size.toDouble()
+        ),
         clips = updated
     )
 }
@@ -95,7 +131,7 @@ internal fun allocateQuickDurations(
     if (capacities.isEmpty()) return emptyList()
     val allocations = MutableList(capacities.size) { 0.0 }
     val remaining = capacities.indices.toMutableList()
-    var remainingDuration = max(0.1, targetDurationSeconds)
+    var remainingDuration = max(QuickMinimumSecondsPerScene, targetDurationSeconds)
 
     while (remaining.isNotEmpty()) {
         val share = remainingDuration / remaining.size.toDouble()

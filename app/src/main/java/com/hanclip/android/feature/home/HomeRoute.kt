@@ -26,6 +26,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -119,6 +120,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -172,6 +174,7 @@ import com.hanclip.android.core.project.CopyrightIconStore
 import com.hanclip.android.core.project.CollectedMovie
 import com.hanclip.android.core.project.CollectionVideoSizeOption
 import com.hanclip.android.core.project.MovieCollectionStore
+import com.hanclip.android.core.project.MovieLibraryKind
 import com.hanclip.android.core.project.hanClipCompletionTitle
 import com.hanclip.android.core.safety.InsufficientStorageException
 import com.hanclip.android.core.settings.SleepPreventionMode
@@ -201,7 +204,6 @@ import kotlin.math.roundToInt
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HomeRoute(
-    exportedMovieSummaries: List<ExportedMovieSummary>,
     collectionMovies: List<CollectedMovie>,
     recentlySavedMovieUriString: String?,
     hasDraftProject: Boolean,
@@ -224,10 +226,6 @@ fun HomeRoute(
     onRemoveEditableProject: (DraftProjectSummary) -> Unit,
     onToggleEditableProjectPin: (DraftProjectSummary) -> Boolean,
     onUpdateEditableProjectMemo: (DraftProjectSummary, String) -> Unit,
-    onOpenExportedMovie: (ExportedMovieSummary) -> Unit,
-    onRemoveExportedMovie: (ExportedMovieSummary) -> Unit,
-    onToggleExportedMoviePin: (ExportedMovieSummary) -> Boolean,
-    onUpdateExportedMovieMemo: (ExportedMovieSummary, String) -> Unit,
     onCollectionChanged: () -> Unit,
     onOpenCollectionMovie: (CollectedMovie) -> Unit,
     onSleepPreventionModeChange: (SleepPreventionMode) -> Unit,
@@ -258,8 +256,6 @@ fun HomeRoute(
     var showSettingsInfo by remember { mutableStateOf(false) }
     val palette = themeMode.currentPalette
     HanClipSystemBars(palette.solidPanel)
-    var removalCandidate by remember { mutableStateOf<ExportedMovieSummary?>(null) }
-    var memoCandidate by remember { mutableStateOf<ExportedMovieSummary?>(null) }
     var editableRemovalCandidate by remember { mutableStateOf<DraftProjectSummary?>(null) }
     var editableMemoCandidate by remember { mutableStateOf<DraftProjectSummary?>(null) }
     var memoText by remember { mutableStateOf("") }
@@ -500,8 +496,7 @@ fun HomeRoute(
         }
         savedProjectItems(
             palette = palette,
-            summaries = exportedMovieSummaries,
-            recentlySavedMovieUriString = recentlySavedMovieUriString,
+            releasedMovies = collectionMovies.filter { it.kind == MovieLibraryKind.Released },
             hasDraftProject = hasDraftProject,
             editableProjectSummaries = editableProjectSummaries,
             standardProjectColumnCount = standardProjectColumnCount,
@@ -515,18 +510,16 @@ fun HomeRoute(
                 editableMemoCandidate = it
                 memoText = it.memo
             },
-            onOpenExportedMovie = onOpenExportedMovie,
-            onRemoveExportedMovie = { removalCandidate = it },
-            onToggleExportedMoviePin = { summary ->
-                if (!onToggleExportedMoviePin(summary)) {
-                    showPinLimitAlert = true
-                }
+            onOpenReleasedMovie = onOpenCollectionMovie,
+            onRenameReleasedMovie = { movie, title ->
+                MovieCollectionStore.updateTitle(context, movie.id, title)
+                onCollectionChanged()
             },
-            onEditExportedMovieMemo = {
-                memoCandidate = it
-                memoText = it.memo
+            onRemoveReleasedMovie = { movie ->
+                MovieCollectionStore.remove(context, movie.id)
+                onCollectionChanged()
             },
-            collectionMovies = collectionMovies,
+            collectionMovies = collectionMovies.filter { it.kind == MovieLibraryKind.Collection },
             isImportingCollection = isImportingCollection,
             collectionImportCompleted = collectionImportCompleted,
             collectionImportTotal = collectionImportTotal,
@@ -621,99 +614,6 @@ fun HomeRoute(
                 }
             },
             onDismiss = { showThemeSelection = false }
-        )
-    }
-    removalCandidate?.let { summary ->
-        AlertDialog(
-            onDismissRequest = { removalCandidate = null },
-            dismissButton = {
-                OutlinedButton(
-                    onClick = { removalCandidate = null },
-                    border = BorderStroke(1.dp, HomeBorder),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = Color.White,
-                        contentColor = HomeText
-                    )
-                ) {
-                    Text("취소")
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        removalCandidate = null
-                        onRemoveExportedMovie(summary)
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFE45D42),
-                        contentColor = Color.White
-                    )
-                ) {
-                    Text("목록에서 제거")
-                }
-            },
-            shape = RoundedCornerShape(16.dp),
-            containerColor = Color.White,
-            titleContentColor = HomeText,
-            textContentColor = HomeSubText,
-            title = { Text("목록에서 제거") },
-            text = {
-                Text(
-                    "${homeProjectDateText(summary.updatedAtMillis)} · ${savedMovieDetailText(summary)}\n\n" +
-                        "HanClip 목록에서만 제거합니다. 기본 사진첩이나 파일에 저장된 완성본 MP4는 삭제하지 않습니다."
-                )
-            }
-        )
-    }
-    memoCandidate?.let { summary ->
-        AlertDialog(
-            onDismissRequest = { memoCandidate = null },
-            dismissButton = {
-                OutlinedButton(
-                    onClick = { memoCandidate = null },
-                    border = BorderStroke(1.dp, HomeBorder),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = Color.White,
-                        contentColor = HomeText
-                    )
-                ) {
-                    Text("취소")
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        onUpdateExportedMovieMemo(summary, memoText)
-                        memoCandidate = null
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = palette.primary,
-                        contentColor = Color.White
-                    )
-                ) {
-                    Text("저장")
-                }
-            },
-            shape = RoundedCornerShape(16.dp),
-            containerColor = palette.solidPanel,
-            titleContentColor = palette.text,
-            textContentColor = palette.subText,
-            title = { Text("메모 편집") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        "저장된 완성본 목록에 표시할 짧은 메모를 남깁니다.",
-                        color = palette.subText,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    TextField(
-                        value = memoText,
-                        onValueChange = { memoText = it },
-                        singleLine = true,
-                        placeholder = { Text("메모 추가") }
-                    )
-                }
-            }
         )
     }
     editableRemovalCandidate?.let { summary ->
@@ -875,6 +775,7 @@ private val HomeText = Color(0xFF14221A)
 private val HomeSubText = Color(0xFF46564C)
 private val HomeBorder = Color(0xFFD4DDD7)
 private const val HomeSavedMovieSlotCount = 10
+private const val HomeReleasedMovieColumnCount = 5
 private const val HomeThumbnailCacheSizeKb = 8 * 1024
 private const val HomeStripCacheSizeKb = 8 * 1024
 private const val HomeFrameLoadDelayMillis = 100L
@@ -2512,7 +2413,7 @@ private fun importantInfoItems(): List<Pair<String, String>> = listOf(
         첫 화면 상단에서 새 영화, 퀵모드, AiShot, 여행 영화, 인생 영화, 골프 영화 중 원하는 설정으로 영화 제작을 시작하는 영역입니다.
     """.trimIndent(),
     "퀵모드" to """
-        새 영화의 기본 설정에 음악을 켠 빠른 제작 기능입니다. 첫 화면에서 누르면 영화 제작 세션을 준비하고 사진 화면을 바로 엽니다. 미디어를 고르면 퀵모드 화면에서 30초, 45초, 1분, 2분, 3분, 5분, 추천시간 또는 최소시간을 고릅니다. 추천시간은 화면당 1초, 최소시간은 화면당 0.1초로 계산하고 만들기 버튼은 엔딩을 포함해 실제 생성될 길이를 표시합니다. 영상에서 찾은 서로 다른 중요 순간은 모두 사용하되 가까워서 같은 장면이 반복되는 후보는 제외하고, 짧은 영상이 시간을 채우지 못하면 남은 시간을 다른 화면에 고르게 배분합니다. 시간 화면에서 영화 제작과 같은 자막·음악 패널을 사용할 수 있습니다. 저장한 퀵영화는 클립 설정의 퀵모드 버튼으로 영상 길이 화면을 다시 열 수 있고, 시사회에서 다시 편집을 눌러도 같은 화면으로 돌아갑니다. 외부 주소 hanclip://quick으로 바로 실행할 수 있습니다.
+        새 영화의 기본 설정에 음악을 켠 빠른 제작 기능입니다. 첫 화면에서 누르면 영화 제작 세션을 준비하고 사진 화면을 바로 엽니다. 미디어를 고르면 퀵모드 화면에서 30초, 1분, 3분, 5분, 추천시간 또는 최소시간을 고릅니다. 추천시간은 화면당 0.7초, 최소시간은 화면당 0.2초로 계산합니다. 선택한 음악의 재생 시간이 확인되면 음악 시간에 맞춤 버튼으로 영상 길이를 음악에 맞출 수 있고, 만들기 버튼은 엔딩을 포함해 실제 생성될 길이를 표시합니다. 영상에서 찾은 서로 다른 중요 순간은 모두 사용하되 가까워서 같은 장면이 반복되는 후보는 제외하고, 짧은 영상이 시간을 채우지 못하면 남은 시간을 다른 화면에 고르게 배분합니다. 시간 화면에서 영화 제작과 같은 자막·음악 패널을 사용할 수 있습니다. 저장한 퀵영화는 클립 설정의 퀵모드 버튼으로 영상 길이 화면을 다시 열 수 있고, 시사회에서 다시 편집을 눌러도 같은 화면으로 돌아갑니다. 외부 주소 hanclip://quick으로 바로 실행할 수 있습니다.
     """.trimIndent(),
     "여행 영화" to """
         기본시간 1초, 라이브포토 영상, 영상 분할, 묶음사진 1/6 자동, 여행 서체와 여행의 설렘 음악을 적용합니다. 촬영 기간과 많이 촬영한 지역 최대 두 곳을 자막에 넣고, 마지막 엔딩 카드는 보물지도를 기본으로 사용합니다.
@@ -2638,6 +2539,9 @@ private fun importantInfoItems(): List<Pair<String, String>> = listOf(
     "자동 음량 낮춤" to """
         원본 소리가 들어 있는 클립이 재생되는 동안 배경 음악을 15%로 낮추고, 앞뒤 구간에서는 부드럽게 원래 음량으로 전환합니다.
     """.trimIndent(),
+    "음악 파일 불러오기" to """
+        기기에 저장된 음악 파일을 배경 음악으로 불러옵니다. 불러온 파일은 음악 설정의 미리듣기 카드에 파일명과 전체 재생 시간을 함께 표시합니다.
+    """.trimIndent(),
     "자막" to """
         영화 화면의 미디어 추가 메뉴에서 여는 설정창입니다. 결과 영상 위에 문구를 합성할지, 문구와 색상, 서체, 그림자, 위치를 설정합니다. 자막 문구가 비어 있어도 사용을 선택할 수 있어 마지막 엔딩 카드만 넣는 방식으로도 사용할 수 있습니다.
     """.trimIndent(),
@@ -2651,7 +2555,10 @@ private fun importantInfoItems(): List<Pair<String, String>> = listOf(
         영화 마지막 여행 기록 카드의 디자인입니다. 설정 위쪽에서 테마와 표시 시간을 고르고 현재 영화 화면 비율 그대로 실제 결과를 미리 봅니다. 자막은 현재 자막 서체·글자색·그림자를 이어받습니다. 보물지도는 고전 서체와 점선 경로를 사용하며 선택된 보물지도를 다시 누르면 새 경로로 재생성합니다. 여행일정은 DAY 번호 대신 각 지역의 실제 촬영 날짜를 표시합니다. 랜드마크는 국내외 주요 도시의 대표 명소와 iPhone 기본 그림문자를 자동 조합하고 미등록 지역에는 대표 여행 아이콘을 사용합니다. 오피스는 문서번호, 촬영기간, 날짜·지역·이동수단 표가 있는 정형 보고서입니다.
     """.trimIndent(),
     "컬렉션 포스터" to """
-        컬렉션은 영화 포스터를 세로로 이어지는 2열 배열로 보여주며 영화 추가 포스터는 목록의 마지막에 배치합니다. 사진은 영화 제작과 같은 사진·달력 전환 화면을 사용하되 완성 영화를 가져오는 용도이므로 영상만 표시하고 선택합니다. 파일에서도 동영상만 가져옵니다. 가져오는 동안 진행바와 완료 개수를 표시합니다. 포스터를 길게 눌러 제목 수정, 공유, 컬렉션 제거를 사용하며 제목 수정 입력창은 글의 줄 수에 맞춰 커지고 키보드 위 가용 높이를 넘으면 내부에서 스크롤합니다.
+        컬렉션은 외부에서 가져와 보관하는 영화만 포스터 형태의 2열 배열로 보여주며, HanClip에서 직접 만든 개봉영화와 구분합니다. 영화 추가 포스터는 목록의 마지막에 배치합니다. 사진은 영화 제작과 같은 사진·달력 전환 화면을 사용하되 완성 영화를 가져오는 용도이므로 영상만 표시하고 선택합니다. 파일에서도 동영상만 가져옵니다. 가져오는 동안 진행바와 완료 개수를 표시합니다. 포스터를 길게 눌러 제목 수정, 공유, 컬렉션 제거를 사용하며 제목 수정 입력창은 글의 줄 수에 맞춰 커지고 키보드 위 가용 높이를 넘으면 내부에서 스크롤합니다.
+    """.trimIndent(),
+    "개봉영화" to """
+        HanClip에서 직접 만들어 완성한 영화를 앱 안에 최대 30개까지 자동으로 보관합니다. 정사각형 썸네일을 한 줄에 5개씩 배치하며 썸네일을 누르면 시사회를 열고, 길게 누르면 제목 수정, 공유, 개봉영화에서 제거 작업을 사용할 수 있습니다. 제거는 앱에 보관한 사본만 지우며 사진첩이나 파일에 별도로 저장한 사본은 남습니다. 외부에서 가져온 영화는 개봉영화가 아니라 컬렉션에 보관됩니다.
     """.trimIndent(),
     "워터마크" to """
         카피라이터에서 결과 영상에 합성할 표시를 설정하는 기능입니다. 기본 HanClip 로고나 플랫폼 아이콘을 고르고 플랫폼별 주소, 사용자 아이콘, 5×5 위치, 글자·그림자 색과 그림자 투명도를 조절합니다. 선택한 설정은 다음 영화에도 유지되며 초기화하면 자막 설정은 보존한 채 카피라이터 항목만 기본값으로 돌아갑니다.
@@ -3115,8 +3022,7 @@ private fun PresetRecommendationBadge(palette: HanClipPalette) {
 
 private fun LazyListScope.savedProjectItems(
     palette: HanClipPalette,
-    summaries: List<ExportedMovieSummary>,
-    recentlySavedMovieUriString: String?,
+    releasedMovies: List<CollectedMovie>,
     hasDraftProject: Boolean,
     editableProjectSummaries: List<DraftProjectSummary>,
     standardProjectColumnCount: Int,
@@ -3125,10 +3031,9 @@ private fun LazyListScope.savedProjectItems(
     onRemoveEditableProject: (DraftProjectSummary) -> Unit,
     onToggleEditableProjectPin: (DraftProjectSummary) -> Unit,
     onEditEditableProjectMemo: (DraftProjectSummary) -> Unit,
-    onOpenExportedMovie: (ExportedMovieSummary) -> Unit,
-    onRemoveExportedMovie: (ExportedMovieSummary) -> Unit,
-    onToggleExportedMoviePin: (ExportedMovieSummary) -> Unit,
-    onEditExportedMovieMemo: (ExportedMovieSummary) -> Unit,
+    onOpenReleasedMovie: (CollectedMovie) -> Unit,
+    onRenameReleasedMovie: (CollectedMovie, String) -> Unit,
+    onRemoveReleasedMovie: (CollectedMovie) -> Unit,
     collectionMovies: List<CollectedMovie>,
     isImportingCollection: Boolean,
     collectionImportCompleted: Int,
@@ -3196,6 +3101,13 @@ private fun LazyListScope.savedProjectItems(
             }
         }
     }
+    releasedMovieItems(
+        palette = palette,
+        movies = releasedMovies,
+        onOpen = onOpenReleasedMovie,
+        onRename = onRenameReleasedMovie,
+        onRemove = onRemoveReleasedMovie
+    )
     movieCollectionItems(
         palette = palette,
         movies = collectionMovies,
@@ -3219,6 +3131,223 @@ private fun LazyListScope.savedProjectItems(
         onCancelCompression = onCancelCollectionCompression,
         columnCount = collectionColumnCount
     )
+}
+
+private fun LazyListScope.releasedMovieItems(
+    palette: HanClipPalette,
+    movies: List<CollectedMovie>,
+    onOpen: (CollectedMovie) -> Unit,
+    onRename: (CollectedMovie, String) -> Unit,
+    onRemove: (CollectedMovie) -> Unit
+) {
+    item(key = "released-movie-header", contentType = "released-movie-header") {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Text(
+                "${movies.size}/${MovieCollectionStore.MaximumMovieCount}",
+                color = palette.subText,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(Modifier.weight(1f))
+            Surface(
+                modifier = Modifier.size(22.dp),
+                shape = RoundedCornerShape(6.dp),
+                color = palette.secondary.copy(alpha = 0.10f)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Movie,
+                    contentDescription = null,
+                    tint = palette.primary.copy(alpha = 0.72f),
+                    modifier = Modifier.padding(5.dp)
+                )
+            }
+            Text(
+                "개봉영화",
+                color = palette.text.copy(alpha = 0.76f),
+                fontSize = 15.sp,
+                lineHeight = 21.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+    if (movies.isEmpty()) {
+        item(key = "released-movie-empty", contentType = "released-movie-empty") {
+            EmptyReleasedMovieState(palette)
+        }
+    }
+    items(
+        items = movies.chunked(HomeReleasedMovieColumnCount),
+        key = { row -> "released-movie-row:${row.joinToString("|") { it.id }}" },
+        contentType = { "released-movie-row" }
+    ) { row ->
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            row.forEach { movie ->
+                ReleasedMovieThumbnailCard(
+                    movie = movie,
+                    palette = palette,
+                    modifier = Modifier.weight(1f),
+                    onClick = { onOpen(movie) },
+                    onRename = { title -> onRename(movie, title) },
+                    onRemove = { onRemove(movie) }
+                )
+            }
+            repeat(HomeReleasedMovieColumnCount - row.size) {
+                Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyReleasedMovieState(palette: HanClipPalette) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = palette.panel.copy(alpha = palette.panel.alpha * 0.72f),
+        border = BorderStroke(1.dp, palette.border.copy(alpha = palette.border.alpha * 0.68f))
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Movie,
+                contentDescription = null,
+                tint = palette.subText.copy(alpha = 0.5f),
+                modifier = Modifier.size(26.dp)
+            )
+            Text(
+                "완성한 영화가 아직 없습니다",
+                color = palette.text.copy(alpha = 0.82f),
+                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                "편집을 마치고 완성본을 만들면 여기에 자동으로 보관됩니다.",
+                color = palette.subText,
+                style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ReleasedMovieThumbnailCard(
+    movie: CollectedMovie,
+    palette: HanClipPalette,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+    onRename: (String) -> Unit,
+    onRemove: () -> Unit
+) {
+    val context = LocalContext.current
+    var showActions by remember { mutableStateOf(false) }
+    var showRename by remember { mutableStateOf(false) }
+    var showRemove by remember { mutableStateOf(false) }
+    var titleDraft by remember(movie.id, movie.title) { mutableStateOf(movie.title) }
+    val posterFile = remember(movie.id, movie.posterFilename) { MovieCollectionStore.posterFile(context, movie) }
+    val poster by produceState<Bitmap?>(initialValue = null, movie.id, posterFile.lastModified()) {
+        value = withContext(Dispatchers.IO) { decodeSampledPoster(posterFile, 480) }
+    }
+    Box(
+        modifier = modifier
+            .aspectRatio(1f)
+            .clip(RoundedCornerShape(11.dp))
+            .border(width = 1.dp, color = palette.border, shape = RoundedCornerShape(11.dp))
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = { showActions = true },
+                onLongClickLabel = "개봉영화 작업 열기"
+            )
+            .semantics {
+                contentDescription = "개봉영화, ${movie.title}"
+            }
+    ) {
+        poster?.let { bitmap ->
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } ?: Box(modifier = Modifier.fillMaxSize().background(palette.secondary.copy(alpha = 0.08f)))
+        DropdownMenu(
+            expanded = showActions,
+            onDismissRequest = { showActions = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text("제목 수정") },
+                onClick = { showActions = false; titleDraft = movie.title; showRename = true },
+                leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) }
+            )
+            DropdownMenuItem(
+                text = { Text("공유") },
+                onClick = { showActions = false; shareMovie(context, movie) },
+                leadingIcon = { Icon(Icons.Outlined.IosShare, contentDescription = null) }
+            )
+            DropdownMenuItem(
+                text = { Text("개봉영화에서 제거") },
+                onClick = { showActions = false; showRemove = true },
+                leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null) }
+            )
+        }
+    }
+    if (showRename) {
+        AlertDialog(
+            onDismissRequest = { showRename = false },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = palette.solidPanel,
+            title = { Text("제목 수정") },
+            text = {
+                TextField(
+                    value = titleDraft,
+                    onValueChange = { titleDraft = it.take(120) },
+                    singleLine = true
+                )
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showRename = false }) { Text("취소") }
+            },
+            confirmButton = {
+                Button(
+                    enabled = titleDraft.isNotBlank(),
+                    onClick = { onRename(titleDraft); showRename = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = palette.primary)
+                ) { Text("저장") }
+            }
+        )
+    }
+    if (showRemove) {
+        AlertDialog(
+            onDismissRequest = { showRemove = false },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = palette.solidPanel,
+            title = { Text("개봉영화에서 제거") },
+            text = { Text("앱에 보관한 개봉영화 파일과 포스터를 삭제합니다. 사진첩이나 파일에 별도로 저장한 사본은 삭제하지 않습니다.") },
+            dismissButton = {
+                OutlinedButton(onClick = { showRemove = false }) { Text("취소") }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showRemove = false; onRemove() },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE45D42))
+                ) { Text("제거") }
+            }
+        )
+    }
 }
 
 @Composable

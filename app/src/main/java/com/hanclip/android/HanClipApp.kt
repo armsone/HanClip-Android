@@ -28,7 +28,6 @@ import com.hanclip.android.core.project.EditableProjectPinResult
 import com.hanclip.android.core.project.EditableProjectStore
 import com.hanclip.android.core.project.EditableProjectSummary
 import com.hanclip.android.core.project.ExportHistoryStore
-import com.hanclip.android.core.project.ExportedMoviePinResult
 import com.hanclip.android.core.project.ExportedMovieSummary
 import com.hanclip.android.core.project.CollectedMovie
 import com.hanclip.android.core.project.MovieCollectionStore
@@ -81,6 +80,13 @@ fun HanClipApp(
 
     LaunchedEffect(editorViewModel, context) {
         editorViewModel.loadCopyrightWatermark(context)
+    }
+    LaunchedEffect(context) {
+        runCatching { MovieCollectionStore.migrateLegacyHistory(context) }
+            .onFailure { error ->
+                android.util.Log.w("HanClipApp", "Legacy export migration failed", error)
+            }
+        collectionMovies = MovieCollectionStore.list(context)
     }
     val editableDraftProjectSummaries = remember(editableProjectSummaries) {
         editableProjectSummaries.map { project ->
@@ -216,7 +222,6 @@ fun HanClipApp(
             reportedFailedProjectCount = failedProjectCount
             hasDraftProject = editableProjectSummaries.isNotEmpty()
             exportedMovieSummaries = ExportHistoryStore.list(context)
-            MovieCollectionStore.migrateLegacyHistory(context)
             collectionMovies = MovieCollectionStore.list(context)
         }
     }
@@ -297,7 +302,6 @@ fun HanClipApp(
     ) {
         composable(HanClipDestination.Home.route) {
             HomeRoute(
-                exportedMovieSummaries = exportedMovieSummaries,
                 collectionMovies = collectionMovies,
                 recentlySavedMovieUriString = editorState.recentlySavedMovieUriString,
                 hasDraftProject = hasDraftProject,
@@ -401,27 +405,6 @@ fun HanClipApp(
                     EditableProjectStore.updateMemo(context, summary.projectId, memo)
                     editableProjectSummaries = EditableProjectStore.list(context)
                 },
-                onOpenExportedMovie = { summary ->
-                    previewHistorySummary = summary
-                    previewCollectionMovie = null
-                    editorViewModel.openExportedMovie(Uri.parse(summary.uriString))
-                    navController.navigate(HanClipDestination.Preview.route)
-                },
-                onRemoveExportedMovie = { summary ->
-                    ExportHistoryStore.remove(context, summary.uriString)
-                    exportedMovieSummaries = ExportHistoryStore.list(context)
-                },
-                onToggleExportedMoviePin = { summary ->
-                    val result = ExportHistoryStore.togglePinned(context, summary.uriString)
-                    if (result == ExportedMoviePinResult.Toggled) {
-                        exportedMovieSummaries = ExportHistoryStore.list(context)
-                    }
-                    result == ExportedMoviePinResult.Toggled
-                },
-                onUpdateExportedMovieMemo = { summary, memo ->
-                    ExportHistoryStore.updateMemo(context, summary.uriString, memo)
-                    exportedMovieSummaries = ExportHistoryStore.list(context)
-                },
                 onCollectionChanged = {
                     collectionMovies = MovieCollectionStore.list(context)
                 },
@@ -456,6 +439,7 @@ fun HanClipApp(
                 ),
                 onBackHome = { navController.popBackStack() },
                 onPreview = {
+                    collectionMovies = MovieCollectionStore.list(context)
                     previewHistorySummary = null
                     navController.navigate(HanClipDestination.Preview.route)
                 },
@@ -508,6 +492,7 @@ fun HanClipApp(
                     }
                 },
                 onDone = {
+                    collectionMovies = MovieCollectionStore.list(context)
                     previewHistorySummary = null
                     previewCollectionMovie = null
                     navController.popBackStack(HanClipDestination.Home.route, false)
@@ -518,7 +503,6 @@ fun HanClipApp(
                 onSavedMovie = { uri ->
                     editorViewModel.recordSavedMovie(context, uri)
                     exportedMovieSummaries = ExportHistoryStore.list(context)
-                    collectionMovies = MovieCollectionStore.list(context)
                     previewHistorySummary = exportedMovieSummaries.firstOrNull {
                         it.uriString == uri.toString()
                     }

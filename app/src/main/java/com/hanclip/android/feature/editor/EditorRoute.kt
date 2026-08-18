@@ -457,8 +457,9 @@ fun EditorRoute(
             quickDurationShownProjectId != state.activeProjectId
         ) {
             quickDurationShownProjectId = state.activeProjectId
-            quickTargetDurationSeconds = quickContentClips(state.clips).size
-                .coerceAtLeast(1).toDouble()
+            quickTargetDurationSeconds = quickRecommendedDuration(
+                quickContentClips(state.clips).size
+            )
             isQuickDurationVisible = true
         }
     }
@@ -605,7 +606,9 @@ fun EditorRoute(
                             0.0
                         }
                         quickTargetDurationSeconds =
-                            (state.totalDurationSeconds - endingDuration).coerceAtLeast(0.1)
+                            (state.totalDurationSeconds - endingDuration).coerceAtLeast(
+                                quickMinimumDuration(quickContentClips(state.clips).size)
+                            )
                         isQuickDurationVisible = true
                     },
                     onCycleSleepPrevention = {
@@ -998,6 +1001,14 @@ fun EditorRoute(
         }
         if (isQuickDurationVisible) {
             val contentSceneCount = quickContentClips(state.clips).size.coerceAtLeast(1)
+            val musicDurationSeconds by produceState<Double?>(
+                initialValue = null,
+                key1 = state.backgroundMusicUri
+            ) {
+                value = state.backgroundMusicUri?.let { uri ->
+                    readMusicDurationMillis(context, uri)?.div(1_000.0)
+                }
+            }
             val endingDuration = if (state.watermarkSettings.includesEndingInfoCard) {
                 state.watermarkSettings.normalizedEndingInfoCardDuration
             } else {
@@ -1016,12 +1027,19 @@ fun EditorRoute(
                 endingInfoEnabled = state.watermarkSettings.includesEndingInfoCard,
                 endingThemeTitle = state.watermarkSettings.endingInfoCardTheme.title,
                 musicTitle = state.backgroundMusicTitle,
+                musicDurationSeconds = musicDurationSeconds,
+                endingDurationSeconds = endingDuration,
+                availableContentCapacitySeconds = quickAvailableContentCapacity(state.clips),
                 captionText = state.watermarkSettings.text,
                 musicEnabled = state.backgroundMusicEnabled &&
                     (state.backgroundMusicUri != null || state.backgroundMusicSampleId != null),
                 selectedRatio = state.outputAspectRatio,
                 palette = palette,
-                onTargetDurationChange = { quickTargetDurationSeconds = it.coerceAtLeast(0.1) },
+                onTargetDurationChange = {
+                    quickTargetDurationSeconds = it.coerceAtLeast(
+                        quickMinimumDuration(contentSceneCount)
+                    )
+                },
                 onToggleWatermark = { enabled ->
                     viewModel.updateWatermarkSilently(state.watermarkSettings.copy(isEnabled = enabled))
                 },
@@ -2122,6 +2140,9 @@ private fun QuickDurationDialog(
     endingInfoEnabled: Boolean,
     endingThemeTitle: String,
     musicTitle: String?,
+    musicDurationSeconds: Double?,
+    endingDurationSeconds: Double,
+    availableContentCapacitySeconds: Double,
     musicEnabled: Boolean,
     captionText: String,
     selectedRatio: OutputAspectRatio?,
@@ -2139,15 +2160,40 @@ private fun QuickDurationDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
-    val recommendedDuration = contentSceneCount.toDouble().coerceAtLeast(1.0)
-    val minimumDuration = (contentSceneCount * 0.1).coerceAtLeast(0.1)
+    val recommendedDuration = quickRecommendedDuration(contentSceneCount)
+    val minimumDuration = quickMinimumDuration(contentSceneCount)
+    val musicTargetDuration = if (musicEnabled) {
+        quickMusicTargetDuration(
+            musicDurationSeconds = musicDurationSeconds,
+            endingDurationSeconds = endingDurationSeconds,
+            availableContentCapacitySeconds = availableContentCapacitySeconds,
+            sceneCount = contentSceneCount
+        )
+    } else {
+        null
+    }
     val navigationBottomPadding = WindowInsets.navigationBars
         .asPaddingValues()
         .calculateBottomPadding()
     val quickBottomSafePadding = maxOf(navigationBottomPadding, 72.dp)
     var mediaMenuExpanded by remember { mutableStateOf(false) }
-    var usesRecommendedDuration by rememberSaveable {
-        mutableStateOf(kotlin.math.abs(targetDurationSeconds - recommendedDuration) < 0.01)
+    var selectedDurationChoice by rememberSaveable {
+        mutableStateOf(
+            if (kotlin.math.abs(targetDurationSeconds - recommendedDuration) < 0.01) {
+                "추천시간"
+            } else {
+                "직접변경"
+            }
+        )
+    }
+    LaunchedEffect(musicTargetDuration) {
+        if (selectedDurationChoice != "음악시간") return@LaunchedEffect
+        val target = musicTargetDuration
+        if (target == null) {
+            selectedDurationChoice = "직접변경"
+        } else if (kotlin.math.abs(targetDurationSeconds - target) > 0.01) {
+            onTargetDurationChange(target)
+        }
     }
     Dialog(
         onDismissRequest = onDismiss,
@@ -2267,7 +2313,7 @@ private fun QuickDurationDialog(
                                     .width(72.dp)
                                     .fillMaxHeight()
                                     .clickable {
-                                        usesRecommendedDuration = false
+                                        selectedDurationChoice = "직접변경"
                                         onTargetDurationChange(
                                             (targetDurationSeconds - 5.0)
                                                 .coerceAtLeast(minimumDuration)
@@ -2296,7 +2342,7 @@ private fun QuickDurationDialog(
                                     .width(72.dp)
                                     .fillMaxHeight()
                                     .clickable {
-                                        usesRecommendedDuration = false
+                                        selectedDurationChoice = "직접변경"
                                         onTargetDurationChange(
                                             (targetDurationSeconds + 5.0).coerceAtMost(3600.0)
                                         )
@@ -2321,33 +2367,28 @@ private fun QuickDurationDialog(
                     Spacer(Modifier.height(8.dp))
                     val choices = listOf(
                         "30초" to 30.0,
-                        "45초" to 45.0,
                         "1분" to 60.0,
-                        "2분" to 120.0,
                         "3분" to 180.0,
                         "5분" to 300.0,
                         "추천시간" to recommendedDuration,
                         "최소시간" to minimumDuration
                     )
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        choices.chunked(2).forEachIndexed { rowIndex, pair ->
+                        choices.chunked(2).forEach { pair ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                pair.forEachIndexed { columnIndex, (label, rawSeconds) ->
-                                    val choiceIndex = rowIndex * 2 + columnIndex
+                                pair.forEach { (label, rawSeconds) ->
                                     val seconds = rawSeconds.coerceAtLeast(minimumDuration)
-                                    val selected = when (choiceIndex) {
-                                        6 -> usesRecommendedDuration &&
-                                            kotlin.math.abs(targetDurationSeconds - seconds) < 0.01
-                                        else -> !usesRecommendedDuration &&
-                                            kotlin.math.abs(targetDurationSeconds - seconds) < 0.01
-                                    }
+                                    val isRecommendedChoice = label == "추천시간"
+                                    val isCalculatedChoice = isRecommendedChoice || label == "최소시간"
+                                    val selected = selectedDurationChoice == label &&
+                                        kotlin.math.abs(targetDurationSeconds - seconds) < 0.01
                                     Button(
                                         modifier = Modifier.weight(1f).heightIn(min = 58.dp),
                                         onClick = {
-                                            usesRecommendedDuration = choiceIndex == 6
+                                            selectedDurationChoice = label
                                             onTargetDurationChange(seconds)
                                         },
                                         shape = RoundedCornerShape(27.dp),
@@ -2364,7 +2405,7 @@ private fun QuickDurationDialog(
                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                             Text(label, fontWeight = FontWeight.Bold)
                                             Text(
-                                                if (choiceIndex < 6) {
+                                                if (!isCalculatedChoice) {
                                                     if (seconds > rawSeconds) "최소 ${formatQuickDuration(seconds)}로 적용"
                                                     else "최대 ${(rawSeconds * 10).toInt()}개"
                                                 } else {
@@ -2378,6 +2419,51 @@ private fun QuickDurationDialog(
                                         }
                                     }
                                 }
+                            }
+                        }
+                        Button(
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 58.dp),
+                            enabled = musicTargetDuration != null,
+                            onClick = {
+                                musicTargetDuration?.let { seconds ->
+                                    selectedDurationChoice = "음악시간"
+                                    onTargetDurationChange(seconds)
+                                }
+                            },
+                            shape = RoundedCornerShape(27.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (
+                                    musicTargetDuration != null &&
+                                    selectedDurationChoice == "음악시간" &&
+                                    kotlin.math.abs(targetDurationSeconds - musicTargetDuration) < 0.01
+                                ) {
+                                    palette.primary
+                                } else {
+                                    palette.secondary.copy(alpha = 0.08f)
+                                },
+                                contentColor = if (
+                                    musicTargetDuration != null &&
+                                    selectedDurationChoice == "음악시간" &&
+                                    kotlin.math.abs(targetDurationSeconds - musicTargetDuration) < 0.01
+                                ) {
+                                    Color.White
+                                } else {
+                                    palette.text
+                                }
+                            )
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("음악 시간에 맞춤", fontWeight = FontWeight.Bold)
+                                Text(
+                                    when {
+                                        !musicEnabled -> "음악 사용 설정 후 이용 가능"
+                                        musicDurationSeconds == null -> "음악 시간을 확인하면 활성화"
+                                        musicTargetDuration == null -> "영상 분량이 부족해 맞출 수 없음"
+                                        else -> formatQuickDuration(musicDurationSeconds)
+                                    },
+                                    fontSize = 12.sp,
+                                    lineHeight = 16.sp
+                                )
                             }
                         }
                     }

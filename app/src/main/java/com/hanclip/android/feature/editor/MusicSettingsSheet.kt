@@ -45,6 +45,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -100,6 +101,17 @@ fun MusicSettingsSheet(
     if (fullScreen) FullScreenDialogSystemBars(palette.solidPanel)
     val context = LocalContext.current
     var previewTarget by remember { mutableStateOf<MusicPreviewTarget?>(null) }
+    val importedMusicDurationText by produceState<String?>(
+        initialValue = null,
+        key1 = currentUri,
+        key2 = currentSampleId
+    ) {
+        value = if (currentUri != null && currentSampleId == null) {
+            readMusicDurationMillis(context, currentUri)?.let(::formatMusicDuration)
+        } else {
+            null
+        }
+    }
     val previewPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
             repeatMode = Player.REPEAT_MODE_ONE
@@ -197,6 +209,7 @@ fun MusicSettingsSheet(
                     if (currentTitle != null && currentUri != null && currentSampleId == null) {
                         SelectedMusicPreviewRow(
                             title = currentTitle,
+                            durationText = importedMusicDurationText,
                             isPlaying = previewTarget?.id == SelectedMusicPreviewId,
                             palette = palette,
                             onTogglePreview = {
@@ -412,6 +425,7 @@ private fun MusicUsageSegmentedControl(
 @Composable
 private fun SelectedMusicPreviewRow(
     title: String,
+    durationText: String?,
     isPlaying: Boolean,
     palette: HanClipPalette,
     onTogglePreview: () -> Unit
@@ -437,7 +451,7 @@ private fun SelectedMusicPreviewRow(
             Column(Modifier.weight(1f)) {
                 Text("선택된 음악 미리듣기", color = palette.text, fontWeight = FontWeight.Bold)
                 Text(
-                    title,
+                    listOfNotNull(title, durationText).joinToString(" · "),
                     color = palette.subText,
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1,
@@ -445,6 +459,18 @@ private fun SelectedMusicPreviewRow(
                 )
             }
         }
+    }
+}
+
+internal fun formatMusicDuration(durationMillis: Long): String {
+    val totalSeconds = Math.round(durationMillis.coerceAtLeast(1L) / 1_000.0).coerceAtLeast(1L)
+    val hours = totalSeconds / 3_600L
+    val minutes = (totalSeconds % 3_600L) / 60L
+    val seconds = totalSeconds % 60L
+    return if (hours > 0L) {
+        "%d:%02d:%02d".format(hours, minutes, seconds)
+    } else {
+        "%d:%02d".format(minutes, seconds)
     }
 }
 

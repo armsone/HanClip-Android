@@ -4,6 +4,7 @@ import android.util.Log
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hanclip.android.core.media.MediaImportReader
@@ -35,6 +36,8 @@ import com.hanclip.android.core.project.EditableProjectStore
 import com.hanclip.android.core.project.ExportHistoryStore
 import com.hanclip.android.core.project.ExportRecoveryStore
 import com.hanclip.android.core.project.MovieCollectionStore
+import com.hanclip.android.core.project.MovieLibraryKind
+import com.hanclip.android.core.project.hanClipCompletionTitle
 import com.hanclip.android.core.project.BackgroundMusicStore
 import com.hanclip.android.core.project.ImportedFontStore
 import com.hanclip.android.core.safety.normalizedPhotoDuration
@@ -545,12 +548,20 @@ class EditorViewModel : ViewModel() {
                     MovieCollectionStore.importMovie(
                         context = context.applicationContext,
                         sourceUri = outputUri,
-                        title = state.preset.title,
+                        title = hanClipCompletionTitle(state.preset.title),
                         madeAtMillis = madeAtMillis,
                         shootingStartAtMillis = shootingStartAtMillis,
                         shootingEndAtMillis = shootingEndAtMillis,
-                        locationName = exportedLocationName
+                        locationName = exportedLocationName,
+                        kind = MovieLibraryKind.Released
                     )
+                }.onFailure { error ->
+                    Log.w("HanClipExport", "Failed to store released movie durably", error)
+                    Toast.makeText(
+                        context.applicationContext,
+                        "완성본은 저장했지만 개봉영화 보관함에는 담지 못했습니다.",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
                 _uiState.update {
                     it.copy(

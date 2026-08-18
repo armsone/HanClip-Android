@@ -55,6 +55,13 @@ import kotlin.math.min
 import kotlin.math.abs
 import kotlin.math.sqrt
 
+enum class MovieLibraryKind {
+    // 완성본 내보내기가 성공할 때 자동으로 채워지는 개봉영화 보관함
+    Released,
+    // 사용자가 직접 파일을 골라 추가하는 컬렉션
+    Collection
+}
+
 data class CollectedMovie(
     val id: String,
     val title: String,
@@ -69,7 +76,8 @@ data class CollectedMovie(
     val contentSha256: String? = null,
     val isPinned: Boolean = false,
     val pinnedAtMillis: Long? = null,
-    val posterSelectionVersion: Int? = null
+    val posterSelectionVersion: Int? = null,
+    val kind: MovieLibraryKind = MovieLibraryKind.Collection
 )
 
 data class CollectionMigrationResult(
@@ -164,7 +172,9 @@ object MovieCollectionStore {
     private const val MigrationPreferences = "hanclip_movie_collection_migration"
     private const val LegacyMigrationCompletedKey = "export_history_v1_completed"
     private const val MigratedLegacyUrisKey = "export_history_v1_imported_uris"
-    private const val SchemaVersion = 4
+    private const val ReleasedKindMigrationCompletedKey = "export_history_v2_released_kind_completed"
+    private const val ReleasedKindMigratedUrisKey = "export_history_v2_released_kind_uris"
+    private const val SchemaVersion = 5
     const val CurrentPosterSelectionVersion = 2
     private val collectionWriteLock = Any()
     private val recoveredCollectionDirectories = mutableSetOf<String>()
@@ -520,7 +530,8 @@ object MovieCollectionStore {
         madeAtMillis: Long? = null,
         shootingStartAtMillis: Long? = null,
         shootingEndAtMillis: Long? = null,
-        locationName: String? = null
+        locationName: String? = null,
+        kind: MovieLibraryKind = MovieLibraryKind.Collection
     ): CollectedMovie = importMovieWithOutcome(
         context = context,
         sourceUri = sourceUri,
@@ -528,7 +539,8 @@ object MovieCollectionStore {
         madeAtMillis = madeAtMillis,
         shootingStartAtMillis = shootingStartAtMillis,
         shootingEndAtMillis = shootingEndAtMillis,
-        locationName = locationName
+        locationName = locationName,
+        kind = kind
     ).movie
 
     suspend fun importMovieWithOutcome(
@@ -538,7 +550,8 @@ object MovieCollectionStore {
         madeAtMillis: Long? = null,
         shootingStartAtMillis: Long? = null,
         shootingEndAtMillis: Long? = null,
-        locationName: String? = null
+        locationName: String? = null,
+        kind: MovieLibraryKind = MovieLibraryKind.Collection
     ): CollectionImportOutcome = withContext(Dispatchers.IO) {
         val cancellationContext = currentCoroutineContext()
         synchronized(collectionWriteLock) {
@@ -560,9 +573,6 @@ object MovieCollectionStore {
                 "$ImportStagingPrefix$id.poster.tmp.jpg"
             )
             val existing = list(appContext)
-            check(existing.size < MaximumMovieCount) {
-                "컬렉션에는 영화를 최대 ${MaximumMovieCount}개까지 보관할 수 있습니다."
-            }
             StorageSpaceGuard.requireAvailable(
                 directory = collectionDirectory(appContext),
                 requiredBytes = StorageSpaceGuard.requiredImportBytes(
@@ -585,6 +595,13 @@ object MovieCollectionStore {
                     stagingDestination.delete()
                     if (existingWithHashes != existing) save(appContext, existingWithHashes)
                     return@synchronized CollectionImportOutcome(duplicate, wasDuplicate = true)
+                }
+                check(existingWithHashes.count { it.kind == kind } < MaximumMovieCount) {
+                    if (kind == MovieLibraryKind.Released) {
+                        "개봉영화는 최대 ${MaximumMovieCount}개까지 보관할 수 있습니다."
+                    } else {
+                        "컬렉션에는 영화를 최대 ${MaximumMovieCount}개까지 보관할 수 있습니다."
+                    }
                 }
 
                 val metadata = readMetadata(appContext, stagingDestination)
@@ -614,7 +631,8 @@ object MovieCollectionStore {
                         ?: metadata.locationName,
                     contentSha256 = sourceHash,
                     isPinned = false,
-                    posterSelectionVersion = CurrentPosterSelectionVersion
+                    posterSelectionVersion = CurrentPosterSelectionVersion,
+                    kind = kind
                 )
                 check(stagingDestination.renameTo(destination)) {
                     "가져온 컬렉션 영화를 안전하게 확정하지 못했습니다."
@@ -641,7 +659,7 @@ object MovieCollectionStore {
                 MigrationPreferences,
                 Context.MODE_PRIVATE
             )
-            if (preferences.getBoolean(LegacyMigrationCompletedKey, false)) {
+            if (preferences.getBoolean(ReleasedKindMigrationCompletedKey, false)) {
                 return@withContext CollectionMigrationResult(0, 0)
             }
 
@@ -650,20 +668,33 @@ object MovieCollectionStore {
             val migratedUris = preferences.getStringSet(MigratedLegacyUrisKey, emptySet())
                 .orEmpty()
                 .toMutableSet()
+            val releasedKindMigratedUris = preferences.getStringSet(
+                ReleasedKindMigratedUrisKey,
+                emptySet()
+            ).orEmpty().toMutableSet()
             val legacyItems = ExportHistoryStore.list(appContext)
-            legacyItems.filterNot { it.uriString in migratedUris }.forEach { summary ->
+            legacyItems.filterNot { it.uriString in releasedKindMigratedUris }.forEach { summary ->
                 runCatching {
-                    importMovie(
+                    val outcome = importMovieWithOutcome(
                         context = appContext,
                         sourceUri = Uri.parse(summary.uriString),
                         title = summary.memo.takeIf(String::isNotBlank) ?: summary.title,
                         madeAtMillis = summary.updatedAtMillis,
                         shootingStartAtMillis = summary.updatedAtMillis,
-                        shootingEndAtMillis = summary.updatedAtMillis
+                        shootingEndAtMillis = summary.updatedAtMillis,
+                        kind = MovieLibraryKind.Released
                     )
+                    if (outcome.movie.kind != MovieLibraryKind.Released) {
+                        moveToLibraryKind(
+                            context = appContext,
+                            movieId = outcome.movie.id,
+                            kind = MovieLibraryKind.Released
+                        )
+                    }
                 }.onSuccess {
                     importedCount += 1
                     migratedUris += summary.uriString
+                    releasedKindMigratedUris += summary.uriString
                 }.onFailure {
                     failedCount += 1
                 }
@@ -671,13 +702,43 @@ object MovieCollectionStore {
             // 원본 ExportHistoryStore는 호환성과 데이터 복구를 위해 그대로 둔다.
             preferences.edit()
                 .putStringSet(MigratedLegacyUrisKey, migratedUris)
+                .putStringSet(ReleasedKindMigratedUrisKey, releasedKindMigratedUris)
                 .putBoolean(
                     LegacyMigrationCompletedKey,
                     legacyItems.all { it.uriString in migratedUris }
                 )
+                .putBoolean(
+                    ReleasedKindMigrationCompletedKey,
+                    legacyItems.all { it.uriString in releasedKindMigratedUris }
+                )
                 .apply()
             CollectionMigrationResult(importedCount, failedCount)
         }
+
+    private fun moveToLibraryKind(
+        context: Context,
+        movieId: String,
+        kind: MovieLibraryKind
+    ) {
+        synchronized(collectionWriteLock) {
+            val movies = list(context)
+            val current = movies.firstOrNull { it.id == movieId } ?: return
+            if (current.kind == kind) return
+            check(movies.count { it.kind == kind } < MaximumMovieCount) {
+                if (kind == MovieLibraryKind.Released) {
+                    "개봉영화는 최대 ${MaximumMovieCount}개까지 보관할 수 있습니다."
+                } else {
+                    "컬렉션에는 영화를 최대 ${MaximumMovieCount}개까지 보관할 수 있습니다."
+                }
+            }
+            save(
+                context,
+                movies.map { movie ->
+                    if (movie.id == movieId) movie.copy(kind = kind) else movie
+                }
+            )
+        }
+    }
 
     fun updateTitle(context: Context, movieId: String, title: String) {
         val normalized = title.trim()
@@ -1253,6 +1314,7 @@ object MovieCollectionStore {
         .put("isPinned", isPinned)
         .putNullable("pinnedAtMillis", pinnedAtMillis)
         .putNullable("posterSelectionVersion", posterSelectionVersion)
+        .put("kind", kind.name)
 
     private fun JSONObject.toCollectedMovie(): CollectedMovie = CollectedMovie(
         id = getString("id"),
@@ -1274,7 +1336,10 @@ object MovieCollectionStore {
         contentSha256 = optionalString("contentSha256"),
         isPinned = optBoolean("isPinned", false),
         pinnedAtMillis = optionalLong("pinnedAtMillis"),
-        posterSelectionVersion = optionalInt("posterSelectionVersion")
+        posterSelectionVersion = optionalInt("posterSelectionVersion"),
+        kind = optionalString("kind")
+            ?.let { raw -> runCatching { MovieLibraryKind.valueOf(raw) }.getOrNull() }
+            ?: MovieLibraryKind.Collection
     )
 
     private fun JSONObject.optionalInt(key: String): Int? =

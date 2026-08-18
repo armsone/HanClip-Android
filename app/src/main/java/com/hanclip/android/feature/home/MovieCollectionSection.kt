@@ -1349,7 +1349,7 @@ private fun CollectionPosterCandidateCard(
     }
 }
 
-private fun decodeSampledPoster(file: File, targetLongEdgePx: Int): android.graphics.Bitmap? {
+internal fun decodeSampledPoster(file: File, targetLongEdgePx: Int): android.graphics.Bitmap? {
     if (!file.isFile) return null
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeFile(file.absolutePath, bounds)
@@ -1483,7 +1483,7 @@ private fun CollectionCompressionProgress(
     }
 }
 
-private fun shareMovie(context: Context, movie: CollectedMovie) {
+internal fun shareMovie(context: Context, movie: CollectedMovie) {
     val file = MovieCollectionStore.videoUri(context, movie).path?.let(::File) ?: return
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     val intent = Intent(Intent.ACTION_SEND).apply {

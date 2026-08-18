@@ -30,17 +30,25 @@ class TodaySelectionPolicyTest {
     }
 
     @Test
-    fun `previous day without a selection targets yesterday`() {
+    fun `previous day without a selection chooses yesterday when it has media`() {
         val today = LocalDate.of(2026, 8, 14)
 
         assertEquals(
             LocalDate.of(2026, 8, 13),
-            previousDaySelectionTarget(emptyList(), today)
+            previousAvailableMediaDate(
+                availableDates = listOf(
+                    LocalDate.of(2026, 8, 10),
+                    LocalDate.of(2026, 8, 13),
+                    LocalDate.of(2026, 8, 14)
+                ),
+                selectedDates = emptyList(),
+                today = today
+            )
         )
     }
 
     @Test
-    fun `previous day uses the day before the earliest selected media date`() {
+    fun `previous day skips empty dates before the earliest selection`() {
         val today = LocalDate.of(2026, 8, 14)
         val selectedDates = listOf(
             LocalDate.of(2026, 8, 12),
@@ -49,8 +57,62 @@ class TodaySelectionPolicyTest {
         )
 
         assertEquals(
-            LocalDate.of(2026, 8, 7),
-            previousDaySelectionTarget(selectedDates, today)
+            LocalDate.of(2026, 8, 5),
+            previousAvailableMediaDate(
+                availableDates = listOf(
+                    LocalDate.of(2026, 8, 5),
+                    LocalDate.of(2026, 8, 12),
+                    LocalDate.of(2026, 8, 14)
+                ),
+                selectedDates = selectedDates,
+                today = today
+            )
+        )
+    }
+
+    @Test
+    fun `without a selection chooses the closest media date to yesterday`() {
+        val today = LocalDate.of(2026, 8, 14)
+
+        assertEquals(
+            LocalDate.of(2026, 8, 11),
+            previousAvailableMediaDate(
+                availableDates = listOf(
+                    LocalDate.of(2026, 8, 11),
+                    LocalDate.of(2026, 8, 15)
+                ),
+                selectedDates = emptyList(),
+                today = today
+            )
+        )
+    }
+
+    @Test
+    fun `closest media date prefers the earlier day when distances tie`() {
+        val today = LocalDate.of(2026, 8, 14)
+
+        assertEquals(
+            LocalDate.of(2026, 8, 11),
+            previousAvailableMediaDate(
+                availableDates = listOf(
+                    LocalDate.of(2026, 8, 15),
+                    LocalDate.of(2026, 8, 11)
+                ),
+                selectedDates = emptyList(),
+                today = today
+            )
+        )
+    }
+
+    @Test
+    fun `previous day does nothing when no earlier media exists`() {
+        assertEquals(
+            null,
+            previousAvailableMediaDate(
+                availableDates = listOf(LocalDate.of(2026, 8, 14)),
+                selectedDates = listOf(LocalDate.of(2026, 8, 10)),
+                today = LocalDate.of(2026, 8, 14)
+            )
         )
     }
 }
