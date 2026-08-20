@@ -98,5 +98,21 @@
 
 - Visual: 모든 route의 fresh paired capture가 필요하다.
 - Content/state: deterministic populated fixture가 아직 양쪽에 공통으로 없다.
-- Functional: 카피라이터의 주소·사용자 아이콘·색상·그림자 투명도는 Android 카피라이터 화면에서 누락된 것이 소스로 확정됐다.
+- Functional: 카피라이터의 주소·사용자 아이콘·색상·그림자 투명도는 이후 Android에 구현됐으며, 최신 증분에서 새 기능 누락은 확인되지 않았다. 다만 다수 route의 paired runtime trace는 아직 필요하다.
 - Forced OS exception: 아직 승인된 항목 없음. 상태 표시줄·내비게이션 바·시스템 picker/permission prompt도 실제 최소 영역과 public API 제약 증거가 생긴 뒤에만 기록한다.
+
+## 2026-08-20 최신 iOS 증분 재감사
+
+고정 기준은 iOS `4c251444`와 Android `20ed069`이다. iOS의 `f679df85...4c251444` 사용자 노출 변경과 Android 대응 커밋 `c230ddb...9d43b17` 및 현행 소스를 다시 대조했다. 소스 검사는 기능 구현 여부를 확인하는 근거이며, fresh paired capture가 없는 행은 시각 완료로 승격하지 않는다.
+
+| Route/state ID | Element/anatomy | Dimension/action | Fixture/profile | iOS exact reference | Android observed | Difference | Required action | Evidence/confidence | Status/exception proof |
+|---|---|---|---|---|---|---|---|---|---|
+| QUICK_DURATION/music-match | 음악 시간에 맞춤 | 엔딩 제외 콘텐츠 목표, 최소시간, 분량 부족 비활성화, 재계산 | P1; 음악+엔딩+짧은 영상 | `EditorView.swift` `musicMatchedContentDuration`; `EditorViewModel.swift` quick duration allocation | `QuickDurationPolicy.kt`; `EditorRoute.kt`; `QuickDurationPolicyTest` | 기능 경로와 수치 계약은 대응됨. 기능 사전 설명이 활성 조건과 재분배 계약을 축약 | Android 기능 사전을 iOS 현행 설명으로 동기화 | source+focused JVM test High | 기능 구현됨; copy matched; paired runtime 확인 필요 |
+| MUSIC/default+duck | 음악 설정/합성 | 기본 75%, 원본 구간 15%, 0.15s/0.25s ramp | P1; 원본음 포함 클립 | `ClipItem.swift`; `VideoComposer.swift` | `EditorViewModel.kt`; `VideoExportPolicy.kt`; `VideoExportService.kt`; `VideoExportPolicyTest` | 기능은 대응됨. 기능 사전에서 기본 75% 설명 누락 | 정확한 기본값 설명 복원 | source High | 기능 구현됨; copy matched; export trace 확인 필요 |
+| BROWSER/default+download | 기본 홈페이지/다운로드 결과 | Google 기본, 영상·음악 가져오기, 파일명·재생시간 표시 | P1; deterministic local page | `EditorView.swift` browser + music metadata | `OnlineMusicBrowserRoute.kt`; `MusicMetadata.kt`; `MusicSettingsSheet.kt` | 기능은 대응됨. 기능 사전에서 음악 다운로드·재생시간 설명 누락 | Android 실제 저장 위치 `Downloads/HanClip`만 플랫폼 차이로 유지하고 나머지 설명 동기화 | source High | copy matched; web/download runtime 확인 필요 |
+| HOME/released | 개봉영화 섹션 | durable 최대30, 5열, 재생/제목/공유/제거 | P1; 완성본 1개 | `MovieCollectionStore.swift`; `EditorView.swift`; `EditorViewModel.swift` | `MovieCollectionStore.kt`; `HomeRoute.kt`; `EditorViewModel.kt` | 기능은 대응됨. Android 기능 사전이 탭 결과를 `시사회`로 설명해 실제 전체화면 재생과 불일치 | 실제 동작 및 iOS 설명으로 정정 | source High | 기능 구현됨; copy matched; fresh HOME populated capture 필요 |
+| HOME/collection | 개봉영화와 컬렉션 구분 | 직접 완성 vs 사진/파일 가져오기 | P1; released+collection | iOS `libraryKind` 분기 | Android `MovieLibraryKind` 분기 | 기능은 대응됨. Android 기능 사전의 컬렉션 설명이 출처 구분을 누락 | `사진이나 파일에서 직접 가져온` 계약 복원 | source High | 기능 구현됨; copy matched; fresh capture 필요 |
+| CALENDAR/previous-day | 전날 | 실제 미디어가 있는 이전 날짜로 이동·선택 | P1; 빈 날짜 포함 | `PhotoPicker.swift` | `CalendarMediaPickerSheet.kt`; `TodaySelectionPolicyTest` | 없음 | paired media fixture trace | source+focused JVM test High | 구현됨; paired runtime 확인 필요 |
+| COPYRIGHT/help | Android 미디어 명칭 | 사용자 노출 용어 | ko-KR | iOS `라이브포토` 제품 개념 | Android 규칙상 `모션포토` | 기능 사전 일부가 iOS 문자열을 그대로 남김 | Android 사용자 용어를 `모션포토`로 통일 | source High | matched |
+
+이번 증분에서 Android 기능 코드의 새 누락은 확인되지 않았다. 수정된 범위는 사용자에게 노출되는 기능 사전의 stale copy이며, 시각·행동 완료 판정은 위 행의 paired runtime evidence가 남아 있어 보류한다.
