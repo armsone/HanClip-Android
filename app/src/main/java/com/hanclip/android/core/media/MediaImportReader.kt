@@ -154,6 +154,10 @@ object MediaImportReader {
             audioWaveform = analysis?.waveform ?: emptyList(),
             audioPeakTimeSeconds = analysis?.peakTimeSeconds,
             audioPeakTimesSeconds = analysis?.peakTimesSeconds ?: emptyList(),
+            audioAvailability = analysis?.audioAvailability
+                ?: com.hanclip.android.core.model.ClipAudioAvailability.Unknown,
+            highlightSource = analysis?.highlightSource
+                ?: com.hanclip.android.core.model.ClipHighlightSource.Audio,
             videoSegmentMode = if (isVideo) defaultVideoSegmentMode else VideoSegmentMode.Single,
             photoSimilarityFingerprint = photoFingerprint,
             sourceCreatedAtMillis = sourceCreatedAtMillis,

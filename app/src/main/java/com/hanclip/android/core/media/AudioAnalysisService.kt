@@ -1,11 +1,16 @@
 package com.hanclip.android.core.media
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.media.AudioFormat
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
+import android.media.MediaMetadataRetriever
+import android.os.Build
 import android.net.Uri
+import com.hanclip.android.core.model.ClipAudioAvailability
+import com.hanclip.android.core.model.ClipHighlightSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.nio.ByteOrder
@@ -18,7 +23,9 @@ import kotlin.math.sqrt
 data class AudioAnalysisResult(
     val waveform: List<Double>,
     val peakTimeSeconds: Double,
-    val peakTimesSeconds: List<Double> = listOf(peakTimeSeconds)
+    val peakTimesSeconds: List<Double> = listOf(peakTimeSeconds),
+    val audioAvailability: ClipAudioAvailability = ClipAudioAvailability.Present,
+    val highlightSource: ClipHighlightSource = ClipHighlightSource.Audio
 )
 
 private data class AudioImpactMetrics(
@@ -72,7 +79,13 @@ object AudioAnalysisService {
                 ?.startsWith("audio/") == true
         } ?: run {
             extractor.release()
-            return fallbackResult(sourceDurationSeconds, bucketCount)
+            return analyzeVisualMotionOrFallback(
+                context = context,
+                uri = uri,
+                durationSeconds = sourceDurationSeconds,
+                bucketCount = bucketCount,
+                audioAvailability = ClipAudioAvailability.NoTrack
+            )
         }
 
         extractor.selectTrack(trackIndex)
@@ -188,6 +201,17 @@ object AudioAnalysisService {
                 } else {
                     0.0
                 }
+            )
+        }
+        val maximumPeak = metrics.maxOfOrNull { it.peak } ?: 0.0
+        val maximumRms = metrics.maxOfOrNull { it.rms } ?: 0.0
+        if (maximumPeak < 0.0032 && maximumRms < 0.0016) {
+            return analyzeVisualMotionOrFallback(
+                context = context,
+                uri = uri,
+                durationSeconds = durationSeconds,
+                bucketCount = bucketCount,
+                audioAvailability = ClipAudioAvailability.Silent
             )
         }
         val waveform = normalizedWaveform(metrics)
@@ -338,7 +362,9 @@ object AudioAnalysisService {
         return AudioAnalysisResult(
             waveform = values,
             peakTimeSeconds = peakTimes.first(),
-            peakTimesSeconds = peakTimes
+            peakTimesSeconds = peakTimes,
+            audioAvailability = ClipAudioAvailability.Present,
+            highlightSource = ClipHighlightSource.Audio
         )
     }
 
@@ -646,15 +672,235 @@ object AudioAnalysisService {
         }
     }
 
+    private data class VisualFrameSummary(
+        val timeSeconds: Double,
+        val cells: DoubleArray,
+        val averageBrightness: Double
+    )
+
+    private data class VisualMotionSample(
+        val timeSeconds: Double,
+        val score: Double
+    )
+
+    private fun analyzeVisualMotionOrFallback(
+        context: Context,
+        uri: Uri,
+        durationSeconds: Double,
+        bucketCount: Int,
+        audioAvailability: ClipAudioAvailability
+    ): AudioAnalysisResult {
+        return runCatching {
+            analyzeVisualMotion(
+                context = context,
+                uri = uri,
+                durationSeconds = durationSeconds,
+                bucketCount = bucketCount,
+                audioAvailability = audioAvailability
+            )
+        }.getOrElse {
+            fallbackResult(durationSeconds, bucketCount, audioAvailability)
+        }
+    }
+
+    private fun analyzeVisualMotion(
+        context: Context,
+        uri: Uri,
+        durationSeconds: Double,
+        bucketCount: Int,
+        audioAvailability: ClipAudioAvailability
+    ): AudioAnalysisResult {
+        val safeDuration = durationSeconds.coerceAtLeast(0.1)
+        val retriever = MediaMetadataRetriever()
+        retriever.setDataSource(context, uri)
+        val hasVideo = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO)
+            ?.equals("yes", ignoreCase = true) == true
+        if (!hasVideo) {
+            retriever.release()
+            return fallbackResult(safeDuration, bucketCount, audioAvailability)
+        }
+
+        val maximumSamples = 1_200
+        val sampleInterval = max(0.2, safeDuration / maximumSamples.toDouble())
+        val samples = mutableListOf<VisualMotionSample>()
+        var previousFrame: VisualFrameSummary? = null
+        var motionBaseline = 0.008
+        var timeSeconds = 0.0
+        try {
+            while (timeSeconds <= safeDuration && samples.size < maximumSamples) {
+                val frame = scaledFrameAtTime(retriever, timeSeconds)
+                if (frame == null) {
+                    timeSeconds += sampleInterval
+                    continue
+                }
+                val summary = visualFrameSummary(frame, timeSeconds)
+                frame.recycle()
+                val previous = previousFrame
+                previousFrame = summary
+                if (previous != null && previous.cells.size == summary.cells.size) {
+                    val differences = DoubleArray(summary.cells.size) { index ->
+                        abs(summary.cells[index] - previous.cells[index])
+                    }
+                    val meanDifference = differences.average()
+                    val sortedDifferences = differences.sortedArray()
+                    val medianDifference = sortedDifferences[sortedDifferences.size / 2]
+                    val residuals = differences
+                        .map { max(0.0, it - medianDifference * 0.9) }
+                        .sortedDescending()
+                    val focusedCount = max(1, residuals.size / 4)
+                    val localMotion = residuals.take(focusedCount).average()
+                    val widespreadRatio = differences.count { it > 0.12 }.toDouble() /
+                        max(1, differences.size).toDouble()
+                    val brightnessChange = abs(
+                        summary.averageBrightness - previous.averageBrightness
+                    )
+                    val isSceneBoundary = widespreadRatio > 0.72 && meanDifference > 0.14
+                    val isFlash = brightnessChange > 0.22 && widespreadRatio > 0.55
+                    val cappedBaselineSample = min(
+                        localMotion,
+                        max(0.006, motionBaseline * 1.5)
+                    )
+                    motionBaseline = motionBaseline * 0.94 + cappedBaselineSample * 0.06
+                    val contrast = localMotion / max(0.004, motionBaseline)
+                    val score = if (isSceneBoundary || isFlash || localMotion < 0.0035) {
+                        0.0
+                    } else {
+                        min(
+                            1.0,
+                            max(0.0, contrast - 1.0) * 0.28 +
+                                min(1.0, localMotion * 8.0) * 0.72
+                        )
+                    }
+                    samples += VisualMotionSample(timeSeconds, score)
+                }
+                timeSeconds += sampleInterval
+            }
+        } finally {
+            retriever.release()
+        }
+
+        if (samples.size < 3) {
+            return fallbackResult(safeDuration, bucketCount, audioAvailability)
+        }
+        val edgeDuration = min(max(0.5, safeDuration * 0.05), max(0.5, safeDuration / 3.0))
+        var smoothed = samples.indices.map { index ->
+            val previous = if (index > 0) samples[index - 1].score else 0.0
+            val current = samples[index].score
+            val next = if (index + 1 < samples.size) samples[index + 1].score else 0.0
+            val value = previous * 0.22 + current * 0.56 + next * 0.22
+            val sampleTime = samples[index].timeSeconds
+            if (sampleTime >= edgeDuration && sampleTime <= safeDuration - edgeDuration) value else 0.0
+        }
+        val maximumScore = smoothed.maxOrNull() ?: 0.0
+        if (maximumScore < 0.12) {
+            return fallbackResult(safeDuration, bucketCount, audioAvailability)
+        }
+        smoothed = smoothed.map { (it / maximumScore).coerceIn(0.0, 1.0) }
+        val candidates = smoothed.indices.mapNotNull { index ->
+            val previous = if (index > 0) smoothed[index - 1] else 0.0
+            val next = if (index + 1 < smoothed.size) smoothed[index + 1] else 0.0
+            smoothed[index].takeIf { it >= 0.28 && it >= previous && it >= next }
+                ?.let { index to it }
+        }
+        val minimumSeparation = max(0.75, safeDuration / 20.0)
+        val selected = mutableListOf<Pair<Int, Double>>()
+        candidates
+            .sortedWith(compareByDescending<Pair<Int, Double>> { it.second }.thenBy { samples[it.first].timeSeconds })
+            .forEach { candidate ->
+                if (selected.all {
+                        abs(samples[it.first].timeSeconds - samples[candidate.first].timeSeconds) >=
+                            minimumSeparation
+                    }
+                ) {
+                    selected += candidate
+                }
+                if (selected.size >= 12) return@forEach
+            }
+        val strongest = selected.firstOrNull()
+            ?: return fallbackResult(safeDuration, bucketCount, audioAvailability)
+        val waveform = MutableList(bucketCount) { 0.0 }
+        samples.forEachIndexed { index, sample ->
+            val bucket = ((sample.timeSeconds / safeDuration) * bucketCount)
+                .toInt()
+                .coerceIn(0, bucketCount - 1)
+            waveform[bucket] = max(waveform[bucket], smoothed[index])
+        }
+        return AudioAnalysisResult(
+            waveform = waveform,
+            peakTimeSeconds = samples[strongest.first].timeSeconds,
+            peakTimesSeconds = selected.map { samples[it.first].timeSeconds },
+            audioAvailability = audioAvailability,
+            highlightSource = ClipHighlightSource.VisualMotion
+        )
+    }
+
+    private fun scaledFrameAtTime(
+        retriever: MediaMetadataRetriever,
+        timeSeconds: Double
+    ): Bitmap? {
+        val timeUs = (timeSeconds * 1_000_000.0).toLong()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            return retriever.getScaledFrameAtTime(
+                timeUs,
+                MediaMetadataRetriever.OPTION_CLOSEST,
+                160,
+                90
+            )
+        }
+        val source = retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST)
+            ?: return null
+        val scaled = Bitmap.createScaledBitmap(source, 160, 90, true)
+        if (scaled !== source) source.recycle()
+        return scaled
+    }
+
+    private fun visualFrameSummary(bitmap: Bitmap, timeSeconds: Double): VisualFrameSummary {
+        val gridWidth = 8
+        val gridHeight = 8
+        val cells = DoubleArray(gridWidth * gridHeight)
+        var brightnessTotal = 0.0
+        var outputIndex = 0
+        for (yCell in 0 until gridHeight) {
+            for (xCell in 0 until gridWidth) {
+                var cellBrightness = 0.0
+                for (yQuarter in intArrayOf(1, 3)) {
+                    val y = ((yCell * bitmap.height + yQuarter * bitmap.height / 4) / gridHeight)
+                        .coerceIn(0, bitmap.height - 1)
+                    for (xQuarter in intArrayOf(1, 3)) {
+                        val x = ((xCell * bitmap.width + xQuarter * bitmap.width / 4) / gridWidth)
+                            .coerceIn(0, bitmap.width - 1)
+                        val pixel = bitmap.getPixel(x, y)
+                        cellBrightness += (
+                            android.graphics.Color.red(pixel) * 0.299 +
+                                android.graphics.Color.green(pixel) * 0.587 +
+                                android.graphics.Color.blue(pixel) * 0.114
+                            ) / 255.0
+                    }
+                }
+                val average = cellBrightness / 4.0
+                cells[outputIndex++] = average
+                brightnessTotal += average
+            }
+        }
+        return VisualFrameSummary(
+            timeSeconds = timeSeconds,
+            cells = cells,
+            averageBrightness = brightnessTotal / max(1, cells.size).toDouble()
+        )
+    }
+
     private fun fallbackResult(
         durationSeconds: Double,
-        bucketCount: Int
+        bucketCount: Int,
+        audioAvailability: ClipAudioAvailability = ClipAudioAvailability.Unknown
     ): AudioAnalysisResult {
         val peak = max(0.0, durationSeconds / 2.0)
         return AudioAnalysisResult(
-            waveform = List(bucketCount) { 0.08 },
+            waveform = List(bucketCount) { 0.0 },
             peakTimeSeconds = peak,
-            peakTimesSeconds = listOf(peak)
+            peakTimesSeconds = listOf(peak),
+            audioAvailability = audioAvailability,
+            highlightSource = ClipHighlightSource.Fallback
         )
     }
 }

@@ -724,6 +724,8 @@ private fun ClipItem.toJson(): JSONObject {
         .put("audioPeakTimesSeconds", JSONArray().also { array ->
             audioPeakTimesSeconds.forEach(array::put)
         })
+        .put("audioAvailability", audioAvailability.name)
+        .put("highlightSource", highlightSource.name)
         .put("videoSegmentMode", videoSegmentMode.name)
         .put("isVideoSegmentParent", isVideoSegmentParent)
         .put("videoSegmentParentId", videoSegmentParentId)
@@ -822,6 +824,14 @@ private fun JSONObject.toClipItem(): ClipItem {
         audioWaveform = optDoubleList("audioWaveform"),
         audioPeakTimeSeconds = optNullableDouble("audioPeakTimeSeconds"),
         audioPeakTimesSeconds = optDoubleList("audioPeakTimesSeconds"),
+        audioAvailability = enumValueOrDefault(
+            optString("audioAvailability"),
+            com.hanclip.android.core.model.ClipAudioAvailability.Unknown
+        ),
+        highlightSource = enumValueOrDefault(
+            optString("highlightSource"),
+            com.hanclip.android.core.model.ClipHighlightSource.Audio
+        ),
         videoSegmentMode = enumValueOrDefault(optString("videoSegmentMode"), VideoSegmentMode.Single),
         isVideoSegmentParent = optBoolean("isVideoSegmentParent", false),
         videoSegmentParentId = optString("videoSegmentParentId")

@@ -1,6 +1,6 @@
 # HanClip 강화 매치업 원자 비교 매트릭스
 
-기준 시각: 2026-08-15. iOS 최신 작업 트리와 Android 현재 작업 트리를 비교한다. 이 문서의 `확인 필요`는 완료가 아니며, 같은 fixture/profile의 양쪽 post-change PNG와 기능 trace가 확보되기 전에는 `matched`로 바꾸지 않는다.
+기준 시각: 2026-08-21. iOS 최신 작업 트리와 Android 현재 작업 트리를 비교한다. 이 문서의 `확인 필요`는 완료가 아니며, 같은 fixture/profile의 양쪽 post-change PNG와 기능 trace가 확보되기 전에는 `matched`로 바꾸지 않는다.
 
 ## 고정 프로필과 증거 품질
 
@@ -89,6 +89,10 @@
 | AISHOT/permission | prompt/recovery | camera+mic denied/retry/settings | P0 | iOS status | Android status | platform prompt OS-owned, app recovery pending | mask prompt only; capture app surfaces | source Medium | 확인 필요 |
 | AISHOT/ready | camera UI | preview/status/close/duration/sensitivity/zoom/camera/capture | P0; no recording | iOS source | Android CameraX | paired device capture 없음 | physical-device trace needed | source Medium | 확인 필요 |
 | AISHOT/capture | phase | detecting→detected→saving→ready | P1; controlled audio/manual | iOS ring buffer | Android implementation | paired trace 없음 | manual trigger first; record timings | source Medium | 확인 필요 |
+| IMPORT/video/no-audio | analysis source | no-track/silent→visual motion or center fallback; persistence | P1; deterministic silent moving/static videos | iOS Ai 0.5.0 source snapshot | Android Ai 0.5.0 source | 기능 누락은 구현됨; 공통 fixture와 runtime trace 없음 | import both fixtures, save/relaunch, compare peaks/source | source+compile High | 구현; paired runtime 확인 필요 |
+| CLIP_TRIM/video/no-audio | waveform badge | exact text/placement/semantics for visual/fallback | P1; imported silent fixtures | `화면 움직임 분석` / `화면 변화 적음 · 중앙 선택` | same strings and top-leading capsule | 최신 paired PNG 없음 | capture same fixtures at same trim | source High | 구현; paired PNG 확인 필요 |
+| AISHOT/motion-fusion | trigger policy | address→backswing→downswing+impact; global change rejection | P1; deterministic swing/audio trace | iOS Ai 0.5.0 source snapshot | Android motion fusion + focused JVM test | runtime camera/audio trace 없음 | controlled physical-device trace | source+test High | 구현; paired runtime 확인 필요 |
+| AISHOT/pose-fusion | pose assist/fallback | shoulders/hips/wrists, thermal/power intervals, loss fallback | P1; one golfer, clear body | Vision body pose | bundled ML Kit pose | pose engine differs; app-owned state thresholds mapped | paired device trace including person loss/low power | source Medium | 구현; paired runtime 확인 필요 |
 | PERMISSION_ALERT/denied | alert | exact reason/recovery/back | P0; each permission denied | iOS app-owned alert | Android app-owned alert | full matrix not captured | per-permission traces | source Medium | 확인 필요 |
 | RESPONSIVE/font2 | home/editor/settings | columns/wrap/scroll/no clipping | P2 | iOS Dynamic Type | Android fontScale2 | iOS pair 없음 | captures + bounds overflow scan | source Medium | 확인 필요 |
 | RESPONSIVE/landscape | editor/player | orientation/state preservation | P4 | iPhone player; iPad all routes | Android player/root policies | broad pair 없음 | representative path evidence | source Medium | 확인 필요 |

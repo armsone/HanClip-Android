@@ -22,6 +22,22 @@ enum class VideoSegmentMode(val title: String) {
     All("전체")
 }
 
+enum class ClipAudioAvailability {
+    Unknown,
+    Present,
+    NoTrack,
+    Silent;
+
+    val hasUsableAudio: Boolean
+        get() = this == Present || this == Unknown
+}
+
+enum class ClipHighlightSource(val displayTitle: String) {
+    Audio("소리 분석"),
+    VisualMotion("화면 움직임 분석"),
+    Fallback("화면 변화 적음 · 중앙 선택")
+}
+
 data class ClipItem(
     val id: String = UUID.randomUUID().toString(),
     val sourceUri: Uri,
@@ -38,6 +54,8 @@ data class ClipItem(
     val audioWaveform: List<Double> = emptyList(),
     val audioPeakTimeSeconds: Double? = null,
     val audioPeakTimesSeconds: List<Double> = emptyList(),
+    val audioAvailability: ClipAudioAvailability = ClipAudioAvailability.Unknown,
+    val highlightSource: ClipHighlightSource = ClipHighlightSource.Audio,
     val videoSegmentMode: VideoSegmentMode = VideoSegmentMode.Single,
     val isVideoSegmentParent: Boolean = false,
     val videoSegmentParentId: String? = null,

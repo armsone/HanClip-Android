@@ -11,6 +11,8 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.net.Uri
+import android.os.Build
+import android.os.PowerManager
 import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
@@ -129,6 +131,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -221,9 +224,9 @@ private fun zoomRatioTitle(ratio: Float): String {
 }
 
 private object AiShotModelInfo {
-    const val Version = "0.2.1"
-    const val Title = "798 영상 보정 Ai"
-    const val Summary = "소리의 피크보다 타격 뒤 반응과 화면 변화를 더 차분하게 함께 봅니다."
+    const val Version = "0.5.0"
+    const val Title = "몸동작 인식 Ai"
+    const val Summary = "골퍼의 스윙 움직임과 관절 흐름을 기기 안에서 보조로 확인합니다."
 }
 
 private object AiShotPreferenceStore {
@@ -297,6 +300,7 @@ fun AiShotRoute(
     val scope = rememberCoroutineScope()
     val cameraExecutor = remember(context) { ContextCompat.getMainExecutor(context) }
     val visualAnalyzer = remember { RealtimeVisualAnalyzer() }
+    val poseDetector = remember { RealtimePoseDetector() }
 
     var hasPermissions by remember {
         mutableStateOf(context.hasAiShotPermissions())
@@ -410,6 +414,7 @@ fun AiShotRoute(
     fun startRollingRecording() {
         if (!hasPermissions || recording != null) return
         val capture = videoCapture ?: return
+        visualAnalyzer.reset()
         val outputDirectory = context.cacheDir.resolve("aishot").apply { mkdirs() }
         if (!hasCleanedAbandonedSessionFiles) {
             AiShotVideoTrimmer.cleanupAbandonedSessionFiles(outputDirectory)
@@ -644,18 +649,30 @@ fun AiShotRoute(
         val safeRatio = zoomRatio.coerceIn(minimumZoomRatio, maximumZoomRatio)
         runCatching {
             boundCamera.cameraControl.setZoomRatio(safeRatio)
+            visualAnalyzer.reset()
         }
     }
 
     LaunchedEffect(previewView, camera) {
         val view = previewView ?: return@LaunchedEffect
         if (camera == null) return@LaunchedEffect
+        var lastPoseAnalysisMillis = 0L
         while (isActive) {
-            delay(220L)
+            delay(100L)
             val textureView = view.getChildAt(0) as? TextureView ?: continue
             val bitmap = textureView.getBitmap(8, 8) ?: continue
             visualAnalyzer.analyze(bitmap)
             bitmap.recycle()
+            val now = SystemClock.elapsedRealtime()
+            val poseInterval = poseAnalysisIntervalMillis(context)
+            if (poseInterval != null && now - lastPoseAnalysisMillis >= poseInterval) {
+                lastPoseAnalysisMillis = now
+                val poseBitmap = textureView.getBitmap(480, 640) ?: continue
+                val poseTimeSeconds = now / 1000.0
+                poseDetector.analyze(poseBitmap, poseTimeSeconds) { sample ->
+                    visualAnalyzer.observePose(sample, poseTimeSeconds)
+                }
+            }
         }
     }
 
@@ -692,6 +709,7 @@ fun AiShotRoute(
     DisposableEffect(Unit) {
         onDispose {
             discardAndStopRollingRecording()
+            poseDetector.close()
             if (!didHandOffCapturedUris) {
                 capturedUris.forEach { uri ->
                     if (uri.scheme == "file") runCatching { File(uri.path.orEmpty()).delete() }
@@ -1749,24 +1767,22 @@ private suspend fun monitorImpactAudio(
                 previousRecentLevel = previousRecentLevel,
                 sensitivity = sensitivity
             )
-            val visualScore = visualAnalyzer.recentScore()
-            val isVisuallySupportedImpact = visualScore >= 0.62 &&
-                decision.confidence + visualScore * 0.32 >= 0.96 &&
-                score >= max(0.04, baseline * 1.45)
             val isInsideReadyPromptWindow = now - startedAt <
                 readyDelayMillis + readyPromptSuppressionMillis
-            val isClearlyPhysicalImpact = visualScore >= 0.5 &&
-                score >= max(0.16, baseline * 2.4) &&
-                metrics.peak >= 0.25
-            val isAudioTriggerAllowed = decision.isTriggered &&
-                (!isInsideReadyPromptWindow || isClearlyPhysicalImpact)
-            val isVisualTriggerAllowed = isVisuallySupportedImpact &&
-                (!isInsideReadyPromptWindow || isClearlyPhysicalImpact)
             val ready = now - startedAt >= readyDelayMillis
-            if (ready &&
-                (isAudioTriggerAllowed || isVisualTriggerAllowed) &&
-                now - lastTrigger > 3500L
-            ) {
+            val evidence = AiShotImpactEvidence(
+                isTriggered = decision.isTriggered,
+                confidence = decision.confidence,
+                peak = metrics.peak,
+                impactScore = score
+            )
+            val shouldTrigger = ready && decision.isTriggered &&
+                visualAnalyzer.awaitFusion(
+                    evidence = evidence,
+                    candidateTimeSeconds = now / 1000.0,
+                    isInsideReadyPromptWindow = isInsideReadyPromptWindow
+                )
+            if (shouldTrigger && now - lastTrigger > 3500L) {
                 lastTrigger = now
                 onImpact()
                 delay(1500L)
@@ -1778,14 +1794,33 @@ private suspend fun monitorImpactAudio(
     }
 }
 
+private fun poseAnalysisIntervalMillis(context: Context): Long? {
+    val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+        (powerManager?.currentThermalStatus ?: PowerManager.THERMAL_STATUS_NONE) >=
+        PowerManager.THERMAL_STATUS_CRITICAL
+    ) {
+        return null
+    }
+    if (powerManager?.isPowerSaveMode == true) return 330L
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+        (powerManager?.currentThermalStatus ?: PowerManager.THERMAL_STATUS_NONE) >=
+        PowerManager.THERMAL_STATUS_SEVERE
+    ) {
+        return 400L
+    }
+    return 200L
+}
+
 private data class RealtimeVisualFrame(
+    val timeSeconds: Double,
     val cells: DoubleArray,
     val averageBrightness: Double
 )
 
 private class RealtimeVisualAnalyzer {
     companion object {
-        private const val AnalysisIntervalMillis = 220L
+        private const val AnalysisIntervalMillis = 100L
         private const val SignalLifetimeMillis = 750L
         private const val GridWidth = 8
         private const val GridHeight = 8
@@ -1801,7 +1836,12 @@ private class RealtimeVisualAnalyzer {
     private var lastFrame: RealtimeVisualFrame? = null
     private var visualBaseline = 0.04
     private var processedSignalCount = 0
+    private val motionAnalyzer = GolfSwingMotionAnalyzer()
+    private val poseAnalyzer = GolfSwingPoseAnalyzer()
+    private var latestPoseSignal: GolfSwingPoseSignal? = null
+    private var lastValidPoseTimeSeconds = 0.0
 
+    @Synchronized
     fun reset() {
         latestSignalTimeMillis = 0L
         latestSignalScore = 0.0
@@ -1809,6 +1849,10 @@ private class RealtimeVisualAnalyzer {
         lastFrame = null
         visualBaseline = 0.04
         processedSignalCount = 0
+        motionAnalyzer.reset()
+        poseAnalyzer.reset()
+        latestPoseSignal = null
+        lastValidPoseTimeSeconds = 0.0
     }
 
     fun recentScore(nowMillis: Long = SystemClock.elapsedRealtime()): Double {
@@ -1819,6 +1863,7 @@ private class RealtimeVisualAnalyzer {
         }
     }
 
+    @Synchronized
     fun analyze(bitmap: android.graphics.Bitmap) {
         val now = SystemClock.elapsedRealtime()
         if (now - lastAnalysisTimeMillis < AnalysisIntervalMillis) return
@@ -1828,11 +1873,10 @@ private class RealtimeVisualAnalyzer {
         lastFrame = frame
         if (previous == null || previous.cells.size != frame.cells.size) return
 
-        var motion = 0.0
-        for (index in frame.cells.indices) {
-            motion += abs(frame.cells[index] - previous.cells[index])
+        val differences = DoubleArray(frame.cells.size) { index ->
+            abs(frame.cells[index] - previous.cells[index])
         }
-        motion /= max(1, frame.cells.size).toDouble()
+        val motion = differences.average()
         val brightnessChange = abs(frame.averageBrightness - previous.averageBrightness)
         val rawVisualEnergy = motion * 2.6 + brightnessChange * 1.4
         visualBaseline = visualBaseline * 0.92 +
@@ -1845,9 +1889,124 @@ private class RealtimeVisualAnalyzer {
                 min(1.0, brightnessChange * 3.0) * 0.24
         )
         latestSignalTimeMillis = now
+        motionAnalyzer.observe(golfSwingVisualSample(frame, previous, differences))
         processedSignalCount += 1
         if (processedSignalCount == 1) {
             Log.d("HanClipAiShot", "Visual assist active: 8x8 preview frames")
+        }
+    }
+
+    @Synchronized
+    fun observePose(sample: GolfSwingPoseSample?, timeSeconds: Double) {
+        if (sample == null) {
+            if (timeSeconds - lastValidPoseTimeSeconds > 0.35) {
+                poseAnalyzer.reset()
+                latestPoseSignal = null
+            }
+            return
+        }
+        lastValidPoseTimeSeconds = timeSeconds
+        latestPoseSignal = poseAnalyzer.observe(sample)
+    }
+
+    suspend fun awaitFusion(
+        evidence: AiShotImpactEvidence,
+        candidateTimeSeconds: Double,
+        isInsideReadyPromptWindow: Boolean
+    ): Boolean {
+        return withTimeoutOrNull(650L) {
+            while (true) {
+                if (shouldTrigger(evidence, candidateTimeSeconds, isInsideReadyPromptWindow)) {
+                    return@withTimeoutOrNull true
+                }
+                delay(25L)
+            }
+            @Suppress("UNREACHABLE_CODE")
+            false
+        } ?: false
+    }
+
+    @Synchronized
+    private fun shouldTrigger(
+        evidence: AiShotImpactEvidence,
+        candidateTimeSeconds: Double,
+        isInsideReadyPromptWindow: Boolean
+    ): Boolean {
+        val nowSeconds = SystemClock.elapsedRealtime() / 1000.0
+        val motion = motionAnalyzer.currentSignal(nowSeconds)
+        val pose = latestPoseSignal
+        val requiresPoseConfirmation = pose != null &&
+            nowSeconds - lastValidPoseTimeSeconds <= 0.35 &&
+            pose.phase != GolfSwingPosePhase.SeekingAddress
+        val hasRecentVisualFrame = lastFrame?.let {
+            nowSeconds - it.timeSeconds <= 0.35
+        } == true
+        if (hasRecentVisualFrame) {
+            val impactTime = motion.impactTimeSeconds
+            val hasAlignedMotion = impactTime != null &&
+                candidateTimeSeconds - impactTime in -0.20..0.32
+            val hasAlignedPose = pose?.isImpactWindow(candidateTimeSeconds) == true
+            if (!hasAlignedMotion && !hasAlignedPose) return false
+        }
+        return GolfSwingFusionPolicy.shouldTrigger(
+            evidence = evidence,
+            motion = motion,
+            pose = pose,
+            referenceTimeSeconds = candidateTimeSeconds,
+            requiresPoseConfirmation = requiresPoseConfirmation,
+            hasRecentVisualFrame = hasRecentVisualFrame,
+            isInsideReadyPromptWindow = isInsideReadyPromptWindow
+        )
+    }
+
+    private fun golfSwingVisualSample(
+        frame: RealtimeVisualFrame,
+        previous: RealtimeVisualFrame,
+        differences: DoubleArray
+    ): GolfSwingVisualSample {
+        val globalComponent = median(differences)
+        val residuals = differences.map { max(0.0, it - globalComponent * 0.65) }
+        val activeThreshold = max(0.025, globalComponent * 1.8)
+        val widespreadMotion = differences.count { it >= activeThreshold }.toDouble() /
+            max(1, differences.size).toDouble()
+        val regionStarts = intArrayOf(0, 2, 4)
+        var bestRegion = 1
+        var bestRegionMotion = 0.0
+        regionStarts.forEachIndexed { region, startColumn ->
+            val values = mutableListOf<Double>()
+            for (row in 1..6) {
+                for (column in startColumn until startColumn + 4) {
+                    values += residuals[row * 8 + column]
+                }
+            }
+            val localMotion = values.sortedDescending().take(10).average() * 4.0
+            if (localMotion > bestRegionMotion) {
+                bestRegionMotion = localMotion
+                bestRegion = region
+            }
+        }
+        val totalResidual = residuals.sum()
+        val strongestResidual = residuals.sortedDescending().take(16).sum()
+        val concentration = if (totalResidual > 0.0001) strongestResidual / totalResidual else 0.0
+        return GolfSwingVisualSample(
+            timeSeconds = frame.timeSeconds,
+            localMotion = min(1.0, bestRegionMotion),
+            globalMotion = min(1.0, globalComponent * 4.0),
+            widespreadMotion = widespreadMotion,
+            concentration = min(1.0, concentration),
+            brightnessChange = abs(frame.averageBrightness - previous.averageBrightness),
+            dominantRegion = bestRegion
+        )
+    }
+
+    private fun median(values: DoubleArray): Double {
+        if (values.isEmpty()) return 0.0
+        val sorted = values.sortedArray()
+        val middle = sorted.size / 2
+        return if (sorted.size % 2 == 0) {
+            (sorted[middle - 1] + sorted[middle]) / 2.0
+        } else {
+            sorted[middle]
         }
     }
 
@@ -1873,6 +2032,7 @@ private class RealtimeVisualAnalyzer {
             }
         }
         return RealtimeVisualFrame(
+            timeSeconds = SystemClock.elapsedRealtime() / 1000.0,
             cells = cells,
             averageBrightness = brightnessTotal / max(1, cells.size).toDouble()
         )

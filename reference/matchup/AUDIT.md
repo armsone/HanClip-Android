@@ -1,5 +1,13 @@
 # HanClip Android 강화 매치업 감사
 
+## 2026-08-21 Ai 0.5.0 증분
+
+- iOS 기준은 `4c251444` 위 미커밋 8개 파일이며 SHA-256과 제품 계약을 `reference/ios-current/design-spec/AI_HIGHLIGHT_0_5_0.md`에 고정했다.
+- Android는 무트랙·무음 영상의 프레임 움직임 분석, 중앙 폴백, 분석 출처 저장·복원, 트림 배지·접근성 설명을 구현했다.
+- AiShot은 100ms 국소 움직임 상태기계와 충격음 결합, bundled ML Kit 관절 보조, 저전력·발열 간격 조절 및 관절 실패 시 움직임 경로 복귀를 구현했다.
+- 순수 상태기계와 결합 정책은 JVM 집중 시험으로 확인했다. Android Kotlin 컴파일은 통과했다.
+- 새 상태의 안정적인 iOS lossless capture와 공통 무음/골프 fixture가 없어 시각·행동 parity 완료 판정은 보류한다. 소스 기준 구현 완료이며 `CLIP_TRIM/video/no-audio`, `AISHOT/motion-fusion`, `AISHOT/pose-fusion`은 `MATRIX.md`에서 paired runtime 확인 필요로 유지한다.
+
 기준 시각은 2026-08-15이며, iOS `1.0.1 (3.11.47)` 현재 작업 트리를 source of truth로 사용했다. Android 후보는 base `c230ddb2` 위의 현재 변경분이다.
 
 ## 판정

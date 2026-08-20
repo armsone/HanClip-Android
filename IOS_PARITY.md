@@ -1,5 +1,17 @@
 # HanClip iOS → Android 동등성 추적
 
+## 2026-08-21 iOS Ai 0.5.0 업데이트 매치업
+
+| Route/state ID | Element/anatomy | Dimension/action | Fixture/profile | iOS exact reference | Android observed | Difference | Required action | Evidence/confidence | Status/exception proof |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| IMPORT/video/no-audio | 하이라이트 분석 | 무트랙·무음 판정, 화면 움직임 후보, 중앙 폴백 | 고정 무음 동작 영상/정적 영상 | `AudioAnalysisService.swift` 고정 SHA | `AudioAnalysisService.kt` | 기능 누락을 포팅 | 같은 임계값·후보 간격·출처 저장 | source+compile High | 구현됨; 실제 영상 trace 필요 |
+| CLIP_TRIM/video/no-audio | 파형 출처 배지 | `화면 움직임 분석`/`화면 변화 적음 · 중앙 선택`, 접근성 | 위 fixture | `VideoTrimEditor.swift` 고정 SHA | `VideoTrimSheet.kt` | 표시 누락을 포팅 | 파형 왼쪽 위 캡슐·동적 semantics | source+compile High | 구현됨; paired PNG 필요 |
+| AISHOT/motion-fusion | 자동 촬영 판정 | 정지→백스윙→다운스윙+충격음, 전역 변화 배제 | 고정 골프 동작+소리 | `AiShotCamera.swift`, `AudioImpactClassifier.swift` 고정 SHA | `AiShotMotionFusion.kt`, `AiShotRoute.kt` | 0.2.1 화면 보조에서 0.5.0 결합 판정으로 갱신 | 100ms 격자·0.65s 후보 대기·정렬 창 | source+JVM test High | 구현·집중 테스트 완료; 기기 자동촬영 trace 필요 |
+| AISHOT/pose-fusion | 관절 보조 | 어깨·골반·손목, 저전력/발열 폴백 | 한 명의 골퍼가 충분히 보이는 구도 | iOS Vision body pose | Android ML Kit bundled pose | 플랫폼 포즈 엔진은 다르나 앱 소유 상태·임계값 계약은 대응 | 200/330/400ms, 임계 발열 중단, 실패 시 motion 복귀 | source+compile Medium | 구현됨; iOS/Android paired trace 필요 |
+| COPYRIGHT/help | Ai/AiShot 설명 | 0.3.0~0.5.0 exact ko-KR copy | P0 | `EditorView.swift` 고정 SHA | `HomeRoute.kt` | 0.2.1 stale copy 수정 | iOS 현행 설명 동기화 | source High | copy matched |
+
+고정 명세와 원본 SHA-256은 `reference/ios-current/design-spec/AI_HIGHLIGHT_0_5_0.md`에 기록했다. 새 상태의 iOS lossless capture가 없어 `matched` 또는 전체 parity 완료로 승격하지 않는다.
+
 ## 2026-08-17 iOS 3.11.52 업데이트 매치업
 
 | Route/state ID | Element/anatomy | Dimension/action | Fixture/profile | iOS exact reference | Android observed | Difference | Required action | Evidence/confidence | Status/exception proof |

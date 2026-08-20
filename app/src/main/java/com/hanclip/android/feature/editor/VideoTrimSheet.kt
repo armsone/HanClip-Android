@@ -324,6 +324,7 @@ fun VideoTrimSheet(
                 peaks = clip.audioPeakTimesSeconds.ifEmpty {
                     listOfNotNull(clip.audioPeakTimeSeconds)
                 },
+                highlightSource = clip.highlightSource,
                 sourceDuration = sourceDuration,
                 startSeconds = startSeconds,
                 durationSeconds = durationSeconds,
@@ -427,6 +428,7 @@ private fun VideoImpactPanel(
             ImpactWaveform(
                 waveform = clip.audioWaveform,
                 peaks = clip.audioPeakTimesSeconds.ifEmpty { listOfNotNull(clip.audioPeakTimeSeconds) },
+                highlightSource = clip.highlightSource,
                 sourceDuration = sourceDuration,
                 startSeconds = startSeconds,
                 durationSeconds = durationSeconds,
@@ -472,19 +474,20 @@ private fun VideoImpactPanel(
 private fun ImpactWaveform(
     waveform: List<Double>,
     peaks: List<Double>,
+    highlightSource: com.hanclip.android.core.model.ClipHighlightSource,
     sourceDuration: Double,
     startSeconds: Double,
     durationSeconds: Double,
     palette: HanClipPalette,
     onRangeChange: (startSeconds: Double, durationSeconds: Double) -> Unit
 ) {
-    val bars = if (waveform.isEmpty()) List(48) { 0.18 } else waveform
+    val bars = if (waveform.isEmpty()) List(48) { 0.02 } else waveform
     val latestStartSeconds by rememberUpdatedState(startSeconds)
     val latestDurationSeconds by rememberUpdatedState(durationSeconds)
-    Canvas(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(64.dp)
+    Box(modifier = Modifier.fillMaxWidth().height(64.dp)) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
             .pointerInput(sourceDuration) {
                 var dragMode = WaveformDragMode.Range
                 var dragStartX = 0f
@@ -530,11 +533,14 @@ private fun ImpactWaveform(
                     }
                 )
             }
-            .semantics {
-                contentDescription =
-                    "오디오 파형, 선택 구간 ${"%.1f".format(startSeconds)}초부터 ${"%.1f".format(startSeconds + durationSeconds)}초, 타격점 ${peaks.size}개"
-            }
-    ) {
+                .semantics {
+                    val indicator = if (
+                        highlightSource == com.hanclip.android.core.model.ClipHighlightSource.Audio
+                    ) "사운드 인디케이터" else highlightSource.displayTitle
+                    contentDescription =
+                        "$indicator, 선택 구간 ${"%.1f".format(startSeconds)}초부터 ${"%.1f".format(startSeconds + durationSeconds)}초, 후보 ${peaks.size}개"
+                }
+        ) {
         val safeDuration = sourceDuration.coerceAtLeast(0.1)
         val selectedStartX = (startSeconds / safeDuration).toFloat() * size.width
         val selectedEndX = ((startSeconds + durationSeconds) / safeDuration).toFloat() * size.width
@@ -573,6 +579,20 @@ private fun ImpactWaveform(
                     cap = StrokeCap.Round
                 )
             }
+        }
+        if (highlightSource != com.hanclip.android.core.model.ClipHighlightSource.Audio) {
+            Text(
+                text = highlightSource.displayTitle,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(8.dp)
+                    .background(palette.panel.copy(alpha = 0.78f), RoundedCornerShape(50))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                color = palette.text.copy(alpha = 0.72f),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
     }
 }
 

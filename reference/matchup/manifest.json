@@ -1,5 +1,22 @@
 {
   "schemaVersion": 2,
+  "incrementalAudit": {
+    "capturedAt": "2026-08-21T06:55:00+09:00",
+    "iosHead": "4c251444",
+    "iosDirty": true,
+    "sourceSnapshot": "reference/ios-current/design-spec/AI_HIGHLIGHT_0_5_0.md",
+    "androidBaseHead": "0540903",
+    "androidReleaseCandidate": "1.0.1 (551)",
+    "androidReleaseCandidateApk": "app/build/outputs/apk/releaseQa/app-releaseQa.apk",
+    "androidReleaseCandidateApkSha256": "f8ea0397bcfb791846a9fad8335ebf27da36e38802966212ba0ff819ff7c3a95",
+    "states": [
+      "IMPORT.video.no-audio",
+      "CLIP_TRIM.video.no-audio",
+      "AISHOT.motion-fusion",
+      "AISHOT.pose-fusion"
+    ],
+    "status": "implemented-from-source; paired-runtime-required"
+  },
   "capturedAt": "2026-08-17T11:10:00+09:00",
   "sourceOfTruth": {
     "platform": "ios",
