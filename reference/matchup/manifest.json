@@ -6,9 +6,9 @@
     "iosDirty": true,
     "sourceSnapshot": "reference/ios-current/design-spec/AI_HIGHLIGHT_0_5_0.md",
     "androidBaseHead": "0540903",
-    "androidReleaseCandidate": "1.0.1 (551)",
+    "androidReleaseCandidate": "1.0.1 (552)",
     "androidReleaseCandidateApk": "app/build/outputs/apk/releaseQa/app-releaseQa.apk",
-    "androidReleaseCandidateApkSha256": "f8ea0397bcfb791846a9fad8335ebf27da36e38802966212ba0ff819ff7c3a95",
+    "androidReleaseCandidateApkSha256": "edea0d6de726493a720f58c5f469a6e4c9d57d011f9ac2b3cd0f05e5ce4894cf",
     "states": [
       "IMPORT.video.no-audio",
       "CLIP_TRIM.video.no-audio",
