@@ -11,8 +11,8 @@ android {
         applicationId = "com.hanclip.android"
         minSdk = 26
         targetSdk = 37
-        versionCode = 337417
-        versionName = "2.0.0"
+        versionCode = 340033
+        versionName = "2.1.0"
         buildConfigField("String", "BUILD_NUMBER", "\"202608230737\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

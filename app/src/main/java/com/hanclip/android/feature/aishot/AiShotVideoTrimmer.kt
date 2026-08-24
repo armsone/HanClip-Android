@@ -59,7 +59,8 @@ internal object AiShotVideoTrimmer {
         } else {
             requestedStartMs
         }
-        require(endMs > startMs) { "AiShot 저장 구간이 올바르지 않습니다." }
+        // HC-AISHOT-003: 결과 구간이 0.5초 미만이면 invalidTimeRange로 본다.
+        require(endMs - startMs >= 500L) { "AiShot 저장 구간이 올바르지 않습니다." }
         destinationFile.parentFile?.mkdirs()
         if (destinationFile.exists()) destinationFile.delete()
 

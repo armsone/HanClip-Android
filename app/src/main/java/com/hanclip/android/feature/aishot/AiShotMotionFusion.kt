@@ -5,6 +5,27 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 
+internal enum class AiShotModelVersion(val displayName: String) {
+    V0_4_0("0.4.0"),
+    V0_5_0("0.5.0"),
+    V0_5_1("0.5.1"),
+    V0_6_0("0.6.0");
+
+    val usesFusionPolicy: Boolean
+        get() = ordinal >= V0_4_0.ordinal
+
+    val supportsPoseImpactWindow: Boolean
+        get() = ordinal >= V0_5_1.ordinal
+
+    val supportsSoundlessPuttFallback: Boolean
+        get() = ordinal >= V0_6_0.ordinal
+
+    companion object {
+        // 롤백은 이 값 교체로 수행한다(iOS AudioImpactClassifier.currentModelVersion 대응).
+        val current: AiShotModelVersion = V0_6_0
+    }
+}
+
 internal enum class GolfSwingMotionPhase {
     SeekingAddress,
     Addressed,
@@ -44,6 +65,10 @@ internal class GolfSwingMotionAnalyzer {
     private var downswingTime: Double? = null
     private var globalMotionCount = 0
 
+    // 무음 퍼팅 장면 안정성 판정용. reset()으로 지우지 않는다(마지막 전역 변화 시각 유지).
+    var lastGlobalChangeTimeSeconds: Double = Double.NEGATIVE_INFINITY
+        private set
+
     fun reset() {
         phase = GolfSwingMotionPhase.SeekingAddress
         quietSince = null
@@ -63,6 +88,7 @@ internal class GolfSwingMotionAnalyzer {
             sample.widespreadMotion >= 0.68 ||
             sample.brightnessChange >= 0.14
         if (isGlobalChange) {
+            lastGlobalChangeTimeSeconds = sample.timeSeconds
             globalMotionCount += 1
             if (globalMotionCount >= 2) reset()
             return currentSignal(sample.timeSeconds)
@@ -320,7 +346,7 @@ internal class GolfSwingPoseAnalyzer {
                     val returnedEnough = peakProgress - progress >= max(0.18, peakProgress * 0.55)
                     if (downswingSamples >= 2 && returnedEnough) {
                         phase = GolfSwingPosePhase.ImpactWindow
-                        impactWindowStart = sample.timeSeconds - 0.15
+                        impactWindowStart = sample.timeSeconds - 0.45
                         impactWindowEnd = sample.timeSeconds + 0.30
                     }
                 }
@@ -381,17 +407,259 @@ internal object GolfSwingFusionPolicy {
         referenceTimeSeconds: Double,
         requiresPoseConfirmation: Boolean,
         hasRecentVisualFrame: Boolean,
-        isInsideReadyPromptWindow: Boolean
+        isInsideReadyPromptWindow: Boolean,
+        modelVersion: AiShotModelVersion = AiShotModelVersion.current
     ): Boolean {
         if (!evidence.isTriggered) return false
         if (!hasRecentVisualFrame) return !isInsideReadyPromptWindow
-        val hasMotionEvidence = motion.isImpactWindow && motion.confidence >= 0.72
-        val hasPoseEvidence = (pose?.confidence ?: 0.0) >= 0.72 &&
+        val motionImpactTime = motion.impactTimeSeconds
+        val hasAlignedMotion = motion.isImpactWindow &&
+            motion.confidence >= 0.72 &&
+            motionImpactTime != null &&
+            referenceTimeSeconds - motionImpactTime in -0.20..0.32
+        val hasAlignedPose = modelVersion.supportsPoseImpactWindow &&
+            (pose?.confidence ?: 0.0) >= 0.72 &&
             pose?.isImpactWindow(referenceTimeSeconds) == true
-        if (!hasMotionEvidence || (requiresPoseConfirmation && !hasPoseEvidence)) return false
+        if (!hasAlignedMotion && !hasAlignedPose) return false
+        if (requiresPoseConfirmation && !hasAlignedPose) return false
         if (isInsideReadyPromptWindow) {
             return evidence.peak >= 0.16 && evidence.impactScore >= 0.08
         }
+        return true
+    }
+}
+
+internal enum class GolfPuttStrokePhase {
+    SeekingAddress,
+    Addressed,
+    Backswing,
+    ForwardStroke,
+    ConfirmedStroke
+}
+
+internal data class GolfPuttStrokeSignal(
+    val phase: GolfPuttStrokePhase,
+    val confidence: Double,
+    val strokeTimeSeconds: Double?
+) {
+    val isConfirmedStroke: Boolean
+        get() = phase == GolfPuttStrokePhase.ConfirmedStroke && strokeTimeSeconds != null
+}
+
+internal class GolfPuttStrokeAnalyzer {
+    private var phase = GolfPuttStrokePhase.SeekingAddress
+    private var quietSince: Double? = null
+    private var addressX = 0.0
+    private var addressY = 0.0
+    private var addressSamples = 0
+    private var previousSample: GolfSwingPoseSample? = null
+    private var directionX = 0.0
+    private var directionY = 0.0
+    private var backswingStart: Double? = null
+    private var peakProgress = 0.0
+    private var previousProgress = 0.0
+    private var returningSamples = 0
+    private var followThroughSamples = 0
+    private var strokeTime: Double? = null
+    private var sequenceMinimumConfidence = 1.0
+    private var confirmedSignal: GolfPuttStrokeSignal? = null
+    private var lastConfirmTime = Double.NEGATIVE_INFINITY
+
+    fun reset() {
+        phase = GolfPuttStrokePhase.SeekingAddress
+        quietSince = null
+        addressX = 0.0
+        addressY = 0.0
+        addressSamples = 0
+        previousSample = null
+        directionX = 0.0
+        directionY = 0.0
+        backswingStart = null
+        peakProgress = 0.0
+        previousProgress = 0.0
+        returningSamples = 0
+        followThroughSamples = 0
+        strokeTime = null
+        sequenceMinimumConfidence = 1.0
+        confirmedSignal = null
+    }
+
+    fun latchedConfirmedStroke(nowSeconds: Double): GolfPuttStrokeSignal? {
+        val signal = confirmedSignal ?: return null
+        if (nowSeconds - lastConfirmTime > 0.35) {
+            confirmedSignal = null
+            return null
+        }
+        return signal
+    }
+
+    fun consumeConfirmedStroke() {
+        confirmedSignal = null
+    }
+
+    fun observe(sample: GolfSwingPoseSample): GolfPuttStrokeSignal {
+        if (sample.confidence < 0.45 || sample.bodyScale < 0.04) {
+            return currentSignal()
+        }
+        val previous = previousSample
+        previousSample = sample
+        val deltaTime = previous?.let { max(0.05, sample.timeSeconds - it.timeSeconds) } ?: 0.2
+        val coreSpeed = previous?.let {
+            hypot(sample.coreX - it.coreX, sample.coreY - it.coreY) / deltaTime /
+                max(0.04, sample.bodyScale)
+        } ?: 0.0
+        // 걷기·이동으로 판정하면 어느 단계든 리셋한다.
+        if (coreSpeed > 0.9) {
+            reset()
+            previousSample = sample
+            return currentSignal()
+        }
+        sequenceMinimumConfidence = min(sequenceMinimumConfidence, sample.confidence)
+
+        when (phase) {
+            GolfPuttStrokePhase.SeekingAddress -> {
+                val handSpeed = previous?.let {
+                    hypot(sample.handX - it.handX, sample.handY - it.handY) / deltaTime
+                } ?: 0.0
+                if (previous == null || (handSpeed <= 0.25 && coreSpeed <= 0.20)) {
+                    quietSince = quietSince ?: sample.timeSeconds
+                    addressSamples += 1
+                    val weight = 1.0 / addressSamples.toDouble()
+                    addressX += (sample.handX - addressX) * weight
+                    addressY += (sample.handY - addressY) * weight
+                    if (sample.timeSeconds - (quietSince ?: sample.timeSeconds) >= 0.60 &&
+                        addressSamples >= 3
+                    ) {
+                        phase = GolfPuttStrokePhase.Addressed
+                        sequenceMinimumConfidence = sample.confidence
+                    }
+                } else {
+                    quietSince = null
+                    addressSamples = 1
+                    addressX = sample.handX
+                    addressY = sample.handY
+                }
+            }
+            GolfPuttStrokePhase.Addressed -> {
+                val dx = sample.handX - addressX
+                val dy = sample.handY - addressY
+                val displacement = hypot(dx, dy)
+                if (displacement >= 0.06) {
+                    directionX = dx / displacement
+                    directionY = dy / displacement
+                    backswingStart = sample.timeSeconds
+                    peakProgress = displacement
+                    previousProgress = displacement
+                    returningSamples = 0
+                    phase = GolfPuttStrokePhase.Backswing
+                }
+            }
+            GolfPuttStrokePhase.Backswing -> {
+                val start = backswingStart
+                if (start == null || sample.timeSeconds - start > 2.0) {
+                    reset()
+                    return currentSignal()
+                }
+                val progress = (sample.handX - addressX) * directionX +
+                    (sample.handY - addressY) * directionY
+                peakProgress = max(peakProgress, progress)
+                // 아이언 반례 상한: 백스윙 폭이 퍼팅 범위를 넘으면 스윙으로 본다.
+                if (peakProgress > 0.60) {
+                    reset()
+                    return currentSignal()
+                }
+                val returnSpeed = (previousProgress - progress) / deltaTime
+                val addressPassThreshold = max(0.04, peakProgress * 0.30)
+                if (progress <= addressPassThreshold && returnSpeed > 1.5) {
+                    reset()
+                    return currentSignal()
+                }
+                if (sample.timeSeconds - start >= 0.15 &&
+                    peakProgress >= 0.12 &&
+                    progress < previousProgress &&
+                    returnSpeed >= 0.20
+                ) {
+                    returningSamples += 1
+                } else if (progress >= previousProgress) {
+                    returningSamples = 0
+                }
+                previousProgress = progress
+                if (returningSamples >= 2 && progress <= addressPassThreshold) {
+                    phase = GolfPuttStrokePhase.ForwardStroke
+                    strokeTime = sample.timeSeconds
+                    followThroughSamples = 0
+                }
+            }
+            GolfPuttStrokePhase.ForwardStroke -> {
+                val stroke = strokeTime
+                if (stroke == null || sample.timeSeconds - stroke > 0.9) {
+                    reset()
+                    return currentSignal()
+                }
+                val progress = (sample.handX - addressX) * directionX +
+                    (sample.handY - addressY) * directionY
+                if (progress <= -max(0.30, peakProgress * 1.2)) {
+                    reset()
+                    return currentSignal()
+                }
+                if (progress <= -max(0.025, peakProgress * 0.15)) {
+                    followThroughSamples += 1
+                }
+                previousProgress = progress
+                if (followThroughSamples >= 2 &&
+                    sample.timeSeconds - lastConfirmTime >= 2.0
+                ) {
+                    phase = GolfPuttStrokePhase.ConfirmedStroke
+                    lastConfirmTime = sample.timeSeconds
+                    confirmedSignal = GolfPuttStrokeSignal(
+                        phase = GolfPuttStrokePhase.ConfirmedStroke,
+                        confidence = min(
+                            sequenceMinimumConfidence,
+                            min(1.0, 0.62 + peakProgress * 0.9)
+                        ),
+                        strokeTimeSeconds = stroke
+                    )
+                }
+            }
+            GolfPuttStrokePhase.ConfirmedStroke -> {
+                // 한 스트로크 중복 방지: 확정 뒤에는 다시 정지 탐색부터 시작한다.
+                val latched = confirmedSignal
+                reset()
+                confirmedSignal = latched
+                previousSample = sample
+            }
+        }
+        return currentSignal()
+    }
+
+    private fun currentSignal(): GolfPuttStrokeSignal {
+        val confirmed = confirmedSignal
+        if (phase == GolfPuttStrokePhase.ConfirmedStroke && confirmed != null) return confirmed
+        return GolfPuttStrokeSignal(phase, 0.0, null)
+    }
+}
+
+internal object GolfPuttFusionPolicy {
+    fun shouldTrigger(
+        stroke: GolfPuttStrokeSignal?,
+        poseObservationConfidence: Double,
+        secondsSinceLatestPose: Double,
+        secondsSinceLatestVisualFrame: Double,
+        secondsSinceLastGlobalChange: Double,
+        isReady: Boolean,
+        isInsideReadyPromptWindow: Boolean,
+        isTriggerPending: Boolean,
+        modelVersion: AiShotModelVersion = AiShotModelVersion.current
+    ): Boolean {
+        if (!modelVersion.supportsSoundlessPuttFallback) return false
+        if (stroke == null || !stroke.isConfirmedStroke) return false
+        if (stroke.confidence < 0.72) return false
+        if (poseObservationConfidence < 0.72) return false
+        if (secondsSinceLatestPose > 0.35) return false
+        if (secondsSinceLatestVisualFrame > 0.35) return false
+        if (secondsSinceLastGlobalChange < 1.0) return false
+        if (!isReady || isInsideReadyPromptWindow) return false
+        if (isTriggerPending) return false
         return true
     }
 }

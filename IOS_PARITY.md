@@ -1,5 +1,20 @@
 # HanClip iOS → Android 동등성 추적
 
+## 2026-08-25 iOS Ai 0.6.0 계약 매치업 (product-contract.yaml 43계약)
+
+기준: `reference/ios-current/product-contract.yaml` (iOS `9ebee969` + 미커밋 AiShot 0.5.1/0.6.0 dirty를 정본으로 채택). 전체 43계약 감사표는 `docs/sync/android-contract-audit-2026-08-25.md`, 내구 기록은 `.parity/ledger.json`.
+
+| Route/state ID | Element/anatomy | Dimension/action | iOS exact reference | Android observed | Difference | Evidence/confidence | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| AISHOT/soundless-putt | 무음 퍼팅 안전망 (Ai 0.6.0) | 정지→작은 백스윙→전진 스트로크→팔로스루 확정, 아이언 상한 0.60·걷기 리셋·장면 안정 1.0초·2초 중복 방지 | `AudioImpactClassifier.swift` GolfPuttStrokeAnalyzer/GolfPuttFusionPolicy (dirty) | `AiShotMotionFusion.kt` GolfPuttStrokeAnalyzer/GolfPuttFusionPolicy 신규 + `AiShotRoute.kt` 트리거 배선 | 기능 누락을 포팅 | source+JVM test(9케이스) High | 구현·테스트 완료; 실제 퍼팅 정확도는 UNK-004로 미검증 유지 |
+| AISHOT/fusion-0.6 | 융합 정책 | 모션 또는 자세 정렬 창(−0.20~+0.32), 관측 conf≥0.72 자세 확인, 억제 창 강한 임팩트만 | `AiShotCamera.swift` attemptAutomaticTrigger (dirty) | `GolfSwingFusionPolicy` 재작성(이전: 모션 필수 AND) | 조건식 불일치 수정 | source+JVM test High | 구현·테스트 완료; 기기 자동촬영 trace 필요 |
+| AISHOT/pose-window | 자세 임팩트 창 | [감지−0.45초, 감지+0.30초] | `AudioImpactClassifier.swift` GolfSwingPoseAnalyzer | 창 시작 −0.15→−0.45 수정 + 경계 테스트 | 수치 불일치 수정 | source+JVM test High | 구현·테스트 완료 |
+| AISHOT/meter | 사운드 미터 | 표시값 = clamp(score×4.5, 0.04…1) | `AiShotCamera.swift:3407-3411` | `(score/0.45)` → `clamp(score×4.5, 0.04..1)` 수정 | 공식 불일치 수정 | source High | 구현 완료 |
+| AISHOT/trim-min | 트리밍 최소 구간 | end−start<0.5초 → invalidTimeRange | `AiShotCamera.swift` trimCapture | `AiShotVideoTrimmer.kt` 0.5초 최소 검증 추가 | 검증 누락 포팅 | source High | 구현 완료; 결과 길이 실측 필요 |
+| AISHOT/model-version | Ai 버전·롤백 | currentModelVersion=0.6.0, 버전 플래그로 기능 게이트, 롤백=값 교체 | `AudioImpactClassifier.swift` 버전 enum (dirty) | `AiShotModelVersion` enum 신설, `AiShotModelInfo`·기능 사전 0.6.0 | 버전 체계 누락 포팅 | source+JVM test High | 구현 완료 |
+| COPYRIGHT/help | Ai 이력 사전 | 0.5.1/0.6.0 설명·정직한 한계 문구 | `EditorView.swift` 기능 사전 (dirty) | `HomeRoute.kt` 0.5.1·0.6.0 항목 추가 | stale copy 수정 | source Medium(iOS 원문 ko copy 페어드 캡처 없음) | 구현 완료; 원문 대조 필요 |
+| AISHOT/project-lifetime | 빈 프로젝트 정리 | 닫기 시 클립 0개 AiShot 프로젝트 삭제 | `EditorViewModel.swift` discardEmpty | Android는 클립 생성 전 프로젝트를 만들지 않음 — 동등 결과, 다른 구조 | 의도적 플랫폼 차이 | source High | 차이 기록 유지(AT-008 확인 게이트) |
+
 ## 2026-08-21 iOS Ai 0.5.0 업데이트 매치업
 
 | Route/state ID | Element/anatomy | Dimension/action | Fixture/profile | iOS exact reference | Android observed | Difference | Required action | Evidence/confidence | Status/exception proof |

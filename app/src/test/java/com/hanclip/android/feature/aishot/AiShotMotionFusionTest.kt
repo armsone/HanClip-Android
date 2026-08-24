@@ -74,6 +74,140 @@ class AiShotMotionFusionTest {
     }
 
     @Test
+    fun fusionAcceptsAlignedPoseWindowWithoutMotionWindow() {
+        val evidence = AiShotImpactEvidence(
+            isTriggered = true,
+            confidence = 1.0,
+            peak = 0.3,
+            impactScore = 0.2
+        )
+        val motion = GolfSwingMotionSignal(
+            phase = GolfSwingMotionPhase.Addressed,
+            confidence = 0.28,
+            impactTimeSeconds = null
+        )
+        val pose = GolfSwingPoseSignal(
+            phase = GolfSwingPosePhase.ImpactWindow,
+            confidence = 0.9,
+            impactWindowStartSeconds = 0.8,
+            impactWindowEndSeconds = 1.5
+        )
+
+        assertTrue(
+            GolfSwingFusionPolicy.shouldTrigger(
+                evidence = evidence,
+                motion = motion,
+                pose = pose,
+                referenceTimeSeconds = 1.0,
+                requiresPoseConfirmation = true,
+                hasRecentVisualFrame = true,
+                isInsideReadyPromptWindow = false
+            )
+        )
+        assertFalse(
+            GolfSwingFusionPolicy.shouldTrigger(
+                evidence = evidence,
+                motion = motion,
+                pose = pose,
+                referenceTimeSeconds = 1.0,
+                requiresPoseConfirmation = true,
+                hasRecentVisualFrame = true,
+                isInsideReadyPromptWindow = false,
+                modelVersion = AiShotModelVersion.V0_5_0
+            )
+        )
+    }
+
+    @Test
+    fun fusionRejectsMotionWindowOutsideAlignmentWindow() {
+        val evidence = AiShotImpactEvidence(
+            isTriggered = true,
+            confidence = 1.0,
+            peak = 0.3,
+            impactScore = 0.2
+        )
+        val motion = GolfSwingMotionSignal(
+            phase = GolfSwingMotionPhase.Downswing,
+            confidence = 0.9,
+            impactTimeSeconds = 0.5
+        )
+
+        assertFalse(
+            GolfSwingFusionPolicy.shouldTrigger(
+                evidence = evidence,
+                motion = motion,
+                pose = null,
+                referenceTimeSeconds = 1.0,
+                requiresPoseConfirmation = false,
+                hasRecentVisualFrame = true,
+                isInsideReadyPromptWindow = false
+            )
+        )
+    }
+
+    @Test
+    fun readyPromptWindowOnlyPassesStrongPhysicalImpact() {
+        val motion = GolfSwingMotionSignal(
+            phase = GolfSwingMotionPhase.Downswing,
+            confidence = 0.9,
+            impactTimeSeconds = 1.0
+        )
+        val weakEvidence = AiShotImpactEvidence(
+            isTriggered = true,
+            confidence = 1.0,
+            peak = 0.10,
+            impactScore = 0.05
+        )
+        val strongEvidence = AiShotImpactEvidence(
+            isTriggered = true,
+            confidence = 1.0,
+            peak = 0.20,
+            impactScore = 0.10
+        )
+
+        assertFalse(
+            GolfSwingFusionPolicy.shouldTrigger(
+                evidence = weakEvidence,
+                motion = motion,
+                pose = null,
+                referenceTimeSeconds = 1.1,
+                requiresPoseConfirmation = false,
+                hasRecentVisualFrame = true,
+                isInsideReadyPromptWindow = true
+            )
+        )
+        assertTrue(
+            GolfSwingFusionPolicy.shouldTrigger(
+                evidence = strongEvidence,
+                motion = motion,
+                pose = null,
+                referenceTimeSeconds = 1.1,
+                requiresPoseConfirmation = false,
+                hasRecentVisualFrame = true,
+                isInsideReadyPromptWindow = true
+            )
+        )
+    }
+
+    @Test
+    fun poseImpactWindowStartsContractDistanceBeforeDetection() {
+        val analyzer = GolfSwingPoseAnalyzer()
+        analyzer.observe(poseSample(0.0, handX = 0.0))
+        analyzer.observe(poseSample(0.3, handX = 0.0))
+        analyzer.observe(poseSample(0.6, handX = 0.0))
+        analyzer.observe(poseSample(0.8, handX = 0.25))
+        analyzer.observe(poseSample(1.0, handX = 0.50))
+        analyzer.observe(poseSample(1.2, handX = 0.35))
+        val signal = analyzer.observe(poseSample(1.4, handX = 0.15))
+
+        // HC-AISHOT-006: 임팩트 창은 [감지−0.45초, 감지+0.30초]
+        assertTrue(signal.isImpactWindow(1.4 - 0.45))
+        assertFalse(signal.isImpactWindow(1.4 - 0.46))
+        assertTrue(signal.isImpactWindow(1.4 + 0.30))
+        assertFalse(signal.isImpactWindow(1.4 + 0.31))
+    }
+
+    @Test
     fun poseTrackerRecognizesReturnFromBackswing() {
         val analyzer = GolfSwingPoseAnalyzer()
         analyzer.observe(poseSample(0.0, handX = 0.0))

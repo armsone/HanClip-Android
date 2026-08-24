@@ -143,7 +143,7 @@ import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sqrt
 
-private enum class ShotSensitivity(val title: String) {
+internal enum class ShotSensitivity(val title: String) {
     Auto("자동"),
     Quiet("조용함"),
     Normal("일반"),
@@ -224,9 +224,9 @@ private fun zoomRatioTitle(ratio: Float): String {
 }
 
 private object AiShotModelInfo {
-    const val Version = "0.5.0"
+    val Version = AiShotModelVersion.current.displayName
     const val Title = "몸동작 인식 Ai"
-    const val Summary = "골퍼의 스윙 움직임과 관절 흐름을 기기 안에서 보조로 확인합니다."
+    const val Summary = "골퍼의 스윙 움직임과 관절 흐름을 기기 안에서 보조로 확인하고, 소리 없는 퍼팅도 자세 순서로 감지합니다."
 }
 
 private object AiShotPreferenceStore {
@@ -374,7 +374,7 @@ fun AiShotRoute(
     var isShowingIntroSwing by remember { mutableStateOf(false) }
 
     @SuppressLint("MissingPermission")
-    fun triggerClip() {
+    fun triggerClip(triggerOffsetSeconds: Double = 0.0) {
         val activeRecording = recording ?: return
         if (!isRollingRecordingActive || triggerTimeSeconds != null) return
         val now = SystemClock.elapsedRealtime()
@@ -387,7 +387,9 @@ fun AiShotRoute(
         val timing = shotLength
         val sequence = nextCaptureSequence
         nextCaptureSequence += 1L
-        triggerTimeSeconds = elapsedSeconds
+        // 무음 퍼팅은 스트로크 시각으로 당겨 잡는다: min(현재, max(0, strokeTime)).
+        triggerTimeSeconds = (elapsedSeconds - triggerOffsetSeconds.coerceAtLeast(0.0))
+            .coerceIn(timing.beforeSeconds, elapsedSeconds)
         activeCaptureSequence = sequence
         activeShotLength = timing
         captureProgressTiming = timing
@@ -395,7 +397,9 @@ fun AiShotRoute(
         capturePhase = AiShotCapturePhase.Detected
         recordingRemainingMillis = (timing.afterSeconds * 1_000.0).toLong()
         scope.launch {
-            val captureEndMillis = SystemClock.elapsedRealtime() + (timing.afterSeconds * 1000).toLong()
+            val offsetMillis = (triggerOffsetSeconds.coerceAtLeast(0.0) * 1000).toLong()
+            val captureEndMillis = SystemClock.elapsedRealtime() +
+                ((timing.afterSeconds * 1000).toLong() - offsetMillis).coerceAtLeast(0L)
             delay(600L)
             if (activeCaptureSequence == sequence && triggerTimeSeconds != null) {
                 capturePhase = AiShotCapturePhase.Saving
@@ -697,9 +701,9 @@ fun AiShotRoute(
                         level = it
                     }
                 },
-                onImpact = {
+                onImpact = { offsetSeconds ->
                     withContext(Dispatchers.Main) {
-                        triggerClip()
+                        triggerClip(offsetSeconds)
                     }
                 }
             )
@@ -1701,7 +1705,7 @@ private suspend fun monitorImpactAudio(
     beforeSeconds: Double,
     visualAnalyzer: RealtimeVisualAnalyzer,
     onLevel: suspend (Double) -> Unit,
-    onImpact: suspend () -> Unit
+    onImpact: suspend (Double) -> Unit
 ) {
     val sampleRate = 16_000
     val minBuffer = AudioRecord.getMinBufferSize(
@@ -1759,7 +1763,7 @@ private suspend fun monitorImpactAudio(
                 max(0.002, baselineSample) * baselineWeight
             recentLevel = recentLevel * 0.72 + max(0.002, score) * 0.28
             ambient = ambient * 0.94 + rms * 0.06
-            onLevel((score / 0.45).coerceIn(0.0, 1.0))
+            onLevel((score * 4.5).coerceIn(0.04, 1.0))
             val now = System.currentTimeMillis()
             val decision = RealtimeImpactClassifier.detectImpact(
                 metrics = metrics,
@@ -1784,7 +1788,18 @@ private suspend fun monitorImpactAudio(
                 )
             if (shouldTrigger && now - lastTrigger > 3500L) {
                 lastTrigger = now
-                onImpact()
+                onImpact(0.0)
+                delay(1500L)
+                continue
+            }
+            // 무음 퍼팅 안전망(Ai 0.6.0): 소리 트리거가 없을 때만 자세 시퀀스로 발동한다.
+            val soundlessOffset = visualAnalyzer.pollSoundlessPuttTrigger(
+                isReady = ready,
+                isInsideReadyPromptWindow = isInsideReadyPromptWindow
+            )
+            if (soundlessOffset != null && now - lastTrigger > 3500L) {
+                lastTrigger = now
+                onImpact(soundlessOffset)
                 delay(1500L)
             }
         }
@@ -1838,7 +1853,9 @@ private class RealtimeVisualAnalyzer {
     private var processedSignalCount = 0
     private val motionAnalyzer = GolfSwingMotionAnalyzer()
     private val poseAnalyzer = GolfSwingPoseAnalyzer()
+    private val puttAnalyzer = GolfPuttStrokeAnalyzer()
     private var latestPoseSignal: GolfSwingPoseSignal? = null
+    private var latestPoseObservationConfidence = 0.0
     private var lastValidPoseTimeSeconds = 0.0
 
     @Synchronized
@@ -1851,7 +1868,9 @@ private class RealtimeVisualAnalyzer {
         processedSignalCount = 0
         motionAnalyzer.reset()
         poseAnalyzer.reset()
+        puttAnalyzer.reset()
         latestPoseSignal = null
+        latestPoseObservationConfidence = 0.0
         lastValidPoseTimeSeconds = 0.0
     }
 
@@ -1901,12 +1920,46 @@ private class RealtimeVisualAnalyzer {
         if (sample == null) {
             if (timeSeconds - lastValidPoseTimeSeconds > 0.35) {
                 poseAnalyzer.reset()
+                puttAnalyzer.reset()
                 latestPoseSignal = null
+                latestPoseObservationConfidence = 0.0
             }
             return
         }
         lastValidPoseTimeSeconds = timeSeconds
+        latestPoseObservationConfidence = sample.confidence
         latestPoseSignal = poseAnalyzer.observe(sample)
+        if (AiShotModelVersion.current.supportsSoundlessPuttFallback) {
+            puttAnalyzer.observe(sample)
+        }
+    }
+
+    /**
+     * 무음 퍼팅 안전망(HC-AISHOT-008): 확정 스트로크가 융합 조건을 모두 만족하면
+     * 현재 시각 대비 스트로크 시각의 오프셋(초)을 반환하고 latch를 소비한다.
+     */
+    @Synchronized
+    fun pollSoundlessPuttTrigger(
+        isReady: Boolean,
+        isInsideReadyPromptWindow: Boolean
+    ): Double? {
+        val nowSeconds = SystemClock.elapsedRealtime() / 1000.0
+        val stroke = puttAnalyzer.latchedConfirmedStroke(nowSeconds) ?: return null
+        val frameAgeSeconds = lastFrame?.let { nowSeconds - it.timeSeconds } ?: Double.MAX_VALUE
+        val shouldTrigger = GolfPuttFusionPolicy.shouldTrigger(
+            stroke = stroke,
+            poseObservationConfidence = latestPoseObservationConfidence,
+            secondsSinceLatestPose = nowSeconds - lastValidPoseTimeSeconds,
+            secondsSinceLatestVisualFrame = frameAgeSeconds,
+            secondsSinceLastGlobalChange = nowSeconds - motionAnalyzer.lastGlobalChangeTimeSeconds,
+            isReady = isReady,
+            isInsideReadyPromptWindow = isInsideReadyPromptWindow,
+            isTriggerPending = false
+        )
+        if (!shouldTrigger) return null
+        puttAnalyzer.consumeConfirmedStroke()
+        val strokeTime = stroke.strokeTimeSeconds ?: nowSeconds
+        return (nowSeconds - strokeTime.coerceAtLeast(0.0)).coerceAtLeast(0.0)
     }
 
     suspend fun awaitFusion(
@@ -1937,17 +1990,11 @@ private class RealtimeVisualAnalyzer {
         val pose = latestPoseSignal
         val requiresPoseConfirmation = pose != null &&
             nowSeconds - lastValidPoseTimeSeconds <= 0.35 &&
+            latestPoseObservationConfidence >= 0.72 &&
             pose.phase != GolfSwingPosePhase.SeekingAddress
         val hasRecentVisualFrame = lastFrame?.let {
             nowSeconds - it.timeSeconds <= 0.35
         } == true
-        if (hasRecentVisualFrame) {
-            val impactTime = motion.impactTimeSeconds
-            val hasAlignedMotion = impactTime != null &&
-                candidateTimeSeconds - impactTime in -0.20..0.32
-            val hasAlignedPose = pose?.isImpactWindow(candidateTimeSeconds) == true
-            if (!hasAlignedMotion && !hasAlignedPose) return false
-        }
         return GolfSwingFusionPolicy.shouldTrigger(
             evidence = evidence,
             motion = motion,
@@ -2039,7 +2086,7 @@ private class RealtimeVisualAnalyzer {
     }
 }
 
-private data class RealtimeImpactMetrics(
+internal data class RealtimeImpactMetrics(
     val rms: Double,
     val peak: Double,
     val crossingRate: Double
@@ -2051,12 +2098,12 @@ private data class RealtimeImpactMetrics(
         }
 }
 
-private data class RealtimeImpactDecision(
+internal data class RealtimeImpactDecision(
     val isTriggered: Boolean,
     val confidence: Double
 )
 
-private object RealtimeImpactClassifier {
+internal object RealtimeImpactClassifier {
     private data class Thresholds(
         val strongScoreFloor: Double,
         val strongBaselineMultiplier: Double,
