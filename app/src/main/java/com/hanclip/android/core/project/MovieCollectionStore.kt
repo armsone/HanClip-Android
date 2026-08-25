@@ -90,6 +90,69 @@ data class CollectionImportOutcome(
     val wasDuplicate: Boolean
 )
 
+sealed interface ReleasedToCollectionPlanResult {
+    data class Success(val updatedMovies: List<CollectedMovie>, val addedMovie: CollectedMovie) : ReleasedToCollectionPlanResult
+    data class Duplicate(val existingMovie: CollectedMovie) : ReleasedToCollectionPlanResult
+    data class LimitReached(val message: String) : ReleasedToCollectionPlanResult
+    object NotFound : ReleasedToCollectionPlanResult
+}
+
+fun planAddReleasedMovieToCollection(
+    existingMovies: List<CollectedMovie>,
+    releasedMovieId: String,
+    maximumCount: Int = MovieCollectionStore.MaximumMovieCount,
+    newIdGenerator: () -> String = { UUID.randomUUID().toString() },
+    currentTimeMillis: Long = System.currentTimeMillis()
+): ReleasedToCollectionPlanResult {
+    val source = existingMovies.firstOrNull {
+        it.id == releasedMovieId && it.kind == MovieLibraryKind.Released
+    }
+        ?: return ReleasedToCollectionPlanResult.NotFound
+
+    val isAlreadyInCollection = existingMovies.firstOrNull {
+        it.kind == MovieLibraryKind.Collection &&
+            (it.videoFilename == source.videoFilename ||
+                (it.contentSha256 != null && source.contentSha256 != null && it.contentSha256 == source.contentSha256))
+    }
+    if (isAlreadyInCollection != null) {
+        return ReleasedToCollectionPlanResult.Duplicate(isAlreadyInCollection)
+    }
+
+    val currentCollectionCount = existingMovies.count { it.kind == MovieLibraryKind.Collection }
+    if (currentCollectionCount >= maximumCount) {
+        return ReleasedToCollectionPlanResult.LimitReached(
+            "컬렉션에는 영화를 최대 ${maximumCount}개까지 보관할 수 있습니다."
+        )
+    }
+
+    val collectionMovie = source.copy(
+        id = newIdGenerator(),
+        createdAtMillis = currentTimeMillis,
+        isPinned = false,
+        pinnedAtMillis = null,
+        posterSelectionVersion = source.posterSelectionVersion ?: MovieCollectionStore.CurrentPosterSelectionVersion,
+        kind = MovieLibraryKind.Collection
+    )
+    return ReleasedToCollectionPlanResult.Success(
+        updatedMovies = existingMovies + collectionMovie,
+        addedMovie = collectionMovie
+    )
+}
+
+fun shouldDeleteVideoFile(remainingMovies: List<CollectedMovie>, videoFilename: String): Boolean =
+    remainingMovies.none { it.videoFilename == videoFilename }
+
+fun shouldDeletePosterFile(remainingMovies: List<CollectedMovie>, posterFilename: String): Boolean =
+    remainingMovies.none { it.posterFilename == posterFilename }
+
+fun shouldDeleteSourceVideoOnCompression(
+    updatedMovies: List<CollectedMovie>,
+    compressedMovieId: String,
+    sourceFilename: String
+): Boolean =
+    updatedMovies.none { it.id != compressedMovieId && it.videoFilename == sourceFilename }
+
+
 enum class CollectionPosterEngine {
     DeviceAI,
     HanClipAI
@@ -355,7 +418,9 @@ object MovieCollectionStore {
                         )
                     }
                     save(appContext, updated)
-                    sourceFile.delete()
+                    if (shouldDeleteSourceVideoOnCompression(updated, movie.id, sourceFile.name)) {
+                        sourceFile.delete()
+                    }
                 } catch (error: Throwable) {
                     outputFile.delete()
                     compressedFile.delete()
@@ -794,13 +859,63 @@ object MovieCollectionStore {
         }
     }
 
+    fun addReleasedMovieToCollection(
+        context: Context,
+        movieId: String
+    ): CollectionImportOutcome {
+        synchronized(collectionWriteLock) {
+            val appContext = context.applicationContext
+            val movies = list(appContext)
+            val source = movies.firstOrNull {
+                it.id == movieId && it.kind == MovieLibraryKind.Released
+            }
+                ?: error("개봉영화를 찾을 수 없습니다.")
+            val video = videoFile(appContext, source)
+            require(video.isFile && video.canRead()) { "개봉영화 파일을 읽을 수 없습니다." }
+
+            val sourceHash = source.contentSha256 ?: sha256(video)
+            val moviesWithSourceHash = if (source.contentSha256 == null) {
+                movies.map { if (it.id == source.id) it.copy(contentSha256 = sourceHash) else it }
+            } else {
+                movies
+            }
+
+            when (val plan = planAddReleasedMovieToCollection(moviesWithSourceHash, movieId)) {
+                is ReleasedToCollectionPlanResult.Duplicate -> {
+                    if (moviesWithSourceHash != movies) save(appContext, moviesWithSourceHash)
+                    return CollectionImportOutcome(plan.existingMovie, wasDuplicate = true)
+                }
+                is ReleasedToCollectionPlanResult.LimitReached -> {
+                    error(plan.message)
+                }
+                is ReleasedToCollectionPlanResult.NotFound -> {
+                    error("개봉영화를 찾을 수 없습니다.")
+                }
+                is ReleasedToCollectionPlanResult.Success -> {
+                    save(appContext, plan.updatedMovies)
+                    return CollectionImportOutcome(plan.addedMovie, wasDuplicate = false)
+                }
+            }
+        }
+    }
+
+    fun addReleasedMovieToCollection(
+        context: Context,
+        movie: CollectedMovie
+    ): CollectionImportOutcome = addReleasedMovieToCollection(context, movie.id)
+
     fun remove(context: Context, movieId: String) {
         synchronized(collectionWriteLock) {
             val movies = list(context)
             val target = movies.firstOrNull { it.id == movieId } ?: return
-            save(context, movies.filterNot { it.id == movieId })
-            videoFile(context, target).delete()
-            posterFile(context, target).delete()
+            val remaining = movies.filterNot { it.id == movieId }
+            save(context, remaining)
+            if (shouldDeleteVideoFile(remaining, target.videoFilename)) {
+                videoFile(context, target).delete()
+            }
+            if (shouldDeletePosterFile(remaining, target.posterFilename)) {
+                posterFile(context, target).delete()
+            }
         }
     }
 

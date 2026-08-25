@@ -512,9 +512,12 @@
       "target_observation": "MovieCollectionStore max 30, pin ordering, metadata preservation with backup index",
       "fixture": "REF-DATA §10 fixture 5",
       "fallback_capable": true,
-      "evidence": ["app/src/main/java/com/hanclip/android/core/project/MovieCollectionStore.kt", "app/src/test/java/com/hanclip/android/feature/home/CollectionShelfPolicyTest.kt"],
-      "status": "passed",
-      "attempts": [{"attempt": 1, "date": "2026-08-25", "action": "source+test audit", "result": "ok"}],
+      "evidence": ["app/src/main/java/com/hanclip/android/core/project/MovieCollectionStore.kt", "app/src/test/java/com/hanclip/android/feature/home/CollectionShelfPolicyTest.kt", "app/src/test/java/com/hanclip/android/core/project/MovieCollectionPolicyTest.kt"],
+      "status": "needs_verification",
+      "attempts": [
+        {"attempt": 1, "date": "2026-08-25", "action": "source+test audit", "result": "ok"},
+        {"attempt": 2, "date": "2026-08-25", "action": "released movie add to collection + shared file safety", "result": "implemented addReleasedMovieToCollection with idempotency, 30 max capacity check, shared file preservation on remove/compression, and MovieCollectionPolicyTest JVM tests; needs_verification"}
+      ],
       "reopen_history": []
     },
     {
@@ -546,9 +549,12 @@
       "target_observation": "smaller-only safe swap with duration/track verification and temp cleanup (builds 496/518 + 2026-08-12 audit)",
       "fixture": "REF-AT AT-007 + process-kill fixture 6",
       "fallback_capable": true,
-      "evidence": ["app/src/main/java/com/hanclip/android/core/project/MovieCollectionStore.kt"],
+      "evidence": ["app/src/main/java/com/hanclip/android/core/project/MovieCollectionStore.kt", "app/src/test/java/com/hanclip/android/core/project/MovieCollectionPolicyTest.kt"],
       "status": "needs_verification",
-      "attempts": [{"attempt": 1, "date": "2026-08-25", "action": "source audit", "result": "forced-interruption scenario remains a device gate"}],
+      "attempts": [
+        {"attempt": 1, "date": "2026-08-25", "action": "source audit", "result": "forced-interruption scenario remains a device gate"},
+        {"attempt": 2, "date": "2026-08-25", "action": "shared-file compression safety", "result": "added shouldDeleteSourceVideoOnCompression safeguard so compressing collection movie preserves source file if released movie still references it"}
+      ],
       "reopen_history": []
     },
     {
@@ -657,34 +663,40 @@
       "id": "contract.HC-AISHOT-007",
       "route_state": "aishot",
       "element": "trigger fusion policy",
-      "dimension": "motion OR pose alignment, ready suppression, audio-only safety net",
+      "dimension": "motion OR pose alignment, ready suppression, 0.7 visual requirement and weak-impact preservation",
       "classification": "product_contract",
       "technical_feature": "aishot_fusion_policy",
       "contract_stage": "contract",
       "source_ref": {"kind": "source", "value": "product-contract.yaml HC-AISHOT-007"},
-      "target_observation": "policy rewritten 2026-08-25 to contract semantics: alignment -0.20..+0.32 inside policy, pose-window alternative (0.5.1+), obs-conf>=0.72 gate for pose confirmation, strong-impact-only inside 1.05s ready window",
+      "target_observation": "0.7.0 requires a recent visual frame, preserves only thresholded weak sharp impacts with aligned motion/pose evidence, and retains 0.6.0 audio-only rollback; alignment -0.20..+0.32 and ready-window strong-impact gate remain unchanged",
       "fixture": "timing log replay",
       "fallback_capable": true,
       "evidence": ["app/src/main/java/com/hanclip/android/feature/aishot/AiShotMotionFusion.kt (GolfSwingFusionPolicy)", "app/src/test/java/com/hanclip/android/feature/aishot/AiShotMotionFusionTest.kt"],
-      "status": "passed",
-      "attempts": [{"attempt": 1, "date": "2026-08-25", "action": "policy rewrite + tests", "result": "device auto-capture trace remains runtime evidence"}],
+      "status": "needs_verification",
+      "attempts": [
+        {"attempt": 1, "date": "2026-08-25", "action": "policy rewrite + tests", "result": "device auto-capture trace remains runtime evidence"},
+        {"attempt": 2, "date": "2026-08-25", "action": "integrated HanAI 0.7.0 fusion contract", "result": "HanAI shared Kotlin fixtures and Android focused JVM tests pass; real camera/audio trace remains unavailable without a connected device"}
+      ],
       "reopen_history": []
     },
     {
       "id": "contract.HC-AISHOT-008",
       "route_state": "aishot",
-      "element": "soundless putt safety net (Ai 0.6.0)",
-      "dimension": "putt state machine, fusion gates, 2s refractory",
+      "element": "soundless putt safety net (Ai 0.6.0+)",
+      "dimension": "putt state machine, model-specific evidence ages and latch, 2s refractory",
       "classification": "product_contract",
       "technical_feature": "aishot_soundless_putt",
       "contract_stage": "contract",
       "source_ref": {"kind": "source", "value": "product-contract.yaml HC-AISHOT-008"},
-      "target_observation": "GolfPuttStrokeAnalyzer + GolfPuttFusionPolicy implemented 2026-08-25 with contract constants (0.25/0.20 stillness, 0.06 displacement, 0.12-0.60 peak, follow-through bands, walk reset, scene stability 1.0s, refractory 2.0s); wired into audio monitor as trigger path",
+      "target_observation": "0.7.0 keeps confirmed stroke for 0.60s and accepts pose/visual ages through 0.55s; 0.6.0 rollback keeps 0.35s. Confidence 0.72, scene stability 1.0s, ready/prompt/pending gates and 2.0s refractory remain enforced",
       "fixture": "putt/iron/still pose sequences",
       "fallback_capable": true,
       "evidence": ["app/src/main/java/com/hanclip/android/feature/aishot/AiShotMotionFusion.kt", "app/src/main/java/com/hanclip/android/feature/aishot/AiShotRoute.kt", "app/src/test/java/com/hanclip/android/feature/aishot/AiShotSoundlessPuttTest.kt"],
-      "status": "passed",
-      "attempts": [{"attempt": 1, "date": "2026-08-25", "action": "full implementation + deterministic tests", "result": "real putt accuracy unverified by design (UNK-004) — safety-net status documented"}],
+      "status": "needs_verification",
+      "attempts": [
+        {"attempt": 1, "date": "2026-08-25", "action": "full implementation + deterministic tests", "result": "real putt accuracy unverified by design (UNK-004) — safety-net status documented"},
+        {"attempt": 2, "date": "2026-08-25", "action": "integrated HanAI 0.7.0 latch and evidence ages", "result": "current and 0.6.0 rollback JVM boundaries pass; real putt runtime trace remains pending"}
+      ],
       "reopen_history": []
     },
     {
@@ -844,17 +856,20 @@
       "id": "contract.HC-REL-001",
       "route_state": "release",
       "element": "version/build/release verdict",
-      "dimension": "2.0.0 app version, independent Ai version",
+      "dimension": "2.2.0 app version, independent Ai version",
       "classification": "product_contract",
       "technical_feature": "release_versioning",
       "contract_stage": "contract",
       "source_ref": {"kind": "source", "value": "product-contract.yaml HC-REL-001"},
-      "target_observation": "versionName 2.0.0 (PROJECT_RULES §4), Ai version shown independently via AiShotModelVersion.current (0.6.0)",
+      "target_observation": "versionName 2.2.0, Build-Number 202608251844, Ai version shown independently via AiShotModelVersion.current (0.7.0)",
       "fixture": "info screen comparison",
       "fallback_capable": true,
       "evidence": ["app/src/main/java/com/hanclip/android/feature/aishot/AiShotMotionFusion.kt (AiShotModelVersion)"],
       "status": "passed",
-      "attempts": [{"attempt": 1, "date": "2026-08-25", "action": "version separation implemented via enum", "result": "release verdict recording (REF-AT §7) happens per release candidate"}],
+      "attempts": [
+        {"attempt": 1, "date": "2026-08-25", "action": "version separation implemented via enum", "result": "release verdict recording (REF-AT §7) happens per release candidate"},
+        {"attempt": 2, "date": "2026-08-25", "action": "prepared coordinated 2.2.0 / Ai 0.7.0 candidate", "result": "Android source and focused tests pass; release verification pending"}
+      ],
       "reopen_history": []
     },
     {
@@ -871,7 +886,79 @@
       "fallback_capable": true,
       "evidence": ["app/src/test/java/com/hanclip/android"],
       "status": "needs_verification",
-      "attempts": [{"attempt": 1, "date": "2026-08-25", "action": "test inventory audit", "result": "AiShot 0.6.0 regression tests added; full fixture-7 automation is follow-up"}],
+      "attempts": [
+        {"attempt": 1, "date": "2026-08-25", "action": "test inventory audit", "result": "AiShot 0.6.0 regression tests added; full fixture-7 automation is follow-up"},
+        {"attempt": 2, "date": "2026-08-25", "action": "ran HanAI shared fixture suite and focused Android 0.7.0/collection policies", "result": "HanAI Kotlin core fixture suite passed; Android AiShot and collection focused JVM tests passed"}
+      ],
+      "reopen_history": []
+    },
+    {
+      "id": "release.direct_update_download",
+      "route_state": "settings_update",
+      "element": "automatic and manual update download",
+      "dimension": "official stable release validation, progress, cancellation, retry and verified installer handoff",
+      "classification": "functional",
+      "source_ref": {"kind": "source", "value": "product-contract.yaml HC-UPDATE-001"},
+      "target_observation": "Android exposes a default-on automatic download toggle and manual check/download; only an exact official GitHub release APK with sha256 digest, expected package and signing certificate reaches the installer. Apple mobile remains TestFlight-only.",
+      "fixture": "release_direct_update_v1",
+      "fallback_capable": false,
+      "implementation_ref": "app/src/main/java/com/hanclip/android/core/update/GitHubAppUpdateService.kt",
+      "evidence": [],
+      "status": "implemented_source_only",
+      "attempts": [{"attempt": 1, "date": "2026-08-25", "action": "implemented source and policy tests", "result": "build, runtime and captures pending by shared-resource pause"}],
+      "reopen_history": []
+    },
+    {
+      "id": "home_released_context_menu.add_to_collection.order",
+      "route_state": "home_released_context_menu",
+      "element": "add_to_collection_action",
+      "dimension": "label, icon, and placement immediately above remove",
+      "classification": "visual",
+      "source_ref": {
+        "kind": "source",
+        "value": "Apple context menu label and order",
+        "location": "HanClip/Views/EditorView.swift"
+      },
+      "target_observation": "Android source inserts '컬렉션에 추가' immediately above '개봉영화에서 제거'.",
+      "implementation_ref": "app/src/main/java/com/hanclip/android/feature/home/HomeRoute.kt",
+      "fixture": "released_movie_populated_ko_phone_tablet_tv",
+      "fallback_capable": false,
+      "evidence": [],
+      "status": "implemented_source_only",
+      "attempts": [
+        {
+          "attempt": 1,
+          "date": "2026-08-25",
+          "action": "inserted context-menu action in the required order",
+          "result": "Android debug build passed; paired post-change captures remain pending"
+        }
+      ],
+      "reopen_history": []
+    },
+    {
+      "id": "home_released_context_menu.add_to_collection.action",
+      "route_state": "home_released_context_menu",
+      "element": "add_to_collection_action",
+      "dimension": "add without moving, duplicate entry, or shared-file deletion",
+      "classification": "functional",
+      "source_ref": {
+        "kind": "spec",
+        "value": "HC-COLL-001 add released movie to collection while keeping released entry"
+      },
+      "target_observation": "Android source and JVM policy tests cover add, idempotency, capacity, and shared-file deletion/compression safety.",
+      "implementation_ref": "app/src/main/java/com/hanclip/android/core/project/MovieCollectionStore.kt",
+      "fixture": "released_movie_shared_file_policy_v1",
+      "fallback_capable": false,
+      "evidence": [],
+      "status": "implemented_source_only",
+      "attempts": [
+        {
+          "attempt": 1,
+          "date": "2026-08-25",
+          "action": "implemented storage plan, menu callback, and focused JVM policies",
+          "result": "focused tests and assembleDebug passed; device behavior trace remains pending"
+        }
+      ],
       "reopen_history": []
     }
   ]

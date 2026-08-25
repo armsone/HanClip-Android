@@ -518,6 +518,18 @@ fun HomeRoute(
                 MovieCollectionStore.updateTitle(context, movie.id, title)
                 onCollectionChanged()
             },
+            onAddToCollectionReleasedMovie = { movie ->
+                try {
+                    val outcome = MovieCollectionStore.addReleasedMovieToCollection(context, movie.id)
+                    if (outcome.wasDuplicate) {
+                        collectionError = "이미 컬렉션에 보관된 영화입니다."
+                    } else {
+                        onCollectionChanged()
+                    }
+                } catch (e: Throwable) {
+                    collectionError = e.message ?: "컬렉션에 추가하지 못했습니다."
+                }
+            },
             onRemoveReleasedMovie = { movie ->
                 MovieCollectionStore.remove(context, movie.id)
                 onCollectionChanged()
@@ -2453,7 +2465,7 @@ private fun importantInfoItems(): List<Pair<String, String>> = listOf(
 
         Ai는 AiShot 촬영뿐 아니라 여러 영상의 자클립 선택, 사진 묶음의 대표 컷 선택처럼 한클립 안에서 자동으로 좋은 순간을 고르는 기능들에 함께 쓰입니다. 골프 영상에만 머물지 않고 생활 영상과 여행 영상에서도 더 자연스럽게 좋은 장면을 찾는 방향으로 키우고 있습니다.
 
-        현재 Ai 버전은 0.6.0입니다.
+        현재 Ai 버전은 0.7.0입니다.
 
         0.1.0 - 소리를 중심으로 티샷, 박수, 갑자기 좋아지는 순간과 이어지는 반응을 찾아내는 첫 기준입니다.
 
@@ -2471,12 +2483,14 @@ private fun importantInfoItems(): List<Pair<String, String>> = listOf(
 
         0.6.0 - 타구음이 거의 없는 퍼팅도 준비, 작은 백스윙, 전진 스트로크, 짧은 팔로스루가 순서대로 확인되면 소리 없이 자동 촬영하는 안전망을 추가했습니다. 학습 자료가 풀스윙 중심이라 퍼팅 정확도는 아직 검증 중입니다.
 
+        0.7.0 - 드라이버부터 작은 어프로치까지 소리 크기보다 연속된 샷 동작을 함께 봅니다. 빗소리 속 약한 접촉음도 동작과 맞으면 살리고, 화면 근거가 없는 소리만으로는 촬영하지 않습니다. 짧은 퍼팅의 자세 근거를 조금 더 오래 유지합니다.
+
         새 Ai가 마음에 들지 않으면 이전 Ai 버전으로 되돌릴 수 있도록 버전별 특징을 남겨 둡니다.
     """.trimIndent(),
     "AiShot" to """
         필요한 순간을 자동으로 찾아 클립에 담는 실시간 촬영 기능입니다. 촬영을 닫을 때까지 계속 살피며, 만들어진 클립은 Ai 영화에 차례로 추가됩니다.
 
-        자동 촬영은 화면이 잠시 안정된 뒤 이어지는 국소 움직임과 급격한 다운스윙, 같은 순간의 충격음을 함께 확인합니다. 지원되는 기기에서는 골퍼의 어깨·골반·팔 관절 흐름을 기기 안에서만 보조로 살펴 실제 몸동작이 있는 샷을 더 잘 구분합니다. 사람을 충분히 보지 못하거나 발열·저전력 상태이면 기존 화면 움직임과 소리 판단으로 자동 복귀합니다. 준비 음성, 주변 타석 소리, 카메라 흔들림과 화면 전체 밝기 변화는 촬영 근거에서 낮춥니다. 영상 프레임이 일시적으로 들어오지 않을 때만 기존 소리 감지를 안전망으로 사용합니다.
+        자동 촬영은 화면이 잠시 안정된 뒤 이어지는 국소 움직임과 급격한 다운스윙, 같은 순간의 충격음을 함께 확인합니다. 지원되는 기기에서는 골퍼의 어깨·골반·팔 관절 흐름을 기기 안에서만 보조로 살펴 실제 몸동작이 있는 샷을 더 잘 구분합니다. 사람을 충분히 보지 못하거나 발열·저전력 상태이면 화면 움직임과 소리를 함께 판단합니다. 준비 음성, 주변 타석 소리, 카메라 흔들림과 화면 전체 밝기 변화는 촬영 근거에서 낮춥니다. 빗소리 속 약한 접촉음도 연속 동작과 같은 순간이면 살리지만 영상 근거가 없는 소리만으로는 촬영하지 않습니다.
 
         감지 중, 감지 됨, 저장 중으로 촬영 상태를 보여줍니다. 주변 환경에 맞춰 시끄러움, 일반, 조용함, 자동 감도를 선택할 수 있으며 기본값인 자동은 주변 상황에 맞춰 감도를 조절합니다. 샷 시간은 짧게(앞뒤 2초), 일반(앞 2초·뒤 3초), 길게(앞뒤 5초) 중에서 선택하며 촬영 중 변경하면 다음 촬영부터 적용됩니다.
 
@@ -2597,7 +2611,7 @@ private fun importantInfoItems(): List<Pair<String, String>> = listOf(
         컬렉션은 사진이나 파일에서 가져온 영화 포스터를 세로로 이어지는 2열 배열로 보여주며 영화 추가 포스터는 목록의 마지막에 배치합니다. 사진은 영화 제작과 같은 사진·달력 전환 화면을 사용하되 완성 영화를 가져오는 용도이므로 영상만 표시하고 선택합니다. 파일에서도 동영상만 가져옵니다. 가져오는 동안 진행바와 완료 개수를 표시합니다. 포스터를 길게 눌러 제목 수정, 공유, 컬렉션 제거를 사용하며 제목 수정 입력창은 글의 줄 수에 맞춰 커지고 키보드 위 가용 높이를 넘으면 내부에서 스크롤합니다.
     """.trimIndent(),
     "개봉영화" to """
-        한클립에서 새로 완성한 영화를 영화 목록 아래에 정사각형 썸네일 5열로 따로 보관합니다. 썸네일을 누르면 전체화면으로 재생하고, 길게 누르면 제목 수정, 공유 또는 개봉영화에서 제거할 수 있습니다. 사진이나 파일에서 직접 가져온 영상은 개봉영화가 아니라 컬렉션에 표시됩니다.
+        한클립에서 새로 완성한 영화를 영화 목록 아래에 정사각형 썸네일 5열로 따로 보관합니다. 썸네일을 누르면 전체화면으로 재생하고, 길게 누르면 제목 수정, 공유, 컬렉션에 추가 또는 개봉영화에서 제거할 수 있습니다. 사진이나 파일에서 직접 가져온 영상은 개봉영화가 아니라 컬렉션에 표시됩니다.
     """.trimIndent(),
     "워터마크" to """
         카피라이터에서 결과 영상에 합성할 표시를 설정하는 기능입니다. 기본 HanClip 로고나 플랫폼 아이콘을 고르고 플랫폼별 주소, 사용자 아이콘, 5×5 위치, 글자·그림자 색과 그림자 투명도를 조절합니다. 선택한 설정은 다음 영화에도 유지되며 초기화하면 자막 설정은 보존한 채 카피라이터 항목만 기본값으로 돌아갑니다.
@@ -3072,6 +3086,7 @@ private fun LazyListScope.savedProjectItems(
     onEditEditableProjectMemo: (DraftProjectSummary) -> Unit,
     onOpenReleasedMovie: (CollectedMovie) -> Unit,
     onRenameReleasedMovie: (CollectedMovie, String) -> Unit,
+    onAddToCollectionReleasedMovie: (CollectedMovie) -> Unit,
     onRemoveReleasedMovie: (CollectedMovie) -> Unit,
     collectionMovies: List<CollectedMovie>,
     isImportingCollection: Boolean,
@@ -3145,6 +3160,7 @@ private fun LazyListScope.savedProjectItems(
         movies = releasedMovies,
         onOpen = onOpenReleasedMovie,
         onRename = onRenameReleasedMovie,
+        onAddToCollection = onAddToCollectionReleasedMovie,
         onRemove = onRemoveReleasedMovie
     )
     movieCollectionItems(
@@ -3177,6 +3193,7 @@ private fun LazyListScope.releasedMovieItems(
     movies: List<CollectedMovie>,
     onOpen: (CollectedMovie) -> Unit,
     onRename: (CollectedMovie, String) -> Unit,
+    onAddToCollection: (CollectedMovie) -> Unit,
     onRemove: (CollectedMovie) -> Unit
 ) {
     item(key = "released-movie-header", contentType = "released-movie-header") {
@@ -3237,6 +3254,7 @@ private fun LazyListScope.releasedMovieItems(
                     modifier = Modifier.weight(1f),
                     onClick = { onOpen(movie) },
                     onRename = { title -> onRename(movie, title) },
+                    onAddToCollection = { onAddToCollection(movie) },
                     onRemove = { onRemove(movie) }
                 )
             }
@@ -3290,6 +3308,7 @@ private fun ReleasedMovieThumbnailCard(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
     onRename: (String) -> Unit,
+    onAddToCollection: () -> Unit,
     onRemove: () -> Unit
 ) {
     val context = LocalContext.current
@@ -3336,6 +3355,11 @@ private fun ReleasedMovieThumbnailCard(
                 text = { Text("공유") },
                 onClick = { showActions = false; shareMovie(context, movie) },
                 leadingIcon = { Icon(Icons.Outlined.IosShare, contentDescription = null) }
+            )
+            DropdownMenuItem(
+                text = { Text("컬렉션에 추가") },
+                onClick = { showActions = false; onAddToCollection() },
+                leadingIcon = { Icon(Icons.AutoMirrored.Outlined.LibraryBooks, contentDescription = null) }
             )
             DropdownMenuItem(
                 text = { Text("개봉영화에서 제거") },

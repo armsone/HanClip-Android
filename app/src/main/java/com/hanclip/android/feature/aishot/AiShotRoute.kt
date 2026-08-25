@@ -225,8 +225,8 @@ private fun zoomRatioTitle(ratio: Float): String {
 
 private object AiShotModelInfo {
     val Version = AiShotModelVersion.current.displayName
-    const val Title = "몸동작 인식 Ai"
-    const val Summary = "골퍼의 스윙 움직임과 관절 흐름을 기기 안에서 보조로 확인하고, 소리 없는 퍼팅도 자세 순서로 감지합니다."
+    const val Title = "혼합 클럽 연속 동작 Ai"
+    const val Summary = "드라이버부터 작은 어프로치까지 소리 크기보다 연속된 샷 동작을 함께 봅니다. 빗소리 속 약한 접촉음도 동작과 맞으면 살리고, 화면 근거가 없는 소리만으로는 촬영하지 않습니다. 짧은 퍼팅의 자세 근거를 조금 더 오래 유지합니다."
 }
 
 private object AiShotPreferenceStore {
@@ -1777,10 +1777,14 @@ private suspend fun monitorImpactAudio(
             val evidence = AiShotImpactEvidence(
                 isTriggered = decision.isTriggered,
                 confidence = decision.confidence,
+                rms = metrics.rms,
                 peak = metrics.peak,
-                impactScore = score
+                impactScore = score,
+                crossingRate = metrics.crossingRate
             )
-            val shouldTrigger = ready && decision.isTriggered &&
+            val canReachFusion = decision.isTriggered ||
+                evidence.isVisualBackedWeakImpactCandidate()
+            val shouldTrigger = ready && canReachFusion &&
                 visualAnalyzer.awaitFusion(
                     evidence = evidence,
                     candidateTimeSeconds = now / 1000.0,
@@ -1792,7 +1796,7 @@ private suspend fun monitorImpactAudio(
                 delay(1500L)
                 continue
             }
-            // 무음 퍼팅 안전망(Ai 0.6.0): 소리 트리거가 없을 때만 자세 시퀀스로 발동한다.
+            // 무음 퍼팅 안전망(Ai 0.7.0): 소리 트리거가 없을 때만 자세 시퀀스로 발동한다.
             val soundlessOffset = visualAnalyzer.pollSoundlessPuttTrigger(
                 isReady = ready,
                 isInsideReadyPromptWindow = isInsideReadyPromptWindow
@@ -1918,7 +1922,7 @@ private class RealtimeVisualAnalyzer {
     @Synchronized
     fun observePose(sample: GolfSwingPoseSample?, timeSeconds: Double) {
         if (sample == null) {
-            if (timeSeconds - lastValidPoseTimeSeconds > 0.35) {
+            if (timeSeconds - lastValidPoseTimeSeconds > 0.65) {
                 poseAnalyzer.reset()
                 puttAnalyzer.reset()
                 latestPoseSignal = null
