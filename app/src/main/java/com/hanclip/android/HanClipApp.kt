@@ -51,7 +51,10 @@ fun HanClipApp(
     onSharedMediaHandled: () -> Unit = {},
     onSharedBrowserFavoritesHandled: () -> Unit = {},
     onQuickActionHandled: () -> Unit = {},
-    onKeepScreenOnChanged: (Boolean) -> Unit = {}
+    onKeepScreenOnChanged: (Boolean) -> Unit = {},
+    automaticUpdateDownloadEnabled: Boolean = true,
+    onAutomaticUpdateDownloadChanged: (Boolean) -> Unit = {},
+    onCheckForUpdates: () -> Unit = {}
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -421,6 +424,9 @@ fun HanClipApp(
                 onWatermarkSettingsChange = { settings ->
                     editorViewModel.updateCopyrightWatermark(context, settings)
                 },
+                automaticUpdateDownloadEnabled = automaticUpdateDownloadEnabled,
+                onAutomaticUpdateDownloadChanged = onAutomaticUpdateDownloadChanged,
+                onCheckForUpdates = onCheckForUpdates,
                 onOpenBrowser = { navController.navigate(HanClipDestination.Browser.route) }
             )
         }

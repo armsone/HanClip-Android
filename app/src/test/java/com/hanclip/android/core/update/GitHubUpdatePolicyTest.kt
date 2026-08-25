@@ -8,6 +8,12 @@ import org.junit.Test
 
 class GitHubUpdatePolicyTest {
     @Test
+    fun `release digest must be lowercase sha256 metadata`() {
+        assertEquals("ab".repeat(32), GitHubUpdatePolicy.sha256("sha256:${"ab".repeat(32)}"))
+        assertNull(GitHubUpdatePolicy.sha256("${"ab".repeat(32)}"))
+        assertNull(GitHubUpdatePolicy.sha256("sha256:${"AB".repeat(32)}"))
+    }
+    @Test
     fun `release identity separates product version and internal code`() {
         assertEquals("2.1.0", GitHubUpdatePolicy.productVersion("android-v2.1.0"))
         assertNull(GitHubUpdatePolicy.productVersion("android-v340033"))

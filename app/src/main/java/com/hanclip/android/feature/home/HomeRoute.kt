@@ -230,6 +230,9 @@ fun HomeRoute(
     onOpenCollectionMovie: (CollectedMovie) -> Unit,
     onSleepPreventionModeChange: (SleepPreventionMode) -> Unit,
     onWatermarkSettingsChange: (WatermarkSettings) -> Unit,
+    automaticUpdateDownloadEnabled: Boolean,
+    onAutomaticUpdateDownloadChanged: (Boolean) -> Unit,
+    onCheckForUpdates: () -> Unit,
     onOpenBrowser: () -> Unit
 ) {
     val context = LocalContext.current
@@ -570,6 +573,9 @@ fun HomeRoute(
                 },
                 onSleepPreventionModeChange = onSleepPreventionModeChange,
                 onWatermarkSettingsChange = onWatermarkSettingsChange,
+                automaticUpdateDownloadEnabled = automaticUpdateDownloadEnabled,
+                onAutomaticUpdateDownloadChanged = onAutomaticUpdateDownloadChanged,
+                onCheckForUpdates = onCheckForUpdates,
                 onDismiss = { showSettingsInfo = false }
             )
         }
@@ -1346,6 +1352,9 @@ private fun SettingsInfoScreen(
     onThemeModeChange: (HanClipThemeMode) -> Unit,
     onSleepPreventionModeChange: (SleepPreventionMode) -> Unit,
     onWatermarkSettingsChange: (WatermarkSettings) -> Unit,
+    automaticUpdateDownloadEnabled: Boolean,
+    onAutomaticUpdateDownloadChanged: (Boolean) -> Unit,
+    onCheckForUpdates: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -1441,6 +1450,24 @@ private fun SettingsInfoScreen(
                     )
                 }
                 item { CreatorLinks(palette) }
+                item {
+                    Surface(
+                        shape = RoundedCornerShape(22.dp),
+                        color = palette.panel,
+                        border = BorderStroke(1.dp, palette.border)
+                    ) {
+                        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("앱 업데이트", color = palette.text, fontWeight = FontWeight.Bold)
+                            Text("자동 다운로드는 기본으로 켜지며 데이터 요금이 없는 네트워크에서만 시작합니다.", color = palette.text.copy(alpha = 0.72f), fontSize = 13.sp)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Button(onClick = { onAutomaticUpdateDownloadChanged(!automaticUpdateDownloadEnabled) }) {
+                                    Text("자동 다운로드 ${if (automaticUpdateDownloadEnabled) "켬" else "끔"}")
+                                }
+                                Button(onClick = onCheckForUpdates) { Text("업데이트 확인") }
+                            }
+                        }
+                    }
+                }
                 item {
                     CopyrightWatermarkCard(
                         palette = palette,

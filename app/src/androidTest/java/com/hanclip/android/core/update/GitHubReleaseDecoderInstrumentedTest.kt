@@ -17,6 +17,7 @@ class GitHubReleaseDecoderInstrumentedTest {
               "assets": [{
                 "name": "HanClip-Android-2.1.0.apk",
                 "size": 68000000,
+                "digest": "sha256:${"ab".repeat(32)}",
                 "browser_download_url": "https://github.com/armsone/HanClip-Android/releases/download/android-v2.1.0/HanClip-Android-2.1.0.apk"
               }]
             }

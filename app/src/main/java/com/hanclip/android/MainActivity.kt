@@ -57,6 +57,7 @@ class MainActivity : ComponentActivity() {
             HanClipTheme {
                 val appUpdateState by appUpdateService.state.collectAsStateWithLifecycle()
                 var ignoredUpdateVersion by rememberSaveable { mutableStateOf<Int?>(null) }
+                var automaticDownloadEnabled by rememberSaveable { mutableStateOf(appUpdateService.automaticDownloadEnabled) }
                 HanClipApp(
                     sharedMediaUris = sharedMediaUris,
                     sharedBrowserFavorites = sharedBrowserFavorites,
@@ -70,16 +71,32 @@ class MainActivity : ComponentActivity() {
                         sharedBrowserFavoritesImportAttempted = false
                     },
                     onQuickActionHandled = ::clearHandledQuickAction,
-                    onKeepScreenOnChanged = ::setKeepScreenOn
+                    onKeepScreenOnChanged = ::setKeepScreenOn,
+                    automaticUpdateDownloadEnabled = automaticDownloadEnabled,
+                    onAutomaticUpdateDownloadChanged = {
+                        automaticDownloadEnabled = it
+                        appUpdateService.automaticDownloadEnabled = it
+                    },
+                    onCheckForUpdates = {
+                        ignoredUpdateVersion = null
+                        appUpdateService.checkForUpdate(isManual = true)
+                    }
                 )
                 val updateVersion = when (val update = appUpdateState) {
                     is AppUpdateState.Available -> update.release.versionCode
                     is AppUpdateState.Downloading -> update.release.versionCode
                     is AppUpdateState.Ready -> update.release.versionCode
-                    AppUpdateState.Checking,
+                    is AppUpdateState.Checking,
+                    is AppUpdateState.Latest,
+                    is AppUpdateState.Failed,
                     AppUpdateState.Idle -> null
                 }
-                if (updateVersion != null && ignoredUpdateVersion != updateVersion) {
+                val showUpdateDialog = when (appUpdateState) {
+                    is AppUpdateState.Checking -> (appUpdateState as AppUpdateState.Checking).isManual
+                    is AppUpdateState.Latest, is AppUpdateState.Failed -> true
+                    else -> updateVersion != null && ignoredUpdateVersion != updateVersion
+                }
+                if (showUpdateDialog) {
                     AppUpdateDialog(
                         state = appUpdateState,
                         onDownload = {
@@ -92,7 +109,9 @@ class MainActivity : ComponentActivity() {
                                 requestUpdateInstall(ready.apkFile)
                             }
                         },
-                        onLater = { ignoredUpdateVersion = updateVersion }
+                        onCancel = appUpdateService::cancelDownload,
+                        onRetry = { appUpdateService.checkForUpdate(isManual = true) },
+                        onLater = { ignoredUpdateVersion = updateVersion; appUpdateService.dismiss() }
                     )
                 }
             }
