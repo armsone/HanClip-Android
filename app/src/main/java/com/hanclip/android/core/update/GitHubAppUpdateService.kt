@@ -211,14 +211,15 @@ internal object GitHubReleaseDecoder {
         val root = JSONObject(payload)
         if (root.optBoolean("draft", true) || root.optBoolean("prerelease", true)) return null
         val tag = root.optString("tag_name")
-        val versionCode = GitHubUpdatePolicy.versionCode(tag) ?: return null
+        val productVersion = GitHubUpdatePolicy.productVersion(tag) ?: return null
+        val versionCode = GitHubUpdatePolicy.versionCode(root.optString("body")) ?: return null
         val assets = root.optJSONArray("assets") ?: return null
         for (index in 0 until assets.length()) {
             val asset = assets.optJSONObject(index) ?: continue
             val name = asset.optString("name")
             val url = asset.optString("browser_download_url")
             val size = asset.optLong("size", -1L)
-            if (GitHubUpdatePolicy.isApprovedApkAsset(name, url, versionCode, size)) {
+            if (GitHubUpdatePolicy.isApprovedApkAsset(name, url, productVersion, size)) {
                 return GitHubAppRelease(
                     versionCode,
                     tag,
@@ -233,9 +234,13 @@ internal object GitHubReleaseDecoder {
 }
 
 internal object GitHubUpdatePolicy {
-    private val TagPattern = Regex("^android-v([1-9]\\d*)$")
+    private val TagPattern = Regex("^android-v(\\d+\\.\\d+\\.\\d+)$")
+    private val VersionCodePattern = Regex("(?m)^Android-Version-Code:\\s*([1-9]\\d*)\\s*$")
 
-    fun versionCode(tagName: String): Int? = TagPattern.matchEntire(tagName)
+    fun productVersion(tagName: String): String? = TagPattern.matchEntire(tagName)
+        ?.groupValues
+        ?.get(1)
+    fun versionCode(releaseNotes: String): Int? = VersionCodePattern.find(releaseNotes)
         ?.groupValues
         ?.get(1)
         ?.toIntOrNull()
@@ -243,16 +248,16 @@ internal object GitHubUpdatePolicy {
     fun isApprovedApkAsset(
         assetName: String,
         urlText: String,
-        versionCode: Int,
+        productVersion: String,
         sizeBytes: Long
     ): Boolean {
-        if (assetName != "HanClip-Android-v$versionCode.apk") return false
+        if (assetName != "HanClip-Android-$productVersion.apk") return false
         if (sizeBytes <= 0L || sizeBytes > 250L * 1_024L * 1_024L) return false
         val url = runCatching { URL(urlText) }.getOrNull() ?: return false
         return url.protocol == "https" &&
             url.host == "github.com" &&
             url.path.startsWith(
-                "/armsone/HanClip-Android/releases/download/android-v$versionCode/"
+                "/armsone/HanClip-Android/releases/download/android-v$productVersion/"
             ) &&
             url.path.endsWith("/$assetName")
     }

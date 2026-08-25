@@ -6,8 +6,9 @@ HanClip Android는 Google Play 대신 공식 GitHub Release의 APK를 확인한�
 ## 앱의 확인 규칙
 
 - API: `https://api.github.com/repos/armsone/HanClip-Android/releases/latest`
-- 태그: `android-v{versionCode}` (예: `android-v544`)
-- APK 이름: `HanClip-Android-v{versionCode}.apk`
+- 태그: `android-v{versionName}` (예: `android-v2.1.0`)
+- APK 이름: `HanClip-Android-{versionName}.apk`
+- 릴리스 본문: `Android-Version-Code: {versionCode}`와 `Build-Number: {YYYYMMDDHHMM}`
 - draft와 prerelease는 무시한다.
 - 현재 `versionCode`보다 큰 버전만 안내한다.
 - HTTPS 저장소 주소, 파일 크기, package name `com.hanclip.android`, APK `versionCode`와 현재
@@ -18,8 +19,8 @@ HanClip Android는 Google Play 대신 공식 GitHub Release의 APK를 확인한�
 
 1. 변경 관련 JVM 시험, `assembleDebug`, `assembleDebugAndroidTest`, `lintDebug`와 지정 실기기 검증을 마친다.
 2. APK가 업데이트 계보와 같은 인증서인지 `apksigner verify --print-certs`로 확인한다.
-3. `versionCode`가 `N`이면 검증한 APK를 `HanClip-Android-vN.apk`로 준비한다.
-4. `gh release create android-vN HanClip-Android-vN.apk --title "HanClip Android vN" --notes ...`로 공개한다.
+3. `versionName`이 `X.Y.Z`이면 검증한 APK를 `HanClip-Android-X.Y.Z.apk`로 준비한다.
+4. `gh release create android-vX.Y.Z HanClip-Android-X.Y.Z.apk --title "HanClip Android X.Y.Z" --notes "Android-Version-Code: N\nBuild-Number: YYYYMMDDHHMM\n\n..."`로 공개한다.
 5. GitHub API에서 안정 Release의 태그, 자산 이름·크기·다운로드 주소를 다시 확인한다.
 6. 낮은 `versionCode`의 설치본에서 안내→다운로드→알 수 없는 앱 설치 권한→Android 설치 화면과
    기존 영화·설정 보존을 확인한다. 앱 삭제나 데이터 초기화는 하지 않는다.

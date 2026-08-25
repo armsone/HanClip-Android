@@ -8,36 +8,36 @@ import org.junit.Test
 
 class GitHubUpdatePolicyTest {
     @Test
-    fun `release tag uses the exact Android version code format`() {
-        assertEquals(544, GitHubUpdatePolicy.versionCode("android-v544"))
-        assertNull(GitHubUpdatePolicy.versionCode("v544"))
-        assertNull(GitHubUpdatePolicy.versionCode("android-v0"))
-        assertNull(GitHubUpdatePolicy.versionCode("android-v544-beta"))
+    fun `release identity separates product version and internal code`() {
+        assertEquals("2.1.0", GitHubUpdatePolicy.productVersion("android-v2.1.0"))
+        assertNull(GitHubUpdatePolicy.productVersion("android-v340033"))
+        assertEquals(340033, GitHubUpdatePolicy.versionCode("Android-Version-Code: 340033\nBuild-Number: 202608250313"))
+        assertNull(GitHubUpdatePolicy.versionCode("versionCode: 340033"))
     }
 
     @Test
     fun `APK asset must come from the matching HanClip release`() {
         assertTrue(
             GitHubUpdatePolicy.isApprovedApkAsset(
-                "HanClip-Android-v544.apk",
-                "https://github.com/armsone/HanClip-Android/releases/download/android-v544/HanClip-Android-v544.apk",
-                544,
+                "HanClip-Android-2.1.0.apk",
+                "https://github.com/armsone/HanClip-Android/releases/download/android-v2.1.0/HanClip-Android-2.1.0.apk",
+                "2.1.0",
                 68_000_000L
             )
         )
         assertFalse(
             GitHubUpdatePolicy.isApprovedApkAsset(
-                "HanClip-Android-v544.apk",
-                "https://example.com/HanClip-Android-v544.apk",
-                544,
+                "HanClip-Android-2.1.0.apk",
+                "https://example.com/HanClip-Android-2.1.0.apk",
+                "2.1.0",
                 68_000_000L
             )
         )
         assertFalse(
             GitHubUpdatePolicy.isApprovedApkAsset(
                 "other.apk",
-                "https://github.com/armsone/HanClip-Android/releases/download/android-v544/other.apk",
-                544,
+                "https://github.com/armsone/HanClip-Android/releases/download/android-v2.1.0/other.apk",
+                "2.1.0",
                 68_000_000L
             )
         )

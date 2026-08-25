@@ -10,32 +10,33 @@ class GitHubReleaseDecoderInstrumentedTest {
         val release = GitHubReleaseDecoder.decode(
             """
             {
-              "tag_name": "android-v544",
+              "tag_name": "android-v2.1.0",
               "draft": false,
               "prerelease": false,
+              "body": "Android-Version-Code: 340033\nBuild-Number: 202608250313",
               "assets": [{
-                "name": "HanClip-Android-v544.apk",
+                "name": "HanClip-Android-2.1.0.apk",
                 "size": 68000000,
-                "browser_download_url": "https://github.com/armsone/HanClip-Android/releases/download/android-v544/HanClip-Android-v544.apk"
+                "browser_download_url": "https://github.com/armsone/HanClip-Android/releases/download/android-v2.1.0/HanClip-Android-2.1.0.apk"
               }]
             }
             """.trimIndent()
         )
 
-        assertEquals(544, release?.versionCode)
-        assertEquals("HanClip-Android-v544.apk", release?.assetName)
+        assertEquals(340033, release?.versionCode)
+        assertEquals("HanClip-Android-2.1.0.apk", release?.assetName)
     }
 
     @Test
     fun draftAndPrereleaseAreRejected() {
         assertNull(
             GitHubReleaseDecoder.decode(
-                """{"tag_name":"android-v544","draft":true,"prerelease":false,"assets":[]}"""
+                """{"tag_name":"android-v2.1.0","draft":true,"prerelease":false,"assets":[]}"""
             )
         )
         assertNull(
             GitHubReleaseDecoder.decode(
-                """{"tag_name":"android-v544","draft":false,"prerelease":true,"assets":[]}"""
+                """{"tag_name":"android-v2.1.0","draft":false,"prerelease":true,"assets":[]}"""
             )
         )
     }
