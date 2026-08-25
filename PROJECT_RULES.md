@@ -44,7 +44,7 @@
 
 ## 4. 버전과 Git
 
-- 현재 공통 기준 `versionName`은 `2.2.0`이다. 중요 수정은 minor, 작은 수정은 patch를 올리고 major는 사용자의 직접 지시가 있을 때만 변경한다.
+- 현재 공통 기준 `versionName`은 `2.2.1`이다. 중요 수정은 minor, 작은 수정은 patch를 올리고 major는 사용자의 직접 지시가 있을 때만 변경한다.
 - 릴리스 후보의 `versionCode`는 2026-01-01 00:00 KST 이후 지난 분 수와 직전 값+1 중 큰 값으로 단조 증가시키고, 화면에는 후보 생성 시 고정한 `YYYYMMDDHHMM` 표시 빌드를 사용한다.
 - 이 Android 프로젝트의 GitHub 게시 대상은 공개 저장소 `armsone/HanClip-Android`로 고정하고, 새 원격 `origin`도 이 저장소만 사용한다.
 - 과거 통합 프로젝트와 기존 GitHub 업로드는 백업으로만 취급하며 새 Android 변경을 푸시하지 않는다.

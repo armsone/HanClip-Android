@@ -51,10 +51,8 @@ class AiShotMotionFusionTest {
         val evidence = AiShotImpactEvidence(
             isTriggered = true,
             confidence = 1.0,
-            rms = 0.06,
             peak = 0.3,
-            impactScore = 0.2,
-            crossingRate = 0.12
+            impactScore = 0.2
         )
         val motion = GolfSwingMotionSignal(
             phase = GolfSwingMotionPhase.Addressed,
@@ -80,10 +78,8 @@ class AiShotMotionFusionTest {
         val evidence = AiShotImpactEvidence(
             isTriggered = true,
             confidence = 1.0,
-            rms = 0.06,
             peak = 0.3,
-            impactScore = 0.2,
-            crossingRate = 0.12
+            impactScore = 0.2
         )
         val motion = GolfSwingMotionSignal(
             phase = GolfSwingMotionPhase.Addressed,
@@ -127,10 +123,8 @@ class AiShotMotionFusionTest {
         val evidence = AiShotImpactEvidence(
             isTriggered = true,
             confidence = 1.0,
-            rms = 0.06,
             peak = 0.3,
-            impactScore = 0.2,
-            crossingRate = 0.12
+            impactScore = 0.2
         )
         val motion = GolfSwingMotionSignal(
             phase = GolfSwingMotionPhase.Downswing,
@@ -161,18 +155,14 @@ class AiShotMotionFusionTest {
         val weakEvidence = AiShotImpactEvidence(
             isTriggered = true,
             confidence = 1.0,
-            rms = 0.02,
             peak = 0.10,
-            impactScore = 0.05,
-            crossingRate = 0.05
+            impactScore = 0.05
         )
         val strongEvidence = AiShotImpactEvidence(
             isTriggered = true,
             confidence = 1.0,
-            rms = 0.06,
             peak = 0.20,
-            impactScore = 0.10,
-            crossingRate = 0.12
+            impactScore = 0.10
         )
 
         assertFalse(
@@ -195,109 +185,6 @@ class AiShotMotionFusionTest {
                 requiresPoseConfirmation = false,
                 hasRecentVisualFrame = true,
                 isInsideReadyPromptWindow = true
-            )
-        )
-    }
-
-    @Test
-    fun model070RequiresVisualEvidenceBut060RollbackKeepsAudioFallback() {
-        val evidence = AiShotImpactEvidence(
-            isTriggered = true,
-            confidence = 1.0,
-            rms = 0.06,
-            peak = 0.30,
-            impactScore = 0.20,
-            crossingRate = 0.12
-        )
-        val motion = GolfSwingMotionSignal(
-            phase = GolfSwingMotionPhase.SeekingAddress,
-            confidence = 0.0,
-            impactTimeSeconds = null
-        )
-
-        assertFalse(
-            GolfSwingFusionPolicy.shouldTrigger(
-                evidence = evidence,
-                motion = motion,
-                pose = null,
-                referenceTimeSeconds = 1.0,
-                requiresPoseConfirmation = false,
-                hasRecentVisualFrame = false,
-                isInsideReadyPromptWindow = false,
-                modelVersion = AiShotModelVersion.V0_7_0
-            )
-        )
-        assertTrue(
-            GolfSwingFusionPolicy.shouldTrigger(
-                evidence = evidence,
-                motion = motion,
-                pose = null,
-                referenceTimeSeconds = 1.0,
-                requiresPoseConfirmation = false,
-                hasRecentVisualFrame = false,
-                isInsideReadyPromptWindow = false,
-                modelVersion = AiShotModelVersion.V0_6_0
-            )
-        )
-    }
-
-    @Test
-    fun model070PreservesWeakSharpImpactOnlyWithAlignedVisualEvidence() {
-        val weakRainImpact = AiShotImpactEvidence(
-            isTriggered = false,
-            confidence = 0.0,
-            rms = 0.0313,
-            peak = 0.1419,
-            impactScore = 0.0920,
-            crossingRate = 0.1584
-        )
-        val motion = GolfSwingMotionSignal(
-            phase = GolfSwingMotionPhase.Addressed,
-            confidence = 0.28,
-            impactTimeSeconds = null
-        )
-        val alignedPose = GolfSwingPoseSignal(
-            phase = GolfSwingPosePhase.ImpactWindow,
-            confidence = 0.85,
-            impactWindowStartSeconds = 0.0,
-            impactWindowEndSeconds = 0.5
-        )
-
-        assertTrue(weakRainImpact.isVisualBackedWeakImpactCandidate())
-        assertTrue(
-            GolfSwingFusionPolicy.shouldTrigger(
-                evidence = weakRainImpact,
-                motion = motion,
-                pose = alignedPose,
-                referenceTimeSeconds = 0.2,
-                requiresPoseConfirmation = true,
-                hasRecentVisualFrame = true,
-                isInsideReadyPromptWindow = false,
-                modelVersion = AiShotModelVersion.V0_7_0
-            )
-        )
-        assertFalse(
-            GolfSwingFusionPolicy.shouldTrigger(
-                evidence = weakRainImpact,
-                motion = motion,
-                pose = null,
-                referenceTimeSeconds = 0.2,
-                requiresPoseConfirmation = false,
-                hasRecentVisualFrame = true,
-                isInsideReadyPromptWindow = false,
-                modelVersion = AiShotModelVersion.V0_7_0
-            )
-        )
-        assertFalse(
-            GolfSwingFusionPolicy.shouldTrigger(
-                evidence = weakRainImpact,
-                motion = motion,
-                pose = alignedPose,
-                referenceTimeSeconds = 0.2,
-                requiresPoseConfirmation = true,
-                hasRecentVisualFrame = true,
-                isInsideReadyPromptWindow = false,
-                modelVersion = AiShotModelVersion.V0_6_0
             )
         )
     }

@@ -663,39 +663,39 @@
       "id": "contract.HC-AISHOT-007",
       "route_state": "aishot",
       "element": "trigger fusion policy",
-      "dimension": "motion OR pose alignment, ready suppression, 0.7 visual requirement and weak-impact preservation",
+      "dimension": "motion OR pose alignment, ready suppression, audio-only safety net",
       "classification": "product_contract",
       "technical_feature": "aishot_fusion_policy",
       "contract_stage": "contract",
       "source_ref": {"kind": "source", "value": "product-contract.yaml HC-AISHOT-007"},
-      "target_observation": "0.7.0 requires a recent visual frame, preserves only thresholded weak sharp impacts with aligned motion/pose evidence, and retains 0.6.0 audio-only rollback; alignment -0.20..+0.32 and ready-window strong-impact gate remain unchanged",
+      "target_observation": "policy rewritten 2026-08-25 to contract semantics: alignment -0.20..+0.32 inside policy, pose-window alternative (0.5.1+), obs-conf>=0.72 gate for pose confirmation, strong-impact-only inside 1.05s ready window",
       "fixture": "timing log replay",
       "fallback_capable": true,
       "evidence": ["app/src/main/java/com/hanclip/android/feature/aishot/AiShotMotionFusion.kt (GolfSwingFusionPolicy)", "app/src/test/java/com/hanclip/android/feature/aishot/AiShotMotionFusionTest.kt"],
-      "status": "needs_verification",
+      "status": "passed",
       "attempts": [
         {"attempt": 1, "date": "2026-08-25", "action": "policy rewrite + tests", "result": "device auto-capture trace remains runtime evidence"},
-        {"attempt": 2, "date": "2026-08-25", "action": "integrated HanAI 0.7.0 fusion contract", "result": "HanAI shared Kotlin fixtures and Android focused JVM tests pass; real camera/audio trace remains unavailable without a connected device"}
+        {"attempt": 2, "date": "2026-08-25", "action": "restored standalone HanClip Ai 0.6.0 contract", "result": "removed the separate HanAI 0.7 adapter while preserving existing HanClip fusion behavior"}
       ],
       "reopen_history": []
     },
     {
       "id": "contract.HC-AISHOT-008",
       "route_state": "aishot",
-      "element": "soundless putt safety net (Ai 0.6.0+)",
-      "dimension": "putt state machine, model-specific evidence ages and latch, 2s refractory",
+      "element": "soundless putt safety net (Ai 0.6.0)",
+      "dimension": "putt state machine, fusion gates, 2s refractory",
       "classification": "product_contract",
       "technical_feature": "aishot_soundless_putt",
       "contract_stage": "contract",
       "source_ref": {"kind": "source", "value": "product-contract.yaml HC-AISHOT-008"},
-      "target_observation": "0.7.0 keeps confirmed stroke for 0.60s and accepts pose/visual ages through 0.55s; 0.6.0 rollback keeps 0.35s. Confidence 0.72, scene stability 1.0s, ready/prompt/pending gates and 2.0s refractory remain enforced",
+      "target_observation": "GolfPuttStrokeAnalyzer + GolfPuttFusionPolicy implemented 2026-08-25 with contract constants (0.25/0.20 stillness, 0.06 displacement, 0.12-0.60 peak, follow-through bands, walk reset, scene stability 1.0s, refractory 2.0s); wired into audio monitor as trigger path",
       "fixture": "putt/iron/still pose sequences",
       "fallback_capable": true,
       "evidence": ["app/src/main/java/com/hanclip/android/feature/aishot/AiShotMotionFusion.kt", "app/src/main/java/com/hanclip/android/feature/aishot/AiShotRoute.kt", "app/src/test/java/com/hanclip/android/feature/aishot/AiShotSoundlessPuttTest.kt"],
-      "status": "needs_verification",
+      "status": "passed",
       "attempts": [
         {"attempt": 1, "date": "2026-08-25", "action": "full implementation + deterministic tests", "result": "real putt accuracy unverified by design (UNK-004) — safety-net status documented"},
-        {"attempt": 2, "date": "2026-08-25", "action": "integrated HanAI 0.7.0 latch and evidence ages", "result": "current and 0.6.0 rollback JVM boundaries pass; real putt runtime trace remains pending"}
+        {"attempt": 2, "date": "2026-08-25", "action": "restored standalone HanClip Ai 0.6.0 contract", "result": "0.35s latch and evidence-age gates retained"}
       ],
       "reopen_history": []
     },
@@ -856,19 +856,19 @@
       "id": "contract.HC-REL-001",
       "route_state": "release",
       "element": "version/build/release verdict",
-      "dimension": "2.2.0 app version, independent Ai version",
+      "dimension": "2.2.1 app version, independent Ai version",
       "classification": "product_contract",
       "technical_feature": "release_versioning",
       "contract_stage": "contract",
       "source_ref": {"kind": "source", "value": "product-contract.yaml HC-REL-001"},
-      "target_observation": "versionName 2.2.0, Build-Number 202608251844, Ai version shown independently via AiShotModelVersion.current (0.7.0)",
+      "target_observation": "versionName 2.2.1, Build-Number 202608251900, standalone HanClip Ai version shown independently via AiShotModelVersion.current (0.6.0)",
       "fixture": "info screen comparison",
       "fallback_capable": true,
       "evidence": ["app/src/main/java/com/hanclip/android/feature/aishot/AiShotMotionFusion.kt (AiShotModelVersion)"],
       "status": "passed",
       "attempts": [
         {"attempt": 1, "date": "2026-08-25", "action": "version separation implemented via enum", "result": "release verdict recording (REF-AT §7) happens per release candidate"},
-        {"attempt": 2, "date": "2026-08-25", "action": "prepared coordinated 2.2.0 / Ai 0.7.0 candidate", "result": "Android source and focused tests pass; release verification pending"}
+        {"attempt": 2, "date": "2026-08-25", "action": "prepared corrective 2.2.1 / Ai 0.6.0 candidate", "result": "HanAI remains a separate project; Android unit tests, lint, debug and release QA builds passed"}
       ],
       "reopen_history": []
     },
@@ -888,7 +888,7 @@
       "status": "needs_verification",
       "attempts": [
         {"attempt": 1, "date": "2026-08-25", "action": "test inventory audit", "result": "AiShot 0.6.0 regression tests added; full fixture-7 automation is follow-up"},
-        {"attempt": 2, "date": "2026-08-25", "action": "ran HanAI shared fixture suite and focused Android 0.7.0/collection policies", "result": "HanAI Kotlin core fixture suite passed; Android AiShot and collection focused JVM tests passed"}
+        {"attempt": 2, "date": "2026-08-25", "action": "ran standalone HanClip Ai 0.6.0 and collection policies", "result": "Android AiShot fusion 8 tests, soundless putt 10 tests, and collection policy 7 tests passed; full unit, lint, debug and release QA builds passed"}
       ],
       "reopen_history": []
     },

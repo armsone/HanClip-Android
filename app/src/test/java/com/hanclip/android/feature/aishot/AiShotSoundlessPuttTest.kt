@@ -10,11 +10,9 @@ import org.junit.Test
 class AiShotSoundlessPuttTest {
     @Test
     fun currentModelSupportsSoundlessPuttFallback() {
-        assertEquals("0.7.0", AiShotModelVersion.current.displayName)
+        assertEquals("0.6.0", AiShotModelVersion.current.displayName)
         assertTrue(AiShotModelVersion.current.supportsSoundlessPuttFallback)
         assertTrue(AiShotModelVersion.current.supportsPoseImpactWindow)
-        assertTrue(AiShotModelVersion.current.requiresVisualShotEvidence)
-        assertTrue(AiShotModelVersion.current.supportsVisualBackedWeakImpact)
         assertFalse(AiShotModelVersion.V0_5_1.supportsSoundlessPuttFallback)
         assertFalse(AiShotModelVersion.V0_5_0.supportsPoseImpactWindow)
     }
@@ -122,20 +120,8 @@ class AiShotSoundlessPuttTest {
         analyzer.observe(sample(1.8, handX = -0.06))
         analyzer.observe(sample(2.0, handX = -0.10))
 
-        assertNotNull(analyzer.latchedConfirmedStroke(2.55))
-        assertNull(analyzer.latchedConfirmedStroke(2.61))
-
-        val rollbackAnalyzer = GolfPuttStrokeAnalyzer(AiShotModelVersion.V0_6_0)
-        stillSamples(rollbackAnalyzer)
-        rollbackAnalyzer.observe(sample(0.8, handX = 0.10))
-        rollbackAnalyzer.observe(sample(1.0, handX = 0.25))
-        rollbackAnalyzer.observe(sample(1.2, handX = 0.30))
-        rollbackAnalyzer.observe(sample(1.4, handX = 0.22))
-        rollbackAnalyzer.observe(sample(1.6, handX = 0.08))
-        rollbackAnalyzer.observe(sample(1.8, handX = -0.06))
-        rollbackAnalyzer.observe(sample(2.0, handX = -0.10))
-        assertNotNull(rollbackAnalyzer.latchedConfirmedStroke(2.3))
-        assertNull(rollbackAnalyzer.latchedConfirmedStroke(2.36))
+        assertNotNull(analyzer.latchedConfirmedStroke(2.3))
+        assertNull(analyzer.latchedConfirmedStroke(2.4))
 
         // 새 확정을 다시 만들고 consume이 latch를 비우는지 확인한다.
         val analyzer2 = GolfPuttStrokeAnalyzer()
@@ -163,12 +149,8 @@ class AiShotSoundlessPuttTest {
         assertTrue(policy(stroke))
         assertFalse(policy(stroke.copy(confidence = 0.71)))
         assertFalse(policy(stroke, poseObservationConfidence = 0.71))
-        assertTrue(policy(stroke, secondsSinceLatestPose = 0.55))
-        assertTrue(policy(stroke, secondsSinceLatestVisualFrame = 0.55))
-        assertFalse(policy(stroke, secondsSinceLatestPose = 0.56))
-        assertFalse(policy(stroke, secondsSinceLatestVisualFrame = 0.56))
-        assertFalse(policy(stroke, secondsSinceLatestPose = 0.36, modelVersion = AiShotModelVersion.V0_6_0))
-        assertFalse(policy(stroke, secondsSinceLatestVisualFrame = 0.36, modelVersion = AiShotModelVersion.V0_6_0))
+        assertFalse(policy(stroke, secondsSinceLatestPose = 0.36))
+        assertFalse(policy(stroke, secondsSinceLatestVisualFrame = 0.36))
         assertFalse(policy(stroke, secondsSinceLastGlobalChange = 0.9))
         assertFalse(policy(stroke, isReady = false))
         assertFalse(policy(stroke, isInsideReadyPromptWindow = true))
@@ -191,7 +173,7 @@ class AiShotSoundlessPuttTest {
         isReady: Boolean = true,
         isInsideReadyPromptWindow: Boolean = false,
         isTriggerPending: Boolean = false,
-        modelVersion: AiShotModelVersion = AiShotModelVersion.V0_7_0
+        modelVersion: AiShotModelVersion = AiShotModelVersion.V0_6_0
     ): Boolean {
         return GolfPuttFusionPolicy.shouldTrigger(
             stroke = stroke,

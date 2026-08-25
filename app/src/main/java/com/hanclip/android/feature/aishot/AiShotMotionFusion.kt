@@ -9,8 +9,7 @@ internal enum class AiShotModelVersion(val displayName: String) {
     V0_4_0("0.4.0"),
     V0_5_0("0.5.0"),
     V0_5_1("0.5.1"),
-    V0_6_0("0.6.0"),
-    V0_7_0("0.7.0");
+    V0_6_0("0.6.0");
 
     val usesFusionPolicy: Boolean
         get() = ordinal >= V0_4_0.ordinal
@@ -21,15 +20,9 @@ internal enum class AiShotModelVersion(val displayName: String) {
     val supportsSoundlessPuttFallback: Boolean
         get() = ordinal >= V0_6_0.ordinal
 
-    val requiresVisualShotEvidence: Boolean
-        get() = this == V0_7_0
-
-    val supportsVisualBackedWeakImpact: Boolean
-        get() = this == V0_7_0
-
     companion object {
         // 롤백은 이 값 교체로 수행한다(iOS AudioImpactClassifier.currentModelVersion 대응).
-        val current: AiShotModelVersion = V0_7_0
+        val current: AiShotModelVersion = V0_6_0
     }
 }
 
@@ -402,22 +395,9 @@ internal class GolfSwingPoseAnalyzer {
 internal data class AiShotImpactEvidence(
     val isTriggered: Boolean,
     val confidence: Double,
-    val rms: Double,
     val peak: Double,
-    val impactScore: Double,
-    val crossingRate: Double
-) {
-    val crestFactor: Double
-        get() = peak / max(0.001, rms)
-
-    fun isVisualBackedWeakImpactCandidate(
-        modelVersion: AiShotModelVersion = AiShotModelVersion.current
-    ): Boolean = modelVersion.supportsVisualBackedWeakImpact &&
-        peak >= 0.10 &&
-        impactScore >= 0.065 &&
-        crossingRate >= 0.08 &&
-        crestFactor >= 3.5
-}
+    val impactScore: Double
+)
 
 internal object GolfSwingFusionPolicy {
     fun shouldTrigger(
@@ -430,11 +410,8 @@ internal object GolfSwingFusionPolicy {
         isInsideReadyPromptWindow: Boolean,
         modelVersion: AiShotModelVersion = AiShotModelVersion.current
     ): Boolean {
-        if (!hasRecentVisualFrame) {
-            return evidence.isTriggered &&
-                !modelVersion.requiresVisualShotEvidence &&
-                !isInsideReadyPromptWindow
-        }
+        if (!evidence.isTriggered) return false
+        if (!hasRecentVisualFrame) return !isInsideReadyPromptWindow
         val motionImpactTime = motion.impactTimeSeconds
         val hasAlignedMotion = motion.isImpactWindow &&
             motion.confidence >= 0.72 &&
@@ -445,10 +422,6 @@ internal object GolfSwingFusionPolicy {
             pose?.isImpactWindow(referenceTimeSeconds) == true
         if (!hasAlignedMotion && !hasAlignedPose) return false
         if (requiresPoseConfirmation && !hasAlignedPose) return false
-        if (!evidence.isTriggered) {
-            return !isInsideReadyPromptWindow &&
-                evidence.isVisualBackedWeakImpactCandidate(modelVersion)
-        }
         if (isInsideReadyPromptWindow) {
             return evidence.peak >= 0.16 && evidence.impactScore >= 0.08
         }
@@ -473,10 +446,7 @@ internal data class GolfPuttStrokeSignal(
         get() = phase == GolfPuttStrokePhase.ConfirmedStroke && strokeTimeSeconds != null
 }
 
-internal class GolfPuttStrokeAnalyzer(
-    modelVersion: AiShotModelVersion = AiShotModelVersion.current
-) {
-    private val confirmationLatchDuration = if (modelVersion == AiShotModelVersion.V0_7_0) 0.60 else 0.35
+internal class GolfPuttStrokeAnalyzer {
     private var phase = GolfPuttStrokePhase.SeekingAddress
     private var quietSince: Double? = null
     private var addressX = 0.0
@@ -516,7 +486,7 @@ internal class GolfPuttStrokeAnalyzer(
 
     fun latchedConfirmedStroke(nowSeconds: Double): GolfPuttStrokeSignal? {
         val signal = confirmedSignal ?: return null
-        if (nowSeconds - lastConfirmTime > confirmationLatchDuration) {
+        if (nowSeconds - lastConfirmTime > 0.35) {
             confirmedSignal = null
             return null
         }
@@ -685,9 +655,8 @@ internal object GolfPuttFusionPolicy {
         if (stroke == null || !stroke.isConfirmedStroke) return false
         if (stroke.confidence < 0.72) return false
         if (poseObservationConfidence < 0.72) return false
-        val maximumAge = if (modelVersion == AiShotModelVersion.V0_7_0) 0.55 else 0.35
-        if (secondsSinceLatestPose > maximumAge) return false
-        if (secondsSinceLatestVisualFrame > maximumAge) return false
+        if (secondsSinceLatestPose > 0.35) return false
+        if (secondsSinceLatestVisualFrame > 0.35) return false
         if (secondsSinceLastGlobalChange < 1.0) return false
         if (!isReady || isInsideReadyPromptWindow) return false
         if (isTriggerPending) return false
