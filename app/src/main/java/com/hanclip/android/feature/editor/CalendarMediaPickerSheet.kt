@@ -34,7 +34,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -114,6 +116,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -146,6 +149,7 @@ fun CalendarMediaPickerSheet(
     title: String = "사진첩 날짜별",
     palette: HanClipPalette,
     initialSelectedUris: List<Uri> = emptyList(),
+    navigationBarPadding: Dp = 0.dp,
     onDismiss: () -> Unit,
     onImport: (selectedUris: List<Uri>, deselectionScopeUris: Set<Uri>) -> Unit
 ) {
@@ -299,11 +303,17 @@ fun CalendarMediaPickerSheet(
         shape = RoundedCornerShape(0.dp),
         color = palette.solidPanel
     ) {
+        // 다이얼로그 창에 내비게이션 바 인셋이 전달되지 않는 기기가 있어
+        // 호스트 화면에서 전달받은 값과 비교해 더 큰 안전 영역을 적용합니다.
+        val bottomSafeAreaPadding = maxOf(
+            WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+            navigationBarPadding
+        )
         Box(
             modifier = Modifier
                 .background(palette.background)
                 .statusBarsPadding()
-                .navigationBarsPadding()
+                .padding(bottom = bottomSafeAreaPadding)
         ) {
             Crossfade(
                 targetState = pickerMode,
@@ -485,7 +495,7 @@ fun CalendarMediaPickerSheet(
                                     today = LocalDate.now()
                                 ) ?: return@launch
                                 visibleMonth = YearMonth.from(target)
-                                selectedDates = setOf(target)
+                                selectedDates = selectedDates + target
                                 selectedUris = emptyList()
                             }
                         },
@@ -547,7 +557,7 @@ fun CalendarMediaPickerSheet(
                                 val targetUris = visibleItems.filter { it.date == target }.map { it.uri }
                                 visibleMonth = targetMonth
                                 pendingRecentScrollDate = target
-                                selectedUris = targetUris
+                                selectedUris = selectedUris + targetUris.filterNot(selectedUris::contains)
                             }
                         },
                         onToday = {

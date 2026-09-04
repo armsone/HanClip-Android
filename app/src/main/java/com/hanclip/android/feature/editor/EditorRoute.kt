@@ -1356,6 +1356,9 @@ fun EditorRoute(
                     isQuickDurationVisible = true
                 }
             }
+            val pickerNavigationBarPadding = WindowInsets.navigationBars
+                .asPaddingValues()
+                .calculateBottomPadding()
             Dialog(
                 onDismissRequest = ::closeCalendarPicker,
                 properties = DialogProperties(
@@ -1366,6 +1369,7 @@ fun EditorRoute(
                 CalendarMediaPickerSheet(
                     title = mediaPickerTitle,
                     palette = palette,
+                    navigationBarPadding = pickerNavigationBarPadding,
                     initialSelectedUris = state.clips
                         .filterNot { it.isVideoSegmentChild }
                         .mapNotNull { clip ->
