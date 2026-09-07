@@ -1778,9 +1778,19 @@ private suspend fun monitorImpactAudio(
                 isTriggered = decision.isTriggered,
                 confidence = decision.confidence,
                 peak = metrics.peak,
-                impactScore = score
+                impactScore = score,
+                crossingRate = metrics.crossingRate,
+                rms = metrics.rms
             )
-            val shouldTrigger = ready && decision.isTriggered &&
+            val canBeWeakVisualBackedImpact =
+                AiShotModelVersion.current.supportsVisualBackedWeakImpact &&
+                    !isInsideReadyPromptWindow &&
+                    evidence.peak >= 0.10 &&
+                    evidence.impactScore >= 0.065 &&
+                    evidence.crossingRate >= 0.08 &&
+                    evidence.peak / max(0.001, evidence.rms) >= 3.5
+            val shouldTrigger = ready &&
+                (decision.isTriggered || canBeWeakVisualBackedImpact) &&
                 visualAnalyzer.awaitFusion(
                     evidence = evidence,
                     candidateTimeSeconds = now / 1000.0,
