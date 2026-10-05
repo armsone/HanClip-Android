@@ -97,14 +97,8 @@
         <activity
             android:name=".feature.photosort.PhotoSortActivity"
             android:label="한양 사진 고르기"
-            android:exported="true"
+            android:exported="false"
             android:resizeableActivity="true">
-            <intent-filter>
-                <action android:name="android.intent.action.SEND" />
-                <action android:name="android.intent.action.SEND_MULTIPLE" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="image/*" />
-            </intent-filter>
         </activity>
 
         <activity

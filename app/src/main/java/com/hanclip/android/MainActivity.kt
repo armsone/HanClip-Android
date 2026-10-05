@@ -10,6 +10,10 @@ import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import com.hanclip.android.feature.photosort.PhotoSortActivity
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.core.view.WindowCompat
 import androidx.core.content.FileProvider
@@ -30,6 +34,9 @@ import java.io.File
 
 class MainActivity : ComponentActivity() {
     private var sharedMediaUris by mutableStateOf<List<Uri>>(emptyList())
+    private var pendingPhotoShareUris by mutableStateOf<List<Uri>>(emptyList())
+    private var photoShareChoice: String? = null
+    private var photoShareConsumed = false
     private var sharedBrowserFavorites by mutableStateOf<List<String>>(emptyList())
     private var sharedBrowserFavoritesImportAttempted by mutableStateOf(false)
     private var quickAction by mutableStateOf<HanClipQuickAction?>(null)
@@ -49,7 +56,10 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightStatusBars = true
             isAppearanceLightNavigationBars = true
         }
-        sharedMediaUris = extractSharedMediaUris()
+        acceptSharedMedia(
+            restoredChoice = savedInstanceState?.getString(PhotoShareChoiceKey),
+            restoredConsumed = savedInstanceState?.getBoolean(PhotoShareConsumedKey) ?: false
+        )
         sharedBrowserFavoritesImportAttempted = hasBrowserFavoritesArchiveIntent()
         sharedBrowserFavorites = extractSharedBrowserFavorites()
         quickAction = intent.extractQuickAction()
@@ -64,6 +74,7 @@ class MainActivity : ComponentActivity() {
                     sharedBrowserFavoritesImportAttempted = sharedBrowserFavoritesImportAttempted,
                     quickAction = quickAction,
                     onSharedMediaHandled = {
+                        if (photoShareChoice == "movie") photoShareConsumed = true
                         sharedMediaUris = emptyList()
                     },
                     onSharedBrowserFavoritesHandled = {
@@ -82,6 +93,19 @@ class MainActivity : ComponentActivity() {
                         appUpdateService.checkForUpdate(isManual = true)
                     }
                 )
+                if (pendingPhotoShareUris.isNotEmpty()) {
+                    AlertDialog(
+                        onDismissRequest = ::cancelPhotoShare,
+                        title = { Text("사진으로 무엇을 할까요?") },
+                        text = { Text("공유한 ${pendingPhotoShareUris.size}장으로 좋은 사진을 고르거나 영화를 만들 수 있습니다.") },
+                        confirmButton = {
+                            TextButton(onClick = ::choosePhotoSort) { Text("사진 고르기") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = ::choosePhotoMovie) { Text("영화 만들기") }
+                        }
+                    )
+                }
                 val updateVersion = when (val update = appUpdateState) {
                     is AppUpdateState.Available -> update.release.versionCode
                     is AppUpdateState.Downloading -> update.release.versionCode
@@ -96,7 +120,7 @@ class MainActivity : ComponentActivity() {
                     is AppUpdateState.Latest, is AppUpdateState.Failed -> true
                     else -> updateVersion != null && ignoredUpdateVersion != updateVersion
                 }
-                if (showUpdateDialog) {
+                if (showUpdateDialog && pendingPhotoShareUris.isEmpty()) {
                     AppUpdateDialog(
                         state = appUpdateState,
                         onDownload = {
@@ -130,11 +154,76 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        sharedMediaUris = extractSharedMediaUris()
+        acceptSharedMedia()
         sharedBrowserFavoritesImportAttempted = hasBrowserFavoritesArchiveIntent()
         sharedBrowserFavorites = extractSharedBrowserFavorites()
         quickAction = intent.extractQuickAction()
             ?: if (intent.isLauncherLaunch()) HanClipQuickAction.Open else null
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString(PhotoShareChoiceKey, photoShareChoice)
+        outState.putBoolean(PhotoShareConsumedKey, photoShareConsumed)
+        super.onSaveInstanceState(outState)
+    }
+
+    private fun acceptSharedMedia(restoredChoice: String? = null, restoredConsumed: Boolean = false) {
+        val uris = extractSharedMediaUris()
+        photoShareChoice = restoredChoice
+        photoShareConsumed = restoredConsumed
+        pendingPhotoShareUris = emptyList()
+        sharedMediaUris = emptyList()
+        val photosOnly = uris.isNotEmpty() && uris.all { uri ->
+            val mime = runCatching { contentResolver.getType(uri) }.getOrNull()
+            if (!mime.isNullOrBlank()) mime.startsWith("image/")
+            else intent.type?.startsWith("image/") == true
+        }
+        if (!photosOnly) {
+            sharedMediaUris = uris
+            return
+        }
+        when (restoredChoice) {
+            "movie" -> if (!restoredConsumed) sharedMediaUris = uris
+            "sort", "cancel" -> Unit
+            else -> pendingPhotoShareUris = uris
+        }
+    }
+
+    private fun choosePhotoMovie() {
+        val photos = pendingPhotoShareUris
+        if (photos.isEmpty()) return
+        photoShareChoice = "movie"
+        photoShareConsumed = false
+        pendingPhotoShareUris = emptyList()
+        // Only this explicit choice enters the existing editor inbox import path.
+        sharedMediaUris = photos
+    }
+
+    private fun choosePhotoSort() {
+        if (pendingPhotoShareUris.isEmpty()) return
+        val photoIntent = Intent(intent).apply {
+            setClass(this@MainActivity, PhotoSortActivity::class.java)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            // Preserve URI grants while discarding external task/navigation flags.
+            flags = flags and (Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
+                Intent.FLAG_GRANT_PREFIX_URI_PERMISSION)
+        }
+        runCatching { startActivity(photoIntent) }
+            .onSuccess {
+                photoShareChoice = "sort"
+                photoShareConsumed = true
+                pendingPhotoShareUris = emptyList()
+                sharedMediaUris = emptyList()
+            }
+            .onFailure { showToast("사진 고르기 화면을 열지 못했습니다. 다시 선택해 주세요.") }
+    }
+
+    private fun cancelPhotoShare() {
+        photoShareChoice = "cancel"
+        photoShareConsumed = true
+        pendingPhotoShareUris = emptyList()
+        sharedMediaUris = emptyList()
     }
 
     private fun clearHandledQuickAction() {
@@ -218,6 +307,8 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val ApkMimeType = "application/vnd.android.package-archive"
+        const val PhotoShareChoiceKey = "photo_share_choice"
+        const val PhotoShareConsumedKey = "photo_share_consumed"
     }
 }
 
