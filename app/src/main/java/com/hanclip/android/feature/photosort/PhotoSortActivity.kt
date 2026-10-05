@@ -14,6 +14,24 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.viewModels
+import android.graphics.Bitmap
+import android.graphics.ImageDecoder
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlin.math.max
+import kotlin.math.min
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -96,6 +114,7 @@ private fun SortScreen(model: PhotoSortModel, denied: Boolean, onPermission: () 
     var newName by remember { mutableStateOf("") }
     var nameError by remember { mutableStateOf<String?>(null) }
     var confirmMove by remember { mutableStateOf(false) }
+    var previewURI by remember { mutableStateOf<Uri?>(null) }
     val selectableAlbums = model.albums.filter { album -> model.selected.all { it.volume == album.volume } }
     Column(Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -121,7 +140,8 @@ private fun SortScreen(model: PhotoSortModel, denied: Boolean, onPermission: () 
                 items(model.selected, key = { it.uri.toString() }) { photo ->
                     Column {
                         Image(photo.thumbnail.asImageBitmap(), contentDescription = photo.name,
-                            modifier = Modifier.fillMaxWidth().aspectRatio(1f), contentScale = ContentScale.Crop)
+                            modifier = Modifier.fillMaxWidth().aspectRatio(1f).clickable { previewURI = photo.uri },
+                            contentScale = ContentScale.Fit)
                         Text(if (photo.uri.toString() in model.completed) "이동 완료" else photo.name,
                             maxLines = 1, style = MaterialTheme.typography.labelSmall)
                     }
@@ -137,6 +157,13 @@ private fun SortScreen(model: PhotoSortModel, denied: Boolean, onPermission: () 
                 Text(if (model.completed.isEmpty()) "앨범으로 이동" else "남은 사진 다시 이동")
             }
         } else Spacer(Modifier.weight(1f))
+    }
+    previewURI?.let { uri ->
+        val selected = model.selected
+        val index = selected.indexOfFirst { it.uri == uri }
+        if (index >= 0) PhotoSortLargePreview(selected, index,
+            onPage = { previewURI = selected[it].uri }, onClose = { previewURI = null })
+        else previewURI = null
     }
     if (showAlbums) AlertDialog(onDismissRequest = { showAlbums = false }, title = { Text("앨범 선택") }, text = {
         Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
@@ -165,4 +192,72 @@ private fun SortScreen(model: PhotoSortModel, denied: Boolean, onPermission: () 
         text = { Text("${model.count - model.completed.size}장 원본을 선택한 앨범으로 이동합니다. 기존 앨범에서는 빠지며, 복사본을 만들지 않습니다.") },
         confirmButton = { TextButton(onClick = { confirmMove = false; onMove() }) { Text("앨범으로 이동") } },
         dismissButton = { TextButton(onClick = { confirmMove = false }) { Text("취소") } })
+}
+
+
+@Composable
+private fun PhotoSortLargePreview(photos: List<SortPhoto>, index: Int,
+    onPage: (Int) -> Unit, onClose: () -> Unit) {
+    val photo = photos[index]
+    val context = LocalContext.current
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text("${index + 1}/${photos.size} · ${photo.name}", Modifier.weight(1f).padding(start = 16.dp), maxLines = 1)
+                    TextButton(onClick = onClose) { Text("닫기") }
+                }
+                key(photo.uri) {
+                    var loadError by remember { mutableStateOf(false) }
+                    val large by produceState<Bitmap?>(null, photo.uri) {
+                        var decoded: Bitmap? = null
+                        try {
+                            withContext(Dispatchers.IO) {
+                                decoded = ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, photo.uri)) { decoder, info, _ ->
+                                    val ratio = min(1.0, 2048.0 / max(info.size.width, info.size.height))
+                                    decoder.setTargetSize(max(1, (info.size.width * ratio).toInt()), max(1, (info.size.height * ratio).toInt()))
+                                    decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                                }
+                            }
+                            value = decoded
+                            awaitDispose { decoded?.recycle() }
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            decoded?.recycle()
+                            throw e
+                        } catch (_: Exception) {
+                            decoded?.recycle()
+                            loadError = true
+                        }
+                    }
+                    var scale by remember { mutableStateOf(1f) }
+                    var offset by remember { mutableStateOf(Offset.Zero) }
+                    var viewport by remember { mutableStateOf(IntSize.Zero) }
+                    val image = large ?: photo.thumbnail
+                    val transform = rememberTransformableState { zoom, pan, _ ->
+                        scale = (scale * zoom).coerceIn(1f, 6f)
+                        val fit = min(viewport.width.toFloat() / image.width, viewport.height.toFloat() / image.height)
+                        val xLimit = max(0f, (image.width * fit * scale - viewport.width) / 2)
+                        val yLimit = max(0f, (image.height * fit * scale - viewport.height) / 2)
+                        offset = Offset((offset.x + pan.x).coerceIn(-xLimit, xLimit), (offset.y + pan.y).coerceIn(-yLimit, yLimit))
+                    }
+                    Box(Modifier.weight(1f).fillMaxWidth().clipToBounds().onSizeChanged { viewport = it }
+                        .transformable(transform), contentAlignment = Alignment.Center) {
+                        Image(image.asImageBitmap(), photo.name, Modifier.fillMaxSize().graphicsLayer {
+                            scaleX = scale; scaleY = scale; translationX = offset.x; translationY = offset.y
+                        }, contentScale = ContentScale.Fit)
+                        if (large == null && !loadError) CircularProgressIndicator()
+                    }
+                    if (loadError) Text("큰 사진을 읽지 못해 작은 미리보기를 표시합니다.", Modifier.padding(horizontal = 16.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        TextButton(onClick = { onPage(index - 1) }, enabled = index > 0) { Text("이전") }
+                        TextButton(onClick = { scale = 1f; offset = Offset.Zero }) { Text("전체 보기") }
+                        TextButton(onClick = { onPage(index + 1) }, enabled = index < photos.lastIndex) { Text("다음") }
+                    }
+                    Text("두 손가락으로 확대하고 움직여 보세요.", Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
 }
