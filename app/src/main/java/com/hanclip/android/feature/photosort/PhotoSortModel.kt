@@ -65,9 +65,12 @@ class PhotoSortModel(application: Application) : AndroidViewModel(application) {
         job = viewModelScope.launch {
             try {
                 require(Build.VERSION.SDK_INT >= 30) { "원본 앨범 이동은 Android 11 이상에서 지원합니다." }
-                require(input.isNotEmpty() && input.size <= 200) { "사진을 1~200장 선택해 공유해 주세요." }
                 val result = withContext(Dispatchers.IO) {
-                    val canonical = input.map { original(it) }.distinct()
+                    // Exclude known video items before validating photo originals; keep the movie share untouched.
+                    val photoInput = input.distinct().filterNot { isVideo(it) }
+                    require(photoInput.isNotEmpty()) { "추천할 사진이 없습니다. 사진을 선택해 공유해 주세요." }
+                    require(photoInput.size <= 200) { "사진을 1~200장 선택해 공유해 주세요." }
+                    val canonical = photoInput.map { original(it) }.distinct()
                     canonical.mapIndexed { index, uri ->
                         ensureActive()
                         withContext(Dispatchers.Main) { status = "사진 분석 ${index + 1}/${canonical.size}" }
@@ -84,6 +87,12 @@ class PhotoSortModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) { photos = emptyList(); status = e.message ?: "사진을 읽지 못했습니다. 다시 공유해 주세요." }
             finally { busy = false }
         }
+    }
+
+    private fun isVideo(uri: Uri): Boolean {
+        val mime = runCatching { resolver.getType(uri) }.getOrNull()
+        if (mime?.startsWith("video/") == true) return true
+        return uri.authority == MediaStore.AUTHORITY && uri.pathSegments.getOrNull(1) == "video"
     }
 
     private fun recommendation(candidates: List<SortPhoto>): Int {

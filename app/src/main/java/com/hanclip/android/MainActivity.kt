@@ -97,7 +97,7 @@ class MainActivity : ComponentActivity() {
                     AlertDialog(
                         onDismissRequest = ::cancelPhotoShare,
                         title = { Text("사진으로 무엇을 할까요?") },
-                        text = { Text("공유한 ${pendingPhotoShareUris.size}장으로 좋은 사진을 고르거나 영화를 만들 수 있습니다.") },
+                        text = { Text("공유한 항목으로 좋은 사진을 고르거나 영화를 만들 수 있습니다.") },
                         confirmButton = {
                             TextButton(onClick = ::choosePhotoSort) { Text("사진 고르기") }
                         },
@@ -173,12 +173,12 @@ class MainActivity : ComponentActivity() {
         photoShareConsumed = restoredConsumed
         pendingPhotoShareUris = emptyList()
         sharedMediaUris = emptyList()
-        val photosOnly = uris.isNotEmpty() && uris.all { uri ->
+        val hasPhotos = uris.any { uri ->
             val mime = runCatching { contentResolver.getType(uri) }.getOrNull()
             if (!mime.isNullOrBlank()) mime.startsWith("image/")
             else intent.type?.startsWith("image/") == true
         }
-        if (!photosOnly) {
+        if (!hasPhotos) {
             sharedMediaUris = uris
             return
         }
