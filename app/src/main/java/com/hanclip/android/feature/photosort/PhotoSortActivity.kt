@@ -116,47 +116,58 @@ private fun SortScreen(model: PhotoSortModel, denied: Boolean, ready: Boolean, o
     var confirmMove by remember { mutableStateOf(false) }
     var previewURI by remember { mutableStateOf<Uri?>(null) }
     val selectableAlbums = model.albums.filter { album -> model.selected.all { it.volume == album.volume } }
-    Column(Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("한양 사진 고르기", style = MaterialTheme.typography.titleLarge)
-            TextButton(onClick = onClose, enabled = !model.moving) { Text("닫기") }
-        }
-        Text("선명도·밝기·해상도를 기준으로 좋은 사진을 고릅니다.")
-        Text(model.status, style = MaterialTheme.typography.bodyMedium)
-        if (denied) {
-            Text("대상 앨범의 파일명 충돌을 확인하려면 사진 전체 접근이 필요합니다. 선택한 사진만 허용한 경우 원본 이동을 진행하지 않습니다.")
-            Button(onClick = onPermission) { Text("사진 접근 허용") }
-        }
-        if (model.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        if (model.photos.isEmpty() && ready && !model.busy) {
-            Button(onClick = onRecommend, modifier = Modifier.fillMaxWidth()) { Text("한양에게 추천받기") }
+    // The controls and results share one scroll container, including on short windows and large fonts.
+    LazyColumn(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("한양 사진 고르기", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+                    TextButton(onClick = onClose, enabled = !model.moving) { Text("닫기") }
+                }
+                Text("선명도·밝기·해상도를 기준으로 좋은 사진을 고릅니다.")
+                Text(model.status, style = MaterialTheme.typography.bodyMedium)
+                if (denied) {
+                    Text("대상 앨범의 파일명 충돌을 확인하려면 사진 전체 접근이 필요합니다. 선택한 사진만 허용한 경우 원본 이동을 진행하지 않습니다.")
+                    Button(onClick = onPermission) { Text("사진 접근 허용") }
+                }
+                if (model.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                if (model.photos.isEmpty() && ready && !model.busy) {
+                    Button(onClick = onRecommend, modifier = Modifier.fillMaxWidth()) { Text("한양에게 추천받기") }
+                }
+                if (model.photos.isNotEmpty()) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(enabled = model.canChange && model.count > 1, onClick = { model.count-- }) { Text("−") }
+                        Text("${model.photos.size}장 중 ${model.count}장", Modifier.weight(1f))
+                        TextButton(enabled = model.canChange && model.count < model.photos.size, onClick = { model.count++ }) { Text("＋") }
+                    }
+                    Text("한양 추천 ${model.recommendedCount}장 · 현재 선택 ${model.count}장", style = MaterialTheme.typography.titleMedium)
+                }
+            }
         }
         if (model.photos.isNotEmpty()) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(enabled = model.canChange && model.count > 1, onClick = { model.count-- }) { Text("−") }
-                Text("${model.photos.size}장 중 ${model.count}장", Modifier.padding(top = 12.dp))
-                TextButton(enabled = model.canChange && model.count < model.photos.size, onClick = { model.count++ }) { Text("＋") }
+            items(model.selected, key = { it.uri.toString() }) { photo ->
+                Column(Modifier.fillMaxWidth()) {
+                    PhotoSortResultImage(photo, onClick = { previewURI = photo.uri })
+                    Text(if (photo.uri.toString() in model.completed) "이동 완료" else photo.name,
+                        maxLines = 1, style = MaterialTheme.typography.labelSmall)
+                }
             }
-            Text("한양 추천 ${model.recommendedCount}장 · 현재 선택 ${model.count}장", style = MaterialTheme.typography.titleMedium)
-            LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(model.selected, key = { it.uri.toString() }) { photo ->
-                    Column {
-                        PhotoSortResultImage(photo, onClick = { previewURI = photo.uri })
-                        Text(if (photo.uri.toString() in model.completed) "이동 완료" else photo.name,
-                            maxLines = 1, style = MaterialTheme.typography.labelSmall)
+            item {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedButton(onClick = { showAlbums = true }, enabled = model.canChange, modifier = Modifier.fillMaxWidth()) {
+                        Text(model.destination?.label ?: "넣을 앨범 선택")
+                    }
+                    Text("원본 사진이 기존 앨범에서 선택한 앨범으로 이동됩니다. 복사본은 만들지 않습니다.",
+                        style = MaterialTheme.typography.bodySmall)
+                    Button(onClick = { confirmMove = true }, enabled = !model.busy && model.destination != null &&
+                        model.selected.any { it.uri.toString() !in model.completed }, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (model.completed.isEmpty()) "앨범으로 이동" else "남은 사진 다시 이동")
                     }
                 }
             }
-            OutlinedButton(onClick = { showAlbums = true }, enabled = model.canChange, modifier = Modifier.fillMaxWidth()) {
-                Text(model.destination?.label ?: "넣을 앨범 선택")
-            }
-            Text("원본 사진이 기존 앨범에서 선택한 앨범으로 이동됩니다. 복사본은 만들지 않습니다.",
-                style = MaterialTheme.typography.bodySmall)
-            Button(onClick = { confirmMove = true }, enabled = !model.busy && model.destination != null &&
-                model.selected.any { it.uri.toString() !in model.completed }, modifier = Modifier.fillMaxWidth()) {
-                Text(if (model.completed.isEmpty()) "앨범으로 이동" else "남은 사진 다시 이동")
-            }
-        } else Spacer(Modifier.weight(1f))
+        }
     }
     previewURI?.let { uri ->
         val selected = model.selected

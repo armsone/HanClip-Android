@@ -89,7 +89,8 @@ class PhotoSortModel(application: Application) : AndroidViewModel(application) {
     private fun recommendation(candidates: List<SortPhoto>): Int {
         val best = candidates.maxOfOrNull { it.score } ?: return 0
         val tolerance = max(abs(best) * 0.1, 0.01)
-        return candidates.count { it.score >= best - tolerance }.coerceAtLeast(1)
+        val qualifiedCount = candidates.count { it.score >= best - tolerance }
+        return max(1, qualifiedCount / 2)
     }
 
     private fun original(shared: Uri): Uri {
