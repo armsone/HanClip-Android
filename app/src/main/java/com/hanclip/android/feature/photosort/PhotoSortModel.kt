@@ -38,9 +38,10 @@ class PhotoSortModel(application: Application) : AndroidViewModel(application) {
     private val resolver = application.contentResolver
     var photos by mutableStateOf<List<SortPhoto>>(emptyList()); private set
     var albums by mutableStateOf<List<PhotoAlbum>>(emptyList()); private set
+    var recommendedCount by mutableStateOf(0); private set
     var count by mutableStateOf(1)
     var destination by mutableStateOf<PhotoAlbum?>(null)
-    var status by mutableStateOf("사진 접근 권한을 확인해 주세요."); private set
+    var status by mutableStateOf("한양에게 추천을 요청하면 사진을 분석해 좋은 사진의 장수를 제안합니다."); private set
     var busy by mutableStateOf(false); private set
     var moving by mutableStateOf(false); private set
     var completed by mutableStateOf<Set<String>>(emptySet()); private set
@@ -74,14 +75,21 @@ class PhotoSortModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 photos = result
-                count = min(5, result.size)
+                recommendedCount = recommendation(result)
+                count = recommendedCount
                 albums = withContext(Dispatchers.IO) { readAlbums(result.map { it.volume }.toSet()) }
                 restore()
                 status = if (frozen) "이전 이동 결과를 복원했습니다. 완료 사진은 재시도에서 제외합니다."
-                    else "${photos.size}장 중 좋은 사진을 고릅니다."
+                    else "한양이 ${photos.size}장 중 ${recommendedCount}장을 추천합니다."
             } catch (e: Exception) { photos = emptyList(); status = e.message ?: "사진을 읽지 못했습니다. 다시 공유해 주세요." }
             finally { busy = false }
         }
+    }
+
+    private fun recommendation(candidates: List<SortPhoto>): Int {
+        val best = candidates.maxOfOrNull { it.score } ?: return 0
+        val tolerance = max(abs(best) * 0.1, 0.01)
+        return candidates.count { it.score >= best - tolerance }.coerceAtLeast(1)
     }
 
     private fun original(shared: Uri): Uri {

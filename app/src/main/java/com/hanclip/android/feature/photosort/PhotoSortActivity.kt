@@ -34,9 +34,8 @@ import kotlin.math.max
 import kotlin.math.min
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -53,9 +52,10 @@ import java.util.UUID
 class PhotoSortActivity : ComponentActivity() {
     private val model: PhotoSortModel by viewModels()
     private var permissionDenied by mutableStateOf(false)
+    private var readyToRecommend by mutableStateOf(false)
     private val permission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         permissionDenied = !granted
-        if (granted) loadShared()
+        readyToRecommend = granted
     }
     private val writeConsent = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         model.consentResult(result.resultCode == Activity.RESULT_OK)
@@ -73,7 +73,7 @@ class PhotoSortActivity : ComponentActivity() {
             HanClipTheme {
                 BackHandler(enabled = model.moving) { /* Wait for confirmed individual move results. */ }
                 Surface(Modifier.fillMaxSize()) {
-                    SortScreen(model, permissionDenied, onPermission = { permission.launch(readPermission) },
+                    SortScreen(model, permissionDenied, readyToRecommend, onRecommend = ::loadShared, onPermission = { permission.launch(readPermission) },
                         onClose = { if (!model.moving) { model.cancelAnalysis(); finish() } }, onMove = {
                             model.requestMove { uris ->
                                 try {
@@ -86,7 +86,7 @@ class PhotoSortActivity : ComponentActivity() {
             }
         }
         if (Build.VERSION.SDK_INT < 30) loadShared()
-        else if (ContextCompat.checkSelfPermission(this, readPermission) == PackageManager.PERMISSION_GRANTED) loadShared()
+        else if (ContextCompat.checkSelfPermission(this, readPermission) == PackageManager.PERMISSION_GRANTED) readyToRecommend = true
         else permission.launch(readPermission)
     }
     override fun onSaveInstanceState(outState: Bundle) {
@@ -107,7 +107,7 @@ class PhotoSortActivity : ComponentActivity() {
 }
 
 @Composable
-private fun SortScreen(model: PhotoSortModel, denied: Boolean, onPermission: () -> Unit,
+private fun SortScreen(model: PhotoSortModel, denied: Boolean, ready: Boolean, onRecommend: () -> Unit, onPermission: () -> Unit,
     onClose: () -> Unit, onMove: () -> Unit) {
     var showAlbums by remember { mutableStateOf(false) }
     var showNew by remember { mutableStateOf(false) }
@@ -128,20 +128,20 @@ private fun SortScreen(model: PhotoSortModel, denied: Boolean, onPermission: () 
             Button(onClick = onPermission) { Text("사진 접근 허용") }
         }
         if (model.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+        if (model.photos.isEmpty() && ready && !model.busy) {
+            Button(onClick = onRecommend, modifier = Modifier.fillMaxWidth()) { Text("한양에게 추천받기") }
+        }
         if (model.photos.isNotEmpty()) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(enabled = model.canChange && model.count > 1, onClick = { model.count-- }) { Text("−") }
                 Text("${model.photos.size}장 중 ${model.count}장", Modifier.padding(top = 12.dp))
                 TextButton(enabled = model.canChange && model.count < model.photos.size, onClick = { model.count++ }) { Text("＋") }
             }
-            Text("선별 결과", style = MaterialTheme.typography.titleMedium)
-            LazyVerticalGrid(columns = GridCells.Adaptive(100.dp), modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("한양 추천 ${model.recommendedCount}장 · 현재 선택 ${model.count}장", style = MaterialTheme.typography.titleMedium)
+            LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(model.selected, key = { it.uri.toString() }) { photo ->
                     Column {
-                        Image(photo.thumbnail.asImageBitmap(), contentDescription = photo.name,
-                            modifier = Modifier.fillMaxWidth().aspectRatio(1f).clickable { previewURI = photo.uri },
-                            contentScale = ContentScale.Fit)
+                        PhotoSortResultImage(photo, onClick = { previewURI = photo.uri })
                         Text(if (photo.uri.toString() in model.completed) "이동 완료" else photo.name,
                             maxLines = 1, style = MaterialTheme.typography.labelSmall)
                     }
@@ -260,4 +260,31 @@ private fun PhotoSortLargePreview(photos: List<SortPhoto>, index: Int,
             }
         }
     }
+}
+
+
+/** Only visible result rows decode a larger image; off-screen rows release their bitmap. */
+@Composable
+private fun PhotoSortResultImage(photo: SortPhoto, onClick: () -> Unit) {
+    val context = LocalContext.current
+    val image by produceState<Bitmap?>(null, photo.uri) {
+        var decoded: Bitmap? = null
+        try {
+            withContext(Dispatchers.IO) {
+                decoded = ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, photo.uri)) { decoder, info, _ ->
+                    val ratio = min(1.0, 768.0 / max(info.size.width, info.size.height))
+                    decoder.setTargetSize(max(1, (info.size.width * ratio).toInt()), max(1, (info.size.height * ratio).toInt()))
+                    decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                }
+            }
+            value = decoded
+            awaitDispose { decoded?.recycle() }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            decoded?.recycle()
+            throw e
+        } catch (_: Exception) { decoded?.recycle() }
+    }
+    Image((image ?: photo.thumbnail).asImageBitmap(), contentDescription = photo.name,
+        modifier = Modifier.fillMaxWidth().aspectRatio(photo.thumbnail.width.toFloat() / photo.thumbnail.height)
+            .clickable(onClick = onClick), contentScale = ContentScale.Fit)
 }
