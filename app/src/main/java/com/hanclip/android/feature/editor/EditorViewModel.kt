@@ -1894,6 +1894,90 @@ class EditorViewModel : ViewModel() {
         }
     }
 
+    /** Applies the temporary Quick preview edit only when the user finishes it. */
+    fun applyQuickResultEdit(orderedRenderableClipIds: List<String>) {
+        val requestedIds = orderedRenderableClipIds.distinct()
+        _uiState.update { state ->
+            val currentRenderableIds = state.renderableClips.mapTo(mutableSetOf(), ClipItem::id)
+            val includedIds = requestedIds.filterTo(mutableSetOf()) { it in currentRenderableIds }
+            if (includedIds.isEmpty()) {
+                return@update state.copy(alertMessage = "완성본에는 사진이나 클립을 한 장 이상 남겨야 합니다.")
+            }
+
+            // A video parent is metadata, not a rendered scene. Keep it while one of its
+            // selected child scenes remains, and mark the other child scenes excluded.
+            val keptRootIds = state.clips
+                .filterNot(ClipItem::isVideoSegmentChild)
+                .filter { root ->
+                    root.id in includedIds || state.clips.any { child ->
+                        child.videoSegmentParentId == root.id && child.id in includedIds
+                    }
+                }
+                .mapTo(mutableSetOf(), ClipItem::id)
+            val retained = state.clips.mapNotNull { clip ->
+                when {
+                    clip.isVideoSegmentChild && clip.videoSegmentParentId !in keptRootIds -> null
+                    clip.isVideoSegmentChild -> clip.copy(isVideoSegmentSelected = clip.id in includedIds)
+                    clip.id in keptRootIds -> clip
+                    clip.isHiddenSimilarPhotoGroupMember -> clip
+                    else -> null
+                }
+            }
+
+            val excludedRepresentatives = state.clips.filter { clip ->
+                clip.isSimilarPhotoGroupRepresentative &&
+                    clip.id in currentRenderableIds &&
+                    clip.id !in includedIds
+            }
+
+            // Excluding a similar-group parent removes the whole linked group, matching
+            // removeClip. Excluding any other rendered member only rebalances the group.
+            val removedGroupIds = excludedRepresentatives
+                .filter(ClipItem::isSimilarPhotoGroupParent)
+                .mapNotNullTo(mutableSetOf(), ClipItem::similarPhotoGroupId)
+            val rebalanceGroupIds = excludedRepresentatives
+                .filterNot(ClipItem::isSimilarPhotoGroupParent)
+                .mapNotNullTo(mutableSetOf(), ClipItem::similarPhotoGroupId)
+                .minus(removedGroupIds)
+
+            var rebalancedClips = retained.filterNot { it.similarPhotoGroupId in removedGroupIds }
+            rebalanceGroupIds.forEach { groupId ->
+                rebalancedClips = rebalanceSimilarPhotoGroup(rebalancedClips, groupId)
+            }
+
+            // Move whole linked groups together, while honoring the order selected in preview.
+            fun groupKey(clip: ClipItem): String = when {
+                clip.isVideoSegmentChild -> "video:${clip.videoSegmentParentId}"
+                clip.isVideoSegmentParent -> "video:${clip.id}"
+                clip.similarPhotoGroupId != null -> "similar:${clip.similarPhotoGroupId}"
+                else -> "clip:${clip.id}"
+            }
+            val desiredPosition = requestedIds.withIndex().associate { it.value to it.index }
+            val groups = rebalancedClips.groupBy(::groupKey)
+            val ordered = groups.entries
+                .sortedBy { (_, clips) ->
+                    clips.mapNotNull { desiredPosition[it.id] }.minOrNull() ?: Int.MAX_VALUE
+                }
+                .flatMap { (_, clips) -> clips }
+
+            lastUndoSnapshot = EditorUndoSnapshot(
+                state = state,
+                restoredMessage = "사진 편집을 되돌렸습니다."
+            )
+
+            state.copy(
+                clips = ordered,
+                importedMediaCount = ordered.count(ClipItem::isRenderableClip),
+                expandedSimilarPhotoGroupIds = state.expandedSimilarPhotoGroupIds
+                    .filter { groupId -> ordered.any { it.similarPhotoGroupId == groupId } }
+                    .toSet(),
+                exportedVideoUri = null,
+                alertMessage = "퀵모드 시사회 편집을 적용했습니다. 새 순서로 완성본을 다시 만듭니다.",
+                undoDeleteMessage = "방금 변경한 사진 편집을 되돌릴 수 있습니다."
+            )
+        }
+    }
+
     private fun moveClipGroup(
         clips: List<ClipItem>,
         index: Int,

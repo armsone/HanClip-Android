@@ -19,7 +19,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
@@ -42,16 +45,25 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Fullscreen
 import androidx.compose.material.icons.outlined.FullscreenExit
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.IosShare
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Photo
 import androidx.compose.material.icons.outlined.PauseCircle
 import androidx.compose.material.icons.outlined.PlayCircle
@@ -79,6 +91,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.getValue
@@ -93,6 +106,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -105,9 +121,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.viewinterop.AndroidView
 import com.hanclip.android.core.media.VideoSaveShare
+import com.hanclip.android.core.media.MediaImportReader
 import com.hanclip.android.core.model.OutputAspectRatio
 import com.hanclip.android.core.model.OutputQualityPreset
 import com.hanclip.android.core.model.WatermarkSettings
+import com.hanclip.android.core.model.ClipItem
+import com.hanclip.android.core.model.ClipMediaKind
+import com.hanclip.android.core.model.MoviePreset
 import com.hanclip.android.core.project.ExportedMovieSummary
 import com.hanclip.android.core.project.hanClipCompletionTitle
 import kotlin.math.abs
@@ -174,9 +194,11 @@ data class PreviewMovieSummary(
 fun PreviewRoute(
     exportedVideoUri: Uri?,
     movieSummary: PreviewMovieSummary,
+    quickResultClips: List<ClipItem> = emptyList(),
     canReturnToEditor: Boolean = true,
     collectionPlaybackOnly: Boolean = false,
     onEdit: () -> Unit,
+    onQuickResultEdited: (List<String>) -> Unit = {},
     onDone: () -> Unit,
     onSavingStateChanged: (Boolean) -> Unit = {},
     onSavedMovie: (Uri) -> Unit
@@ -193,6 +215,7 @@ fun PreviewRoute(
     var pendingMovieFileName by remember { mutableStateOf(VideoSaveShare.newMovieFileName(movieSummary.presetTitle)) }
     var albumName by remember { mutableStateOf("HanClip") }
     var preferredShareUri by remember(exportedVideoUri) { mutableStateOf(exportedVideoUri) }
+    var showQuickResultEdit by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(isSavingVideo) {
@@ -392,7 +415,9 @@ fun PreviewRoute(
         PreviewActionRow(
             palette = palette,
             canReturnToEditor = canReturnToEditor,
+            canEditQuickResult = quickResultClips.isNotEmpty(),
             onEdit = onEdit,
+            onEditQuickResult = { showQuickResultEdit = true },
             onShare = {
                 val shareUri = preferredShareUri ?: exportedVideoUri
                 if (shareUri == null) {
@@ -462,6 +487,17 @@ fun PreviewRoute(
             onClose = {
                 showFullscreenPreview = false
                 inlinePreviewPlayer?.play()
+            }
+        )
+    }
+    if (showQuickResultEdit) {
+        QuickResultEditDialog(
+            clips = quickResultClips,
+            palette = palette,
+            onCancel = { showQuickResultEdit = false },
+            onDone = { orderedIds ->
+                showQuickResultEdit = false
+                onQuickResultEdited(orderedIds)
             }
         )
     }
@@ -728,10 +764,211 @@ private fun formatPreviewDuration(seconds: Double): String {
 }
 
 @Composable
+private fun QuickResultEditDialog(
+    clips: List<ClipItem>,
+    palette: HanClipPalette,
+    onCancel: () -> Unit,
+    onDone: (List<String>) -> Unit
+) {
+    var draft by remember(clips) { mutableStateOf(clips) }
+    var selectedIds by remember(clips) { mutableStateOf(emptySet<String>()) }
+    var draggedId by remember { mutableStateOf<String?>(null) }
+    var dragTranslation by remember { mutableStateOf(Offset.Zero) }
+    val dragScope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
+
+    Dialog(
+        onDismissRequest = onCancel,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxSize(),
+            shape = RoundedCornerShape(0.dp),
+            color = palette.solidPanel,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    // Full-screen Dialog can report a zero navigation inset on some Android devices.
+                    // Reserve the gesture area explicitly so the persistent actions never sit below it.
+                    .padding(start = 18.dp, top = 12.dp, end = 18.dp, bottom = 92.dp)
+                    ,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(onClick = onCancel, modifier = Modifier.height(48.dp)) { Text("취소", fontWeight = FontWeight.Bold) }
+                    Text("퀵모드 결과", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = palette.text)
+                    Button(onClick = { onDone(draft.map(ClipItem::id)) }, modifier = Modifier.height(48.dp)) { Text("완료", fontWeight = FontWeight.Bold) }
+                }
+                Text("결과 편집", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = palette.text)
+                Text(
+                    "사진을 선택해 제외하거나, 사진을 길게 눌러 끌어 순서를 바꾸세요.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = palette.subText
+                )
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    state = listState,
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    itemsIndexed(draft, key = { _, clip -> clip.id }) { index, clip ->
+                        val selected = clip.id in selectedIds
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(92.dp)
+                                .graphicsLayer {
+                                    if (draggedId == clip.id) {
+                                        translationY = dragTranslation.y
+                                        alpha = 0.92f
+                                        shadowElevation = 18f
+                                    }
+                                }
+                                .pointerInput(clip.id) {
+                                    detectDragGesturesAfterLongPress(
+                                        onDragStart = { point ->
+                                            draggedId = clip.id
+                                            dragTranslation = Offset.Zero
+                                            val item = listState.layoutInfo.visibleItemsInfo
+                                                .firstOrNull { it.key == clip.id }
+                                        },
+                                        onDragEnd = {
+                                            draggedId = null
+                                            dragTranslation = Offset.Zero
+                                        },
+                                        onDragCancel = {
+                                            draggedId = null
+                                            dragTranslation = Offset.Zero
+                                        },
+                                        onDrag = { _, amount ->
+                                            dragTranslation += amount
+                                            val layout = listState.layoutInfo
+                                            val dragged = layout.visibleItemsInfo.firstOrNull { it.key == clip.id }
+                                                ?: return@detectDragGesturesAfterLongPress
+                                            val draggedCenter = dragged.offset + dragged.size / 2f + dragTranslation.y
+                                            val edge = 96f
+                                            when {
+                                                draggedCenter < layout.viewportStartOffset + edge ->
+                                                    dragScope.launch { listState.scrollBy(-28f) }
+                                                draggedCenter > layout.viewportEndOffset - edge ->
+                                                    dragScope.launch { listState.scrollBy(28f) }
+                                            }
+                                            val target = layout.visibleItemsInfo.minByOrNull { item ->
+                                                kotlin.math.abs(item.offset + item.size / 2f - draggedCenter)
+                                            } ?: return@detectDragGesturesAfterLongPress
+                                            val from = draft.indexOfFirst { it.id == clip.id }
+                                            if (from >= 0 && target.index != from && target.index in draft.indices) {
+                                                // Reordering changes the item's layout offset. Compensate by that
+                                                // distance so the dragged thumbnail remains under the finger and
+                                                // the same long-press can cross any number of rows.
+                                                val layoutDisplacement = target.offset - dragged.offset
+                                                dragTranslation = dragTranslation.copy(
+                                                    y = dragTranslation.y - layoutDisplacement
+                                                )
+                                                draft = draft.toMutableList().also { list ->
+                                                    list.add(target.index, list.removeAt(from))
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
+                                .clickable {
+                                    selectedIds = if (clip.id in selectedIds) {
+                                        selectedIds - clip.id
+                                    } else {
+                                        selectedIds + clip.id
+                                    }
+                                }
+                                .background(if (selected) palette.primary.copy(alpha = 0.14f) else palette.solidPanel, RoundedCornerShape(20.dp))
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(if (selected) "✓" else "○", style = MaterialTheme.typography.headlineMedium, color = if (selected) palette.primary else palette.subText)
+                            Box(modifier = Modifier.size(60.dp)) { QuickResultThumbnail(clip = clip, palette = palette) }
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text("사진 ${index + 1}", fontWeight = FontWeight.Bold, color = palette.text)
+                                Text(if (clip.mediaKind.name == "Video") "동영상 클립" else "사진 클립", style = MaterialTheme.typography.bodySmall, color = palette.subText)
+                            }
+                            Text("☰", style = MaterialTheme.typography.headlineSmall, color = palette.subText)
+                        }
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            if (selectedIds.isNotEmpty()) {
+                                draft = draft.filterNot { it.id in selectedIds }
+                                selectedIds = emptySet()
+                            }
+                        },
+                        enabled = selectedIds.isNotEmpty() && draft.size > selectedIds.size,
+                        modifier = Modifier.weight(1f).height(52.dp)
+                    ) { Text(if (selectedIds.isEmpty()) "제외할 사진 선택" else "선택 ${selectedIds.size}장 제외", fontWeight = FontWeight.Bold) }
+                    Button(
+                        onClick = { onDone(draft.map(ClipItem::id)) },
+                        modifier = Modifier.weight(1f).height(52.dp)
+                    ) { Text("✓  편집 완료", fontWeight = FontWeight.Bold) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickResultThumbnail(clip: ClipItem, palette: HanClipPalette) {
+    val context = LocalContext.current
+    val thumbnail by produceState<android.graphics.Bitmap?>(
+        initialValue = null,
+        clip.id,
+        clip.thumbnailUri,
+        clip.sourceUri,
+        clip.mediaKind
+    ) {
+        val uri = clip.thumbnailUri ?: clip.sourceUri
+        val kind = if (clip.thumbnailUri != null) ClipMediaKind.Photo else clip.mediaKind
+        value = if (uri.scheme == "sample") null else MediaImportReader.loadThumbnailBitmap(context, uri, kind)
+    }
+    Box(
+        modifier = Modifier
+            .size(84.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(palette.chip),
+        contentAlignment = Alignment.Center
+    ) {
+        thumbnail?.let { bitmap ->
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } ?: Icon(
+            imageVector = if (clip.mediaKind == ClipMediaKind.Video) Icons.Outlined.VideoFile else Icons.Outlined.Photo,
+            contentDescription = null,
+            tint = palette.primary,
+            modifier = Modifier.size(30.dp)
+        )
+    }
+}
+
+@Composable
 private fun PreviewActionRow(
     palette: HanClipPalette,
     canReturnToEditor: Boolean,
+    canEditQuickResult: Boolean,
     onEdit: () -> Unit,
+    onEditQuickResult: () -> Unit,
     onShare: () -> Unit,
     onRelease: () -> Unit
 ) {
@@ -741,7 +978,7 @@ private fun PreviewActionRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Button(
-            onClick = onEdit,
+            onClick = if (canEditQuickResult) onEditQuickResult else onEdit,
             modifier = Modifier
                 .weight(1f)
                 .height(48.dp),
@@ -752,11 +989,13 @@ private fun PreviewActionRow(
             )
         ) {
             Icon(
-                if (canReturnToEditor) Icons.Outlined.ChevronLeft else Icons.Outlined.Home,
+                if (canEditQuickResult) Icons.Outlined.Edit
+                else if (canReturnToEditor) Icons.Outlined.ChevronLeft else Icons.Outlined.Home,
                 contentDescription = null
             )
             Text(
-                if (canReturnToEditor) "다시 편집" else "완성본 목록",
+                if (canEditQuickResult) "사진 편집"
+                else if (canReturnToEditor) "다시 편집" else "완성본 목록",
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold
             )

@@ -486,6 +486,13 @@ fun HanClipApp(
                         editorState.backgroundMusicSampleId != null,
                     watermarkSettings = editorState.watermarkSettings
                 ),
+                quickResultClips = if (editorState.preset == MoviePreset.Quick &&
+                    previewHistorySummary == null && previewCollectionMovie == null
+                ) {
+                    editorState.renderableClips
+                } else {
+                    emptyList()
+                },
                 canReturnToEditor = previewHistorySummary == null && previewCollectionMovie == null,
                 collectionPlaybackOnly = previewCollectionMovie != null,
                 onEdit = {
@@ -495,6 +502,14 @@ fun HanClipApp(
                         previewHistorySummary = null
                         previewCollectionMovie = null
                         navController.popBackStack(HanClipDestination.Home.route, false)
+                    }
+                },
+                onQuickResultEdited = { orderedClipIds ->
+                    editorViewModel.applyQuickResultEdit(orderedClipIds)
+                    editorViewModel.saveEditingSession(context)
+                    navController.popBackStack()
+                    editorViewModel.exportMovie(context) {
+                        navController.navigate(HanClipDestination.Preview.route)
                     }
                 },
                 onDone = {

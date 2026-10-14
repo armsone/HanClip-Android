@@ -416,7 +416,18 @@ fun CalendarMediaPickerSheet(
                 )
             }
             CalendarMediaStrip(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(top = 8.dp)
+                    .then(
+                        // 하단 고정 원형 버튼(44dp 하단 여백 + 64dp 높이)과 사진 스크롤
+                        // 영역이 겹치지 않도록 그리드 자체를 버튼 위로 올립니다.
+                        if (displayedMode == MediaPickerSheetMode.Videos) {
+                            Modifier
+                        } else {
+                            Modifier.padding(bottom = 106.dp)
+                        }
+                    ),
                 palette = palette,
                 mode = displayedMode,
                 visibleMonth = visibleMonth,
@@ -1732,7 +1743,8 @@ private fun CalendarMediaStrip(
     var dragPosition by remember { mutableStateOf<Offset?>(null) }
     var mediaColumnCount by rememberSaveable { mutableIntStateOf(5) }
     val density = LocalDensity.current
-    val bottomDragOcclusionPx = with(density) { 72.dp.toPx() }
+    // 사진 그리드가 하단 고정 버튼과 더 이상 겹치지 않으므로 가림 보정이 필요 없습니다.
+    val bottomDragOcclusionPx = with(density) { 0.dp.toPx() }
     val currentEdgeDragSpeedPxPerSecond by rememberUpdatedState(edgeDragSpeedPxPerSecond)
     val currentDragPosition by rememberUpdatedState(dragPosition)
     fun applyDragSelection(current: Uri) {
@@ -2008,7 +2020,7 @@ private fun CalendarMediaStrip(
                         }
                     ),
                 contentPadding = PaddingValues(
-                    bottom = if (mode == MediaPickerSheetMode.Videos) 4.dp else 86.dp
+                    bottom = if (mode == MediaPickerSheetMode.Videos) 4.dp else 8.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(5.dp),
                 horizontalArrangement = Arrangement.spacedBy(5.dp)
