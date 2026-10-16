@@ -16,3 +16,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "HanClipAndroid"
 include(":app")
+include(":hanai-onnx")
+project(":hanai-onnx").projectDir = File("../HanAI/android/hanai-onnx")

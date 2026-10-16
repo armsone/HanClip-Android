@@ -5253,11 +5253,42 @@ private fun ClipThumbnail(
     overlayAlpha: Float = 0.18f
 ) {
     val context = LocalContext.current
-    val thumbnail by produceState<Bitmap?>(initialValue = null, clip.thumbnailUri, clip.mediaKind) {
+    val anchorSeconds = remember(
+        clip.mediaKind,
+        clip.trimStartSeconds,
+        clip.durationSeconds,
+        clip.sourceDurationSeconds,
+        clip.audioPeakTimeSeconds,
+        clip.audioPeakTimesSeconds
+    ) {
+        if (clip.mediaKind != ClipMediaKind.Video) {
+            null
+        } else {
+            val rangeStart = clip.trimStartSeconds
+            val rangeEnd = clip.trimEndSeconds
+            (clip.audioPeakTimesSeconds + listOfNotNull(clip.audioPeakTimeSeconds))
+                .firstOrNull { it in rangeStart..rangeEnd }
+                ?: ((rangeStart + rangeEnd) / 2.0)
+        }
+    }
+    val thumbnail by produceState<Bitmap?>(
+        initialValue = null,
+        clip.thumbnailUri,
+        clip.sourceUri,
+        clip.mediaKind,
+        anchorSeconds
+    ) {
         val uri = clip.thumbnailUri ?: clip.sourceUri
         val thumbnailKind = if (clip.thumbnailUri != null) ClipMediaKind.Photo else clip.mediaKind
         value = if (uri.scheme == "sample") {
             null
+        } else if (anchorSeconds != null) {
+            MediaImportReader.loadThumbnailBitmap(
+                context = context,
+                uri = clip.sourceUri,
+                mediaKind = ClipMediaKind.Video,
+                anchorSeconds = anchorSeconds
+            )
         } else {
             MediaImportReader.loadThumbnailBitmap(context, uri, thumbnailKind)
         }

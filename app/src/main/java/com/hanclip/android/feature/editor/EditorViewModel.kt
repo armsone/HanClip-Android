@@ -7,6 +7,7 @@ import android.provider.OpenableColumns
 import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.hanclip.android.core.media.HanYangVisualFeatures
 import com.hanclip.android.core.media.MediaImportReader
 import com.hanclip.android.core.media.Media3TransformerExportService
 import com.hanclip.android.core.media.ExportForegroundService
@@ -241,6 +242,11 @@ class EditorViewModel : ViewModel() {
                 }
             }
 
+            val eligibleForVisualVeto = imported.filter { clip ->
+                clip.mediaKind == ClipMediaKind.Photo || clip.mediaKind == ClipMediaKind.LivePhoto
+            }
+            val visualFeatures = HanYangVisualFeatures.computeBatch(appContext, eligibleForVisualVeto)
+
             _uiState.update {
                 if (imported.isEmpty()) {
                     it.copy(
@@ -263,7 +269,7 @@ class EditorViewModel : ViewModel() {
                             defaultVideoSegmentMode = it.defaultVideoSegmentMode
                         )
                     }
-                    val groupedImported = applySimilarPhotoGrouping(expandedImported)
+                    val groupedImported = applySimilarPhotoGrouping(expandedImported, visualFeatures)
                     val hiddenSimilarPhotoCount = groupedImported.count { clip ->
                         clip.isHiddenSimilarPhotoGroupMember
                     }
@@ -2018,7 +2024,12 @@ class EditorViewModel : ViewModel() {
         return mutable
     }
 
-    private fun applySimilarPhotoGrouping(clips: List<ClipItem>): List<ClipItem> {
+    private val DINO_SIMILAR_PHOTO_DISTANCE_THRESHOLD = 0.06911703708590078
+
+    private fun applySimilarPhotoGrouping(
+        clips: List<ClipItem>,
+        visualFeatures: Map<String, FloatArray>?
+    ): List<ClipItem> {
         if (clips.count { canGroupAsSimilarPhoto(it) } <= 1) return clips
         val mutable = clips.map(::clearSimilarPhotoGroup).toMutableList()
         var currentGroup = mutableListOf<Int>()
@@ -2073,7 +2084,7 @@ class EditorViewModel : ViewModel() {
             }
 
             val previousIndex = currentGroup.lastOrNull()
-            if (previousIndex == null || areSimilarPhotos(mutable[previousIndex], clip)) {
+            if (previousIndex == null || areSimilarPhotos(mutable[previousIndex], clip, visualFeatures)) {
                 currentGroup.add(index)
             } else {
                 commitCurrentGroup()
@@ -2098,7 +2109,11 @@ class EditorViewModel : ViewModel() {
             clip.photoSimilarityFingerprint.size >= 16 * 16
     }
 
-    private fun areSimilarPhotos(lhs: ClipItem, rhs: ClipItem): Boolean {
+    private fun areSimilarPhotos(
+        lhs: ClipItem,
+        rhs: ClipItem,
+        visualFeatures: Map<String, FloatArray>?
+    ): Boolean {
         val lhsCreatedAt = lhs.sourceCreatedAtMillis ?: return false
         val rhsCreatedAt = rhs.sourceCreatedAtMillis ?: return false
         if (abs(lhsCreatedAt - rhsCreatedAt) > 45_000L) return false
@@ -2118,7 +2133,26 @@ class EditorViewModel : ViewModel() {
         if (photoTranslatedDistance(lhsFingerprint, rhsFingerprint, subtractMean = true) > 30.0) {
             return false
         }
-        return abs(photoFingerprintMean(lhsFingerprint) - photoFingerprintMean(rhsFingerprint)) <= 28.0
+        if (abs(photoFingerprintMean(lhsFingerprint) - photoFingerprintMean(rhsFingerprint)) > 28.0) {
+            return false
+        }
+        val lhsVector = visualFeatures?.get(lhs.id)
+        val rhsVector = visualFeatures?.get(rhs.id)
+        if (lhsVector != null && rhsVector != null) {
+            if (dinoCosineDistance(lhsVector, rhsVector) > DINO_SIMILAR_PHOTO_DISTANCE_THRESHOLD) {
+                return false
+            }
+        }
+        return true
+    }
+
+    private fun dinoCosineDistance(lhs: FloatArray, rhs: FloatArray): Double {
+        var dot = 0.0
+        val size = min(lhs.size, rhs.size)
+        for (index in 0 until size) {
+            dot += lhs[index].toDouble() * rhs[index].toDouble()
+        }
+        return 1.0 - dot
     }
 
     private fun photoTranslatedDistance(

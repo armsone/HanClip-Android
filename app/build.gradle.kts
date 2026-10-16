@@ -11,9 +11,9 @@ android {
         applicationId = "com.hanclip.android"
         minSdk = 26
         targetSdk = 37
-        versionCode = 412665
-        versionName = "2.4.1"
-        buildConfigField("String", "BUILD_NUMBER", "\"202610141345\"")
+        versionCode = 416664
+        versionName = "2.5.0"
+        buildConfigField("String", "BUILD_NUMBER", "\"202610170824\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -65,6 +65,8 @@ dependencies {
     implementation("androidx.camera:camera-video:$cameraXVersion")
     implementation("androidx.camera:camera-view:$cameraXVersion")
     implementation("com.google.mlkit:pose-detection:18.0.0-beta5")
+    implementation(project(":hanai-onnx"))
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.24.2")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")

@@ -32,6 +32,7 @@ import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 internal data class ImportedClipPlayback(
     val livePhotoMode: LivePhotoMode,
@@ -434,8 +435,14 @@ object MediaImportReader {
         context: Context,
         uri: Uri,
         mediaKind: ClipMediaKind,
-        targetSize: Int = 320
+        targetSize: Int = 320,
+        anchorSeconds: Double? = null
     ): Bitmap? = withContext(Dispatchers.IO) {
+        if (mediaKind == ClipMediaKind.Video && anchorSeconds != null) {
+            val anchored = loadAnchoredVideoFrame(context, uri, anchorSeconds, targetSize)
+            if (anchored != null) return@withContext anchored
+            return@withContext loadThumbnailBitmap(context, uri, mediaKind, targetSize, anchorSeconds = null)
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uri.scheme == "content") {
             runCatching {
                 context.contentResolver.loadThumbnail(uri, Size(targetSize, targetSize), null)
@@ -480,6 +487,113 @@ object MediaImportReader {
                 }
             }
         }.getOrNull()
+    }
+
+    private suspend fun loadAnchoredVideoFrame(
+        context: Context,
+        uri: Uri,
+        anchorSeconds: Double,
+        targetSize: Int
+    ): Bitmap? {
+        val retriever = MediaMetadataRetriever()
+        var bestBitmap: Bitmap? = null
+        try {
+            retriever.setDataSource(context, uri)
+            val durationSeconds = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                ?.toLongOrNull()
+                ?.div(1_000.0)
+                ?.takeIf { it > 0.0 }
+                ?.let(Math::nextDown)
+            val clampedAnchor = durationSeconds?.let { anchorSeconds.coerceIn(0.0, it) } ?: max(0.0, anchorSeconds)
+            val candidateSeconds = listOf(
+                clampedAnchor,
+                durationSeconds?.let { (clampedAnchor - 0.25).coerceIn(0.0, it) } ?: max(0.0, clampedAnchor - 0.25),
+                durationSeconds?.let { (clampedAnchor + 0.25).coerceIn(0.0, it) } ?: (clampedAnchor + 0.25)
+            ).distinct()
+
+            var bestScore = Double.NEGATIVE_INFINITY
+            for (seconds in candidateSeconds) {
+                currentCoroutineContext().ensureActive()
+                val frameUs = (seconds * 1_000_000.0).roundToLong()
+                val frame = try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                        retriever.getScaledFrameAtTime(
+                            frameUs,
+                            MediaMetadataRetriever.OPTION_CLOSEST,
+                            targetSize,
+                            targetSize
+                        )
+                    } else {
+                        retriever.getFrameAtTime(frameUs, MediaMetadataRetriever.OPTION_CLOSEST)
+                    }
+                } catch (interrupted: InterruptedException) {
+                    throw interrupted
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    null
+                }
+                currentCoroutineContext().ensureActive()
+                if (frame == null) continue
+                val score = frameQualityScore(frame)
+                if (score > bestScore) {
+                    bestBitmap?.recycle()
+                    bestBitmap = frame
+                    bestScore = score
+                } else {
+                    frame.recycle()
+                }
+            }
+            return bestBitmap
+        } catch (interrupted: InterruptedException) {
+            bestBitmap?.recycle()
+            Thread.currentThread().interrupt()
+            throw interrupted
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            bestBitmap?.recycle()
+            throw cancelled
+        } catch (_: Exception) {
+            bestBitmap?.recycle()
+            return null
+        } finally {
+            retriever.release()
+        }
+    }
+
+    /** Heuristic quality proxy only (4-neighbor Laplacian variance), not a measured image-quality score. */
+    private fun frameQualityScore(bitmap: Bitmap): Double {
+        val longEdge = 64
+        val srcWidth = bitmap.width
+        val srcHeight = bitmap.height
+        val scale = longEdge.toDouble() / max(srcWidth, srcHeight)
+        val width = max(1, (srcWidth * scale).toInt())
+        val height = max(1, (srcHeight * scale).toInt())
+        val scaled = Bitmap.createScaledBitmap(bitmap, width, height, true)
+        val pixels = IntArray(width * height)
+        scaled.getPixels(pixels, 0, width, 0, 0, width, height)
+        if (scaled !== bitmap) scaled.recycle()
+        val luminances = pixels.map { pixel ->
+            Color.red(pixel) * 0.299 + Color.green(pixel) * 0.587 + Color.blue(pixel) * 0.114
+        }
+        val mean = luminances.average()
+        if (mean < 12.0) return Double.NEGATIVE_INFINITY
+        if (width < 3 || height < 3) return 0.0
+        val laplacians = mutableListOf<Double>()
+        for (y in 1 until height - 1) {
+            for (x in 1 until width - 1) {
+                val index = y * width + x
+                val center = luminances[index]
+                val left = luminances[index - 1]
+                val right = luminances[index + 1]
+                val up = luminances[index - width]
+                val down = luminances[index + width]
+                laplacians += 4 * center - left - right - up - down
+            }
+        }
+        if (laplacians.isEmpty()) return 0.0
+        val lapMean = laplacians.average()
+        val lapSqMean = laplacians.sumOf { it * it } / laplacians.size
+        return max(0.0, lapSqMean - lapMean * lapMean)
     }
 
     private fun readVideoMetadata(context: Context, uri: Uri): VideoMetadata? {
