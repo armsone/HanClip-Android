@@ -30,6 +30,7 @@ import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -120,6 +121,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.viewinterop.AndroidView
+import com.hanclip.android.core.media.ByungkiPlayerPolicy
 import com.hanclip.android.core.media.VideoSaveShare
 import com.hanclip.android.core.media.MediaImportReader
 import com.hanclip.android.core.model.OutputAspectRatio
@@ -1457,9 +1459,12 @@ internal fun FullscreenPreviewDialog(
             prepare()
         }
     }
-    var isLooping by remember(loop) { mutableStateOf(loop) }
-    var isFillMode by remember { mutableStateOf(false) }
-    var hasManualAspectModeSelection by remember { mutableStateOf(false) }
+    // Standard loop on default persist across entries
+    var isLooping by remember { mutableStateOf(ByungkiPlayerPolicy.getVideoRepeat(context)) }
+    // Video aspect: fit default / fill persist (NO automatic landscape fill)
+    var isFillMode by remember {
+        mutableStateOf(ByungkiPlayerPolicy.getVideoAspect(context).equals("fill", ignoreCase = true))
+    }
     var verticalDragPx by remember { mutableFloatStateOf(0f) }
     var zoomScale by remember { mutableFloatStateOf(1f) }
     var zoomOffset by remember { mutableStateOf(Offset.Zero) }
@@ -1470,20 +1475,14 @@ internal fun FullscreenPreviewDialog(
     var dragPreviewPositionMs by remember { mutableStateOf<Long?>(null) }
     var dragPreviewVolumePercent by remember { mutableStateOf<Int?>(null) }
     var zoomPreviewScale by remember { mutableStateOf<Float?>(null) }
-    val manualAspectModeSelection by rememberUpdatedState(hasManualAspectModeSelection)
     val looping by rememberUpdatedState(isLooping)
-    val configuration = LocalConfiguration.current
-    val dismissThresholdPx = with(LocalDensity.current) {
-        max(55.dp.toPx(), configuration.screenHeightDp.dp.toPx() * 0.08f)
-    }
+    val density = LocalDensity.current
+    val dismissThresholdPx = with(density) { ByungkiPlayerPolicy.DOWNWARD_DISMISS_DISTANCE_DP.dp.toPx() }
+    val startSlopPx = with(density) { ByungkiPlayerPolicy.GESTURE_START_SLOP_DP.dp.toPx() }
+    val volumeFullRangePx = with(density) { ByungkiPlayerPolicy.VOLUME_FULL_RANGE_LOGICAL_DP.dp.toPx() }
+
     DisposableEffect(player) {
         val listener = object : Player.Listener {
-            override fun onVideoSizeChanged(videoSize: VideoSize) {
-                if (!manualAspectModeSelection && videoSize.width > 0 && videoSize.height > 0) {
-                    isFillMode = videoSize.width > videoSize.height
-                }
-            }
-
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 isPlayerPlaying = isPlaying
             }
@@ -1497,9 +1496,6 @@ internal fun FullscreenPreviewDialog(
         }
         player.addListener(listener)
         isPlayerPlaying = player.isPlaying
-        player.videoSize.takeIf { it.width > 0 && it.height > 0 }?.let { videoSize ->
-            isFillMode = videoSize.width > videoSize.height
-        }
         onDispose {
             player.removeListener(listener)
             player.release()
@@ -1541,9 +1537,10 @@ internal fun FullscreenPreviewDialog(
     SideEffect {
         player.repeatMode = if (isLooping) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
     }
+    // 2.5sec autohide: playing and idle only
     LaunchedEffect(areControlsVisible, zoomScale, isPlayerPlaying, isScrubbing) {
-        if (areControlsVisible && zoomScale <= 1.01f && isPlayerPlaying && !isScrubbing) {
-            delay(FullscreenControlsHideDelayMillis)
+        if (areControlsVisible && zoomScale <= 1f + ByungkiPlayerPolicy.ZOOM_RESET_EPSILON && isPlayerPlaying && !isScrubbing) {
+            delay(ByungkiPlayerPolicy.CONTROLS_HIDE_DELAY_MS)
             if (isPlayerPlaying && !isScrubbing) areControlsVisible = false
         }
     }
@@ -1597,21 +1594,24 @@ internal fun FullscreenPreviewDialog(
                             dragStartVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
                         },
                         onDrag = { change, dragAmount ->
-                            if (zoomScale > 1.01f) return@detectDragGestures
+                            // Modes lock through drag; zoomed drag priority
+                            if (zoomScale > 1f + ByungkiPlayerPolicy.ZOOM_RESET_EPSILON) return@detectDragGestures
                             change.consume()
                             totalDrag += dragAmount
                             if (dragMode == null) {
-                                dragMode = when {
-                                    abs(totalDrag.x) >= abs(totalDrag.y) -> FullscreenDragMode.HorizontalScrub
-                                    totalDrag.y < 0f -> FullscreenDragMode.Volume
-                                    else -> FullscreenDragMode.DownwardDismiss
+                                if (totalDrag.getDistance() >= startSlopPx) {
+                                    dragMode = when {
+                                        abs(totalDrag.x) >= abs(totalDrag.y) -> FullscreenDragMode.HorizontalScrub
+                                        totalDrag.y < 0f -> FullscreenDragMode.Volume // Upward first: volume mode locked
+                                        else -> FullscreenDragMode.DownwardDismiss // Downward first: dismiss mode locked
+                                    }
                                 }
                             }
                             when (dragMode) {
                                 FullscreenDragMode.HorizontalScrub -> {
                                     val durationMs = player.duration
                                     if (durationMs > 0L) {
-                                        val deltaMs = totalDrag.x / size.width.coerceAtLeast(1) * durationMs
+                                        val deltaMs = (totalDrag.x / size.width.coerceAtLeast(1)) * durationMs
                                         val targetMs = (dragStartPositionMs + deltaMs.toLong())
                                             .coerceIn(0L, durationMs)
                                         player.seekTo(targetMs)
@@ -1621,9 +1621,9 @@ internal fun FullscreenPreviewDialog(
                                 }
                                 FullscreenDragMode.Volume -> {
                                     val maximumVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-                                    val adjustmentHeight = max(size.height * 0.72f, 160f)
-                                    val target = (dragStartVolume - totalDrag.y / adjustmentHeight * maximumVolume)
-                                        .roundToInt()
+                                    // 360dp volume full range; upward increases, downward decreases, never dismiss
+                                    val volumeFraction = (-totalDrag.y / volumeFullRangePx)
+                                    val target = (dragStartVolume + (volumeFraction * maximumVolume).roundToInt())
                                         .coerceIn(0, maximumVolume)
                                     audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
                                     dragPreviewVolumePercent = if (maximumVolume > 0) {
@@ -1664,7 +1664,6 @@ internal fun FullscreenPreviewDialog(
             val viewportHeightPx = with(LocalDensity.current) {
                 maxHeight.toPx()
             }
-            val isLandscapeViewport = maxWidth > maxHeight
             fun clampZoomOffset(offset: Offset, scale: Float): Offset {
                 val maximumX = viewportWidthPx * (scale - 1f).coerceAtLeast(0f) / 2f
                 val maximumY = viewportHeightPx * (scale - 1f).coerceAtLeast(0f) / 2f
@@ -1674,10 +1673,10 @@ internal fun FullscreenPreviewDialog(
                 )
             }
             val transformableState = rememberTransformableState { zoomChange, panChange, _ ->
-                val newScale = (zoomScale * zoomChange).coerceIn(0.5f, 4f)
+                val newScale = (zoomScale * zoomChange).coerceIn(ByungkiPlayerPolicy.VIDEO_MIN_ZOOM, ByungkiPlayerPolicy.VIDEO_MAX_ZOOM)
                 zoomScale = newScale
-                if (abs(zoomChange - 1f) > 0.001f) zoomPreviewScale = newScale
-                zoomOffset = if (newScale <= 1.01f) Offset.Zero else {
+                if (abs(zoomChange - 1f) > ByungkiPlayerPolicy.ZOOM_RESET_EPSILON) zoomPreviewScale = newScale
+                zoomOffset = if (newScale <= 1f + ByungkiPlayerPolicy.ZOOM_RESET_EPSILON) Offset.Zero else {
                     clampZoomOffset(zoomOffset + panChange, newScale)
                 }
                 verticalDragPx = 0f
@@ -1720,39 +1719,43 @@ internal fun FullscreenPreviewDialog(
                             clip = true
                         }
                         .transformable(state = transformableState)
-                        .pointerInput(zoomScale) {
+                        .pointerInput(zoomScale, areControlsVisible) {
                             detectTapGestures(
                                 onDoubleTap = {
-                                    if (abs(zoomScale - 1f) > 0.01f || zoomOffset != Offset.Zero) {
+                                    // double tap reset zoom/pan only, never seek or toggleplay
+                                    if (abs(zoomScale - 1f) > ByungkiPlayerPolicy.ZOOM_RESET_EPSILON || zoomOffset != Offset.Zero) {
                                         zoomScale = 1f
                                         zoomOffset = Offset.Zero
                                     }
                                     areControlsVisible = true
                                 },
                                 onTap = {
-                                    when (
-                                        fullscreenPlaybackTapAction(
-                                            isPlaying = player.isPlaying,
-                                            hasEnded = player.playbackState == Player.STATE_ENDED
-                                        )
-                                    ) {
-                                        FullscreenPlaybackTapAction.Pause -> player.pause()
-                                        FullscreenPlaybackTapAction.Play -> player.play()
-                                        FullscreenPlaybackTapAction.ReplayFromStart -> {
-                                            player.seekTo(0L)
-                                            player.play()
+                                    // hidden -> first tap reveal only; visible -> playpause toggle
+                                    if (!areControlsVisible) {
+                                        areControlsVisible = true
+                                    } else {
+                                        when (
+                                            fullscreenPlaybackTapAction(
+                                                isPlaying = player.isPlaying,
+                                                hasEnded = player.playbackState == Player.STATE_ENDED
+                                            )
+                                        ) {
+                                            FullscreenPlaybackTapAction.Pause -> player.pause()
+                                            FullscreenPlaybackTapAction.Play -> player.play()
+                                            FullscreenPlaybackTapAction.ReplayFromStart -> {
+                                                player.seekTo(0L)
+                                                player.play()
+                                            }
                                         }
+                                        areControlsVisible = true
                                     }
-                                    areControlsVisible = true
                                 }
                             )
                         }
                 ) {
                     ExportedVideoPlayerView(
                         player = player,
-                        resizeMode = if (
-                            isFillMode && (hasManualAspectModeSelection || isLandscapeViewport)
-                        ) {
+                        resizeMode = if (isFillMode) {
                             AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                         } else {
                             AspectRatioFrameLayout.RESIZE_MODE_FIT
@@ -1762,8 +1765,8 @@ internal fun FullscreenPreviewDialog(
                 }
                 val gesturePreviewText = when {
                     dragPreviewPositionMs != null -> formatPlaybackPosition(dragPreviewPositionMs!!)
-                    dragPreviewVolumePercent != null -> "${dragPreviewVolumePercent}%"
-                    zoomPreviewScale != null && abs(zoomPreviewScale!! - 1f) > 0.01f ->
+                    dragPreviewVolumePercent != null -> "${dragPreviewVolumePercent}% (기기 음량 단계에 맞춰 조절됩니다)"
+                    zoomPreviewScale != null && abs(zoomPreviewScale!! - 1f) > ByungkiPlayerPolicy.ZOOM_RESET_EPSILON ->
                         "%.1f×".format(zoomPreviewScale)
                     else -> null
                 }
@@ -1782,107 +1785,151 @@ internal fun FullscreenPreviewDialog(
                         )
                     }
                 }
-                if (areControlsVisible) {
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .fillMaxWidth()
-                            .padding(18.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        FullscreenCircleButton(
-                            onClick = onClose,
-                            contentDescription = title?.takeIf(String::isNotBlank)
-                                ?.let { "$it 닫기" } ?: "동영상 닫기"
+                // Controls overlay - opacity 0 when hidden, not hit-testable
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .safeDrawingPadding()
+                        .graphicsLayer {
+                            alpha = if (areControlsVisible) 1f else 0f
+                        }
+                ) {
+                    if (areControlsVisible) {
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Outlined.Close, contentDescription = null, tint = Color.White)
-                        }
-                        title?.takeIf(String::isNotBlank)?.let { safeTitle ->
-                            Text(
-                                text = safeTitle,
-                                modifier = Modifier.widthIn(max = 220.dp),
-                                color = Color.White,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        Spacer(Modifier.weight(1f))
-                        if (onShare != null) {
                             FullscreenCircleButton(
-                                onClick = onShare,
-                                contentDescription = "동영상 공유"
-                            ) {
-                                Icon(Icons.Outlined.IosShare, contentDescription = null, tint = Color.White)
-                            }
-                        }
-                    }
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                            .padding(18.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Slider(
-                            value = playbackProgress,
-                            onValueChange = { value ->
-                                isScrubbing = true
-                                playbackProgress = value
-                                areControlsVisible = true
-                            },
-                            onValueChangeFinished = {
-                                val durationMs = player.duration
-                                if (durationMs > 0L) {
-                                    player.seekTo((durationMs * playbackProgress).toLong())
-                                }
-                                isScrubbing = false
-                            },
-                            enabled = player.duration > 0L,
-                            modifier = Modifier.weight(1f)
-                        )
-                        FullscreenCircleButton(
-                            onClick = {
-                                if (player.isPlaying) player.pause() else player.play()
-                                areControlsVisible = true
-                            },
-                            contentDescription = if (isPlayerPlaying) "일시정지" else "재생"
-                        ) {
-                            Icon(
-                                if (isPlayerPlaying) Icons.Outlined.PauseCircle else Icons.Outlined.PlayCircle,
-                                contentDescription = null,
-                                tint = Color.White
-                            )
-                        }
-                        if (showsLoopControl) {
-                            FullscreenCircleButton(
-                                onClick = {
-                                    isLooping = !isLooping
-                                    areControlsVisible = true
-                                },
-                                active = isLooping,
-                                contentDescription = if (isLooping) "반복 재생 끄기" else "반복 재생 켜기"
-                            ) {
-                                Icon(Icons.Outlined.Repeat, contentDescription = null, tint = Color.White)
-                            }
-                        }
-                        if (shouldShowFullscreenAspectToggle(viewportWidthPx, viewportHeightPx)) {
-                            FullscreenCircleButton(
-                                onClick = {
-                                    hasManualAspectModeSelection = true
-                                    isFillMode = !isFillMode
-                                    areControlsVisible = true
-                                },
-                                active = isFillMode,
-                                contentDescription = if (isFillMode) "화면에 맞추기" else "화면 채우기"
+                                onClick = onClose,
+                                contentDescription = title?.takeIf(String::isNotBlank)
+                                    ?.let { "$it ${ByungkiPlayerPolicy.LABEL_CLOSE}" } ?: ByungkiPlayerPolicy.LABEL_CLOSE
                             ) {
                                 Icon(
-                                    if (isFillMode) Icons.Outlined.FullscreenExit else Icons.Outlined.Fullscreen,
+                                    Icons.Outlined.Close,
                                     contentDescription = null,
-                                    tint = Color.White
+                                    tint = Color.White,
+                                    modifier = Modifier.size(ByungkiPlayerPolicy.ICON_SIZE_DP.dp)
                                 )
+                            }
+                            title?.takeIf(String::isNotBlank)?.let { safeTitle ->
+                                Text(
+                                    text = safeTitle,
+                                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                                    color = Color.White,
+                                    fontSize = ByungkiPlayerPolicy.TITLE_TEXT_SP.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            } ?: Spacer(Modifier.weight(1f))
+                            if (onShare != null) {
+                                FullscreenCircleButton(
+                                    onClick = onShare,
+                                    contentDescription = ByungkiPlayerPolicy.LABEL_SHARE
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.IosShare,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(ByungkiPlayerPolicy.ICON_SIZE_DP.dp)
+                                    )
+                                }
+                            }
+                        }
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val currentPosMs = (player.duration * playbackProgress).toLong()
+                                Text(
+                                    text = "${formatPlaybackPosition(currentPosMs)} / ${formatPlaybackPosition(player.duration)}",
+                                    color = Color.White.copy(alpha = 0.85f),
+                                    fontSize = ByungkiPlayerPolicy.SECONDARY_TEXT_SP.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Slider(
+                                    value = playbackProgress,
+                                    onValueChange = { value ->
+                                        isScrubbing = true
+                                        playbackProgress = value
+                                        areControlsVisible = true
+                                    },
+                                    onValueChangeFinished = {
+                                        val durationMs = player.duration
+                                        if (durationMs > 0L) {
+                                            player.seekTo((durationMs * playbackProgress).toLong())
+                                        }
+                                        isScrubbing = false
+                                    },
+                                    enabled = player.duration > 0L,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                FullscreenCircleButton(
+                                    onClick = {
+                                        if (player.isPlaying) player.pause() else player.play()
+                                        areControlsVisible = true
+                                    },
+                                    contentDescription = if (isPlayerPlaying) ByungkiPlayerPolicy.LABEL_PAUSE else ByungkiPlayerPolicy.LABEL_PLAY
+                                ) {
+                                    Icon(
+                                        if (isPlayerPlaying) Icons.Outlined.PauseCircle else Icons.Outlined.PlayCircle,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(ByungkiPlayerPolicy.ICON_SIZE_DP.dp)
+                                    )
+                                }
+                                if (showsLoopControl) {
+                                    FullscreenCircleButton(
+                                        onClick = {
+                                            isLooping = !isLooping
+                                            ByungkiPlayerPolicy.setVideoRepeat(context, isLooping)
+                                            areControlsVisible = true
+                                        },
+                                        active = isLooping,
+                                        contentDescription = if (isLooping) "반복 재생 끄기" else "반복 재생 켜기"
+                                    ) {
+                                        Icon(
+                                            Icons.Outlined.Repeat,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(ByungkiPlayerPolicy.ICON_SIZE_DP.dp)
+                                        )
+                                    }
+                                }
+                                FullscreenCircleButton(
+                                    onClick = {
+                                        isFillMode = !isFillMode
+                                        ByungkiPlayerPolicy.setVideoAspect(context, if (isFillMode) "fill" else "fit")
+                                        areControlsVisible = true
+                                    },
+                                    active = isFillMode,
+                                    contentDescription = if (isFillMode) ByungkiPlayerPolicy.LABEL_FIT else ByungkiPlayerPolicy.LABEL_FILL
+                                ) {
+                                    Icon(
+                                        if (isFillMode) Icons.Outlined.FullscreenExit else Icons.Outlined.Fullscreen,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(ByungkiPlayerPolicy.ICON_SIZE_DP.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -1915,23 +1962,21 @@ private fun FullscreenCircleButton(
     active: Boolean? = null,
     icon: @Composable () -> Unit
 ) {
-    Surface(
+    Box(
         modifier = Modifier
-            .height(48.dp)
+            .size(ByungkiPlayerPolicy.BUTTON_TOUCH_TARGET_DP.dp)
             .semantics {
                 this.contentDescription = contentDescription
                 active?.let { selected = it }
-            },
-        shape = RoundedCornerShape(50),
-        color = Color.White.copy(alpha = if (active == true) 0.24f else 0.14f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = if (active == true) 0.42f else 0.24f)),
-        onClick = onClick
+            }
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .height(44.dp)
-                .padding(horizontal = 12.dp),
-            contentAlignment = Alignment.Center
+        Surface(
+            modifier = Modifier.size(ByungkiPlayerPolicy.BUTTON_VISUAL_DP.dp),
+            shape = RoundedCornerShape(50),
+            color = Color.Black.copy(alpha = if (active == true) 0.65f else 0.45f),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = if (active == true) 0.55f else 0.35f))
         ) {
             Box(contentAlignment = Alignment.Center) {
                 icon()
@@ -1946,7 +1991,7 @@ internal enum class FullscreenPlaybackTapAction {
     ReplayFromStart
 }
 
-internal const val FullscreenControlsHideDelayMillis = 3_000L
+internal const val FullscreenControlsHideDelayMillis = 2_500L
 
 internal fun fullscreenPlaybackTapAction(
     isPlaying: Boolean,
@@ -1960,7 +2005,7 @@ internal fun fullscreenPlaybackTapAction(
 internal fun shouldShowFullscreenAspectToggle(
     viewportWidth: Float,
     viewportHeight: Float
-): Boolean = viewportWidth > viewportHeight
+): Boolean = viewportWidth > 0f && viewportHeight > 0f
 
 private fun formatPlaybackPosition(positionMs: Long): String {
     val totalSeconds = (positionMs.coerceAtLeast(0L) / 1_000L)
@@ -2060,7 +2105,7 @@ private fun ExportedVideoPlayerView(
                 this.player = player
                 contentDescription = "시사회 재생 또는 일시정지"
                 this.useController = useController
-                controllerShowTimeoutMs = 3_000
+                controllerShowTimeoutMs = FullscreenControlsHideDelayMillis.toInt()
                 this.resizeMode = resizeMode
                 layoutParams = FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -2072,7 +2117,7 @@ private fun ExportedVideoPlayerView(
             view.player = player
             view.resizeMode = resizeMode
             view.useController = useController
-            view.controllerShowTimeoutMs = 3_000
+            view.controllerShowTimeoutMs = FullscreenControlsHideDelayMillis.toInt()
         },
         modifier = Modifier.fillMaxSize()
     )

@@ -29,9 +29,11 @@ class FullscreenPlaybackPolicyTest {
     }
 
     @Test
-    fun `aspect toggle is only shown in landscape`() {
+    fun `aspect toggle is shown in both portrait and landscape`() {
+        assertEquals(true, shouldShowFullscreenAspectToggle(400f, 800f))
         assertEquals(true, shouldShowFullscreenAspectToggle(800f, 400f))
-        assertEquals(false, shouldShowFullscreenAspectToggle(400f, 800f))
-        assertEquals(false, shouldShowFullscreenAspectToggle(600f, 600f))
+        assertEquals(false, shouldShowFullscreenAspectToggle(0f, 400f))
+        assertEquals(false, shouldShowFullscreenAspectToggle(400f, 0f))
+        assertEquals(false, shouldShowFullscreenAspectToggle(0f, 0f))
     }
 }

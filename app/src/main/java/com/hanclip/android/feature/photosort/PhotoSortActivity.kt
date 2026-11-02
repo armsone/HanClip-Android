@@ -14,11 +14,25 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.viewModels
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalDensity
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import android.view.KeyEvent
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.nativeKeyCode
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
@@ -29,6 +43,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.min
@@ -44,8 +59,32 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.IosShare
+import androidx.compose.material.icons.outlined.Pause
+import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.SkipPrevious
+import androidx.compose.material.icons.outlined.SkipNext
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.FitScreen
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.core.content.ContextCompat
+import com.hanclip.android.core.media.ByungkiPlayerPolicy
 import com.hanclip.android.core.theme.HanClipTheme
+import kotlinx.coroutines.delay
 import java.util.UUID
 
 /** An additional share destination inside the existing HanClip package, not a launcher app. */
@@ -207,21 +246,191 @@ private fun SortScreen(model: PhotoSortModel, denied: Boolean, ready: Boolean, o
 
 
 @Composable
-private fun PhotoSortLargePreview(photos: List<SortPhoto>, index: Int,
-    onPage: (Int) -> Unit, onClose: () -> Unit) {
+private fun PhotoSortLargePreview(
+    photos: List<SortPhoto>,
+    index: Int,
+    onPage: (Int) -> Unit,
+    onClose: () -> Unit
+) {
+    if (photos.isEmpty() || index !in photos.indices) {
+        LaunchedEffect(Unit) { onClose() }
+        return
+    }
     val photo = photos[index]
     val context = LocalContext.current
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Text("${index + 1}/${photos.size} · ${photo.name}", Modifier.weight(1f).padding(start = 16.dp), maxLines = 1)
-                    TextButton(onClick = onClose) { Text("닫기") }
+    var isPlaying by rememberSaveable { mutableStateOf(false) } // New open is always paused
+    var controlsVisible by remember { mutableStateOf(true) } // Initial visible
+    var intervalSeconds by remember { mutableIntStateOf(ByungkiPlayerPolicy.getImageInterval(context)) }
+    var repeatMode by remember { mutableStateOf(ByungkiPlayerPolicy.getImageRepeatMode(context)) }
+    var showSettingsMenu by remember { mutableStateOf(false) }
+    var reloadTrigger by remember { mutableIntStateOf(0) }
+    var isHoldingSingleImage by remember { mutableStateOf(false) }
+    var isCurrentFrameReady by remember(photo.uri, reloadTrigger) { mutableStateOf(false) }
+    var isForeground by remember { mutableStateOf(true) }
+    var isGestureActive by remember { mutableStateOf(false) }
+    var isTouchingOrAccessibilityActive by remember { mutableStateOf(false) }
+    var hasCurrentFrameError by remember(photo.uri, reloadTrigger) { mutableStateOf(false) }
+
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_START -> isForeground = true
+                androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
+                    isForeground = false
                 }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    DisposableEffect(context) {
+        val am = context.getSystemService(android.content.Context.ACCESSIBILITY_SERVICE) as? android.view.accessibility.AccessibilityManager
+        val listener = android.view.accessibility.AccessibilityManager.TouchExplorationStateChangeListener { active ->
+            isTouchingOrAccessibilityActive = active
+        }
+        if (am != null) {
+            isTouchingOrAccessibilityActive = am.isTouchExplorationEnabled
+            am.addTouchExplorationStateChangeListener(listener)
+        }
+        onDispose {
+            am?.removeTouchExplorationStateChangeListener(listener)
+        }
+    }
+
+    // Controlled loop / sole scheduler
+    LaunchedEffect(isPlaying, isForeground, photos.size, index, reloadTrigger, intervalSeconds, repeatMode) {
+        if (!isPlaying || !isForeground || photos.isEmpty()) {
+            isHoldingSingleImage = false
+            return@LaunchedEffect
+        }
+        while (isPlaying && isForeground) {
+            snapshotFlow { isCurrentFrameReady }.first { it }
+            delay(intervalSeconds * 1000L)
+            if (!isPlaying || !isForeground) break
+
+            if (photos.size <= 1) {
+                isHoldingSingleImage = true
+                continue
+            }
+
+            when (repeatMode) {
+                ByungkiPlayerPolicy.ImageRepeatMode.ALL_REPEAT -> {
+                    isHoldingSingleImage = false
+                    onPage((index + 1) % photos.size)
+                    break
+                }
+                ByungkiPlayerPolicy.ImageRepeatMode.SHUFFLE -> {
+                    isHoldingSingleImage = false
+                    val availableIndices = photos.indices.filter { it != index }
+                    onPage(availableIndices.random())
+                    break
+                }
+                ByungkiPlayerPolicy.ImageRepeatMode.ONE_REPEAT -> {
+                    isHoldingSingleImage = true
+                    // ONE_REPEAT wait again without reload
+                }
+                ByungkiPlayerPolicy.ImageRepeatMode.ONCE -> {
+                    isHoldingSingleImage = false
+                    if (index < photos.lastIndex) {
+                        onPage(index + 1)
+                        break
+                    } else {
+                        isPlaying = false
+                        break
+                    }
+                }
+            }
+        }
+    }
+
+    // Auto-hide controls: 2.5 seconds playing and idle only
+    LaunchedEffect(controlsVisible, isPlaying, isGestureActive, isCurrentFrameReady, hasCurrentFrameError, isTouchingOrAccessibilityActive) {
+        if (!isPlaying || !isCurrentFrameReady || hasCurrentFrameError) {
+            controlsVisible = true
+            return@LaunchedEffect
+        }
+        if (controlsVisible && isPlaying && !isGestureActive && !isTouchingOrAccessibilityActive) {
+            delay(ByungkiPlayerPolicy.CONTROLS_HIDE_DELAY_MS)
+            if (isPlaying && !isGestureActive && !isTouchingOrAccessibilityActive && isCurrentFrameReady && !hasCurrentFrameError) {
+                controlsVisible = false
+            }
+        }
+    }
+
+    val handleClose = {
+        isPlaying = false
+        onClose()
+    }
+
+    val handleShare = {
+        try {
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "image/*"
+                putExtra(Intent.EXTRA_STREAM, photo.uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(shareIntent, ByungkiPlayerPolicy.LABEL_SHARE))
+        } catch (_: Exception) { }
+    }
+
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    Dialog(
+        onDismissRequest = handleClose,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        com.hanclip.android.feature.editor.FullScreenDialogSystemBars(
+            background = Color.Black,
+            navigationBackground = Color.Black,
+            hideSystemBars = true
+        )
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .focusRequester(focusRequester)
+                .focusable()
+                .onKeyEvent { keyEvent ->
+                    if (keyEvent.type == KeyEventType.KeyDown) {
+                        when (keyEvent.key.nativeKeyCode) {
+                            KeyEvent.KEYCODE_ESCAPE, KeyEvent.KEYCODE_BACK -> {
+                                handleClose()
+                                true
+                            }
+                            KeyEvent.KEYCODE_SPACE -> {
+                                if (photos.size > 1) isPlaying = !isPlaying
+                                controlsVisible = true
+                                true
+                            }
+                            KeyEvent.KEYCODE_DPAD_LEFT -> {
+                                if (photos.size > 1) onPage((index - 1 + photos.size) % photos.size)
+                                controlsVisible = true
+                                true
+                            }
+                            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                if (photos.size > 1) onPage((index + 1) % photos.size)
+                                controlsVisible = true
+                                true
+                            }
+                            else -> false
+                        }
+                    } else false
+                },
+            color = Color.Black
+        ) {
+            Box(Modifier.fillMaxSize()) {
                 key(photo.uri) {
                     var loadError by remember { mutableStateOf(false) }
-                    val large by produceState<Bitmap?>(null, photo.uri) {
+                    val large by produceState<Bitmap?>(null, photo.uri, reloadTrigger) {
                         var decoded: Bitmap? = null
                         try {
                             withContext(Dispatchers.IO) {
@@ -241,33 +450,393 @@ private fun PhotoSortLargePreview(photos: List<SortPhoto>, index: Int,
                             loadError = true
                         }
                     }
-                    var scale by remember { mutableStateOf(1f) }
+
+                    LaunchedEffect(large, loadError) {
+                        if (large != null || loadError) {
+                            isCurrentFrameReady = true
+                            hasCurrentFrameError = loadError
+                        }
+                    }
+                    DisposableEffect(Unit) {
+                        onDispose {
+                            isCurrentFrameReady = true
+                        }
+                    }
+
+                    var scale by remember { mutableFloatStateOf(1f) }
                     var offset by remember { mutableStateOf(Offset.Zero) }
                     var viewport by remember { mutableStateOf(IntSize.Zero) }
                     val image = large ?: photo.thumbnail
+                    val density = LocalDensity.current
+
                     val transform = rememberTransformableState { zoom, pan, _ ->
-                        scale = (scale * zoom).coerceIn(1f, 6f)
-                        val fit = min(viewport.width.toFloat() / image.width, viewport.height.toFloat() / image.height)
-                        val xLimit = max(0f, (image.width * fit * scale - viewport.width) / 2)
-                        val yLimit = max(0f, (image.height * fit * scale - viewport.height) / 2)
-                        offset = Offset((offset.x + pan.x).coerceIn(-xLimit, xLimit), (offset.y + pan.y).coerceIn(-yLimit, yLimit))
+                        scale = (scale * zoom).coerceIn(ByungkiPlayerPolicy.IMAGE_MIN_ZOOM, ByungkiPlayerPolicy.IMAGE_MAX_ZOOM)
+                        if (kotlin.math.abs(scale - 1f) <= ByungkiPlayerPolicy.ZOOM_RESET_EPSILON) {
+                            offset = Offset.Zero
+                        } else {
+                            val fit = min(viewport.width.toFloat() / image.width, viewport.height.toFloat() / image.height)
+                            val xLimit = max(0f, (image.width * fit * scale - viewport.width) / 2)
+                            val yLimit = max(0f, (image.height * fit * scale - viewport.height) / 2)
+                            offset = Offset(
+                                (offset.x + pan.x).coerceIn(-xLimit, xLimit),
+                                (offset.y + pan.y).coerceIn(-yLimit, yLimit)
+                            )
+                        }
                     }
-                    Box(Modifier.weight(1f).fillMaxWidth().clipToBounds().onSizeChanged { viewport = it }
-                        .transformable(transform), contentAlignment = Alignment.Center) {
-                        Image(image.asImageBitmap(), photo.name, Modifier.fillMaxSize().graphicsLayer {
-                            scaleX = scale; scaleY = scale; translationX = offset.x; translationY = offset.y
-                        }, contentScale = ContentScale.Fit)
-                        if (large == null && !loadError) CircularProgressIndicator()
+
+                    LaunchedEffect(transform.isTransformInProgress) {
+                        if (transform.isTransformInProgress) {
+                            isGestureActive = true
+                            controlsVisible = true
+                        } else {
+                            isGestureActive = false
+                        }
                     }
-                    if (loadError) Text("큰 사진을 읽지 못해 작은 미리보기를 표시합니다.", Modifier.padding(horizontal = 16.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        TextButton(onClick = { onPage(index - 1) }, enabled = index > 0) { Text("이전") }
-                        TextButton(onClick = { scale = 1f; offset = Offset.Zero }) { Text("전체 보기") }
-                        TextButton(onClick = { onPage(index + 1) }, enabled = index < photos.lastIndex) { Text("다음") }
+
+                    var accumulatedDragX by remember { mutableFloatStateOf(0f) }
+                    var accumulatedDragY by remember { mutableFloatStateOf(0f) }
+
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .clipToBounds()
+                            .onSizeChanged { viewport = it }
+                            .transformable(transform)
+                            .pointerInput(photos.size, scale, offset) {
+                                detectTapGestures(
+                                    onDoubleTap = {
+                                        // Priority: if zoom != fit (scale != 1) or panned -> restore fitted size AND center ONLY
+                                        if (kotlin.math.abs(scale - 1f) > ByungkiPlayerPolicy.ZOOM_RESET_EPSILON ||
+                                            offset.getDistance() > ByungkiPlayerPolicy.PAN_RESET_EPSILON_LOGICAL) {
+                                            scale = 1f
+                                            offset = Offset.Zero
+                                        } else if (photos.size > 1) {
+                                            // otherwise toggle play/pause
+                                            isPlaying = !isPlaying
+                                        }
+                                        controlsVisible = true
+                                    },
+                                    onTap = {
+                                        // Hidden -> show only; visible -> show only (don't dismiss on tap)
+                                        controlsVisible = true
+                                    }
+                                )
+                            }
+                            .pointerInput(photos.size, scale, index) {
+                                val navDistancePx = with(density) { ByungkiPlayerPolicy.IMAGE_HORIZONTAL_NAV_DISTANCE_DP.dp.toPx() }
+                                val dismissDistancePx = with(density) { ByungkiPlayerPolicy.DOWNWARD_DISMISS_DISTANCE_DP.dp.toPx() }
+                                val slopPx = with(density) { ByungkiPlayerPolicy.GESTURE_START_SLOP_DP.dp.toPx() }
+
+                                detectDragGestures(
+                                    onDragStart = {
+                                        accumulatedDragX = 0f
+                                        accumulatedDragY = 0f
+                                        isGestureActive = true
+                                        controlsVisible = true
+                                    },
+                                    onDrag = { change, dragAmount ->
+                                        // Pinch/pan priority when zoomed
+                                        if (kotlin.math.abs(scale - 1f) > ByungkiPlayerPolicy.ZOOM_RESET_EPSILON) {
+                                            return@detectDragGestures
+                                        }
+                                        change.consume()
+                                        accumulatedDragX += dragAmount.x
+                                        accumulatedDragY += dragAmount.y
+                                    },
+                                    onDragEnd = {
+                                        isGestureActive = false
+                                        if (kotlin.math.abs(scale - 1f) <= ByungkiPlayerPolicy.ZOOM_RESET_EPSILON) {
+                                            if (accumulatedDragY >= dismissDistancePx &&
+                                                kotlin.math.abs(accumulatedDragY) > kotlin.math.abs(accumulatedDragX)) {
+                                                handleClose()
+                                            } else if (kotlin.math.abs(accumulatedDragX) >= navDistancePx) {
+                                                if (accumulatedDragX > 0 && photos.size > 1) {
+                                                    onPage((index - 1 + photos.size) % photos.size)
+                                                } else if (accumulatedDragX < 0 && photos.size > 1) {
+                                                    onPage((index + 1) % photos.size)
+                                                }
+                                            }
+                                        }
+                                        accumulatedDragX = 0f
+                                        accumulatedDragY = 0f
+                                    },
+                                    onDragCancel = {
+                                        isGestureActive = false
+                                        accumulatedDragX = 0f
+                                        accumulatedDragY = 0f
+                                    }
+                                )
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            image.asImageBitmap(),
+                            photo.name,
+                            Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    scaleX = scale
+                                    scaleY = scale
+                                    translationX = offset.x
+                                    translationY = offset.y
+                                },
+                            contentScale = ContentScale.Fit
+                        )
+                        if (large == null && !loadError) {
+                            CircularProgressIndicator(color = Color.White)
+                        }
                     }
-                    Text("두 손가락으로 확대하고 움직여 보세요.", Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        style = MaterialTheme.typography.bodySmall)
+
+                    if (loadError) {
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .padding(24.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color.Black.copy(alpha = 0.85f),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Text(
+                                    "큰 사진을 읽지 못해 작은 미리보기를 표시합니다.",
+                                    color = Color.White,
+                                    fontSize = ByungkiPlayerPolicy.SECONDARY_TEXT_SP.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            loadError = false
+                                            reloadTrigger++
+                                        },
+                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.4f)),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                                    ) {
+                                        Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(ByungkiPlayerPolicy.LABEL_RETRY)
+                                    }
+                                    OutlinedButton(
+                                        onClick = handleClose,
+                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.4f)),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                                    ) {
+                                        Text(ByungkiPlayerPolicy.LABEL_CLOSE)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
+
+                // Overlay Controls - no layout reflow when hidden
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .safeDrawingPadding()
+                        .graphicsLayer {
+                            alpha = if (controlsVisible) 1f else 0f
+                        }
+                ) {
+                    if (controlsVisible) {
+                        // Top bar
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .align(Alignment.TopCenter)
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            PhotoControlCircleButton(
+                                onClick = handleClose,
+                                contentDescription = ByungkiPlayerPolicy.LABEL_CLOSE
+                            ) {
+                                Icon(
+                                    Icons.Outlined.Close,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(ByungkiPlayerPolicy.ICON_SIZE_DP.dp)
+                                )
+                            }
+                            Text(
+                                "${index + 1}/${photos.size} · ${photo.name}",
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(horizontal = 12.dp),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                color = Color.White,
+                                fontSize = ByungkiPlayerPolicy.TITLE_TEXT_SP.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            PhotoControlCircleButton(
+                                onClick = handleShare,
+                                contentDescription = ByungkiPlayerPolicy.LABEL_SHARE
+                            ) {
+                                Icon(
+                                    Icons.Outlined.IosShare,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(ByungkiPlayerPolicy.ICON_SIZE_DP.dp)
+                                )
+                            }
+                        }
+
+                        // Bottom bar
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .align(Alignment.BottomCenter)
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "${index + 1}/${photos.size} · ${intervalSeconds}초 · ${repeatMode.label}",
+                                    color = Color.White.copy(alpha = 0.85f),
+                                    fontSize = ByungkiPlayerPolicy.SECONDARY_TEXT_SP.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Box {
+                                    PhotoControlCircleButton(
+                                        onClick = { showSettingsMenu = !showSettingsMenu },
+                                        contentDescription = "재생 설정"
+                                    ) {
+                                        Icon(
+                                            Icons.Outlined.Settings,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(ByungkiPlayerPolicy.ICON_SIZE_DP.dp)
+                                        )
+                                    }
+                                    DropdownMenu(
+                                        expanded = showSettingsMenu,
+                                        onDismissRequest = { showSettingsMenu = false }
+                                    ) {
+                                        Text(
+                                            "반복 방식",
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        ByungkiPlayerPolicy.ImageRepeatMode.entries.forEach { mode ->
+                                            DropdownMenuItem(
+                                                text = { Text(if (mode == repeatMode) "✓ ${mode.label}" else "    ${mode.label}") },
+                                                onClick = {
+                                                    repeatMode = mode
+                                                    ByungkiPlayerPolicy.setImageRepeatMode(context, mode)
+                                                    showSettingsMenu = false
+                                                }
+                                            )
+                                        }
+                                        HorizontalDivider()
+                                        Text(
+                                            "재생 시간 간격",
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        ByungkiPlayerPolicy.INTERVAL_OPTIONS_SECONDS.forEach { sec ->
+                                            DropdownMenuItem(
+                                                text = { Text(if (sec == intervalSeconds) "✓ ${sec}초" else "    ${sec}초") },
+                                                onClick = {
+                                                    intervalSeconds = sec
+                                                    ByungkiPlayerPolicy.setImageInterval(context, sec)
+                                                    showSettingsMenu = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                PhotoControlCircleButton(
+                                    onClick = { if (photos.size > 1) onPage((index - 1 + photos.size) % photos.size) },
+                                    enabled = photos.size > 1,
+                                    contentDescription = ByungkiPlayerPolicy.LABEL_PREVIOUS
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.SkipPrevious,
+                                        contentDescription = null,
+                                        tint = if (photos.size > 1) Color.White else Color.White.copy(alpha = 0.3f),
+                                        modifier = Modifier.size(ByungkiPlayerPolicy.ICON_SIZE_DP.dp)
+                                    )
+                                }
+
+                                PhotoControlCircleButton(
+                                    onClick = {
+                                        if (photos.size > 1) isPlaying = !isPlaying
+                                    },
+                                    enabled = photos.size > 1,
+                                    contentDescription = if (isPlaying) ByungkiPlayerPolicy.LABEL_PAUSE else ByungkiPlayerPolicy.LABEL_PLAY
+                                ) {
+                                    Icon(
+                                        if (isPlaying) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
+                                        contentDescription = null,
+                                        tint = if (photos.size > 1) Color.White else Color.White.copy(alpha = 0.3f),
+                                        modifier = Modifier.size(ByungkiPlayerPolicy.ICON_SIZE_DP.dp)
+                                    )
+                                }
+
+                                PhotoControlCircleButton(
+                                    onClick = { if (photos.size > 1) onPage((index + 1) % photos.size) },
+                                    enabled = photos.size > 1,
+                                    contentDescription = ByungkiPlayerPolicy.LABEL_NEXT
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.SkipNext,
+                                        contentDescription = null,
+                                        tint = if (photos.size > 1) Color.White else Color.White.copy(alpha = 0.3f),
+                                        modifier = Modifier.size(ByungkiPlayerPolicy.ICON_SIZE_DP.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PhotoControlCircleButton(
+    onClick: () -> Unit,
+    contentDescription: String,
+    enabled: Boolean = true,
+    icon: @Composable () -> Unit
+) {
+    IconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier
+            .size(ByungkiPlayerPolicy.BUTTON_TOUCH_TARGET_DP.dp)
+            .semantics {
+                this.contentDescription = contentDescription
+            }
+    ) {
+        Surface(
+            modifier = Modifier.size(ByungkiPlayerPolicy.BUTTON_VISUAL_DP.dp),
+            shape = CircleShape,
+            color = Color.Black.copy(alpha = 0.55f),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.35f))
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                icon()
             }
         }
     }

@@ -98,7 +98,8 @@
             android:name=".feature.photosort.PhotoSortActivity"
             android:label="한양 사진 고르기"
             android:exported="false"
-            android:resizeableActivity="true">
+            android:resizeableActivity="true"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|density">
         </activity>
 
         <activity
