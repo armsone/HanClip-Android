@@ -37,6 +37,7 @@ import com.hanclip.android.feature.browser.OnlineMusicBrowserRoute
 import com.hanclip.android.feature.editor.EditorImportAction
 import com.hanclip.android.feature.editor.EditorRoute
 import com.hanclip.android.feature.editor.EditorViewModel
+import com.hanclip.android.feature.editor.ProjectSaveFailureMessage
 import com.hanclip.android.feature.home.DraftProjectSummary
 import com.hanclip.android.feature.home.HomeRoute
 import com.hanclip.android.feature.preview.PreviewMovieSummary
@@ -506,11 +507,16 @@ fun HanClipApp(
                 },
                 onQuickResultEdited = { orderedClipIds ->
                     editorViewModel.applyQuickResultEdit(orderedClipIds)
-                    editorViewModel.saveEditingSession(context)
                     navController.popBackStack()
-                    editorViewModel.exportMovie(context) {
-                        navController.navigate(HanClipDestination.Preview.route)
-                    }
+                    editorViewModel.saveEditingSessionInBackground(
+                        context = context,
+                        onSaved = {
+                            editorViewModel.exportMovie(context) {
+                                navController.navigate(HanClipDestination.Preview.route)
+                            }
+                        },
+                        onFailure = { editorViewModel.showAlert(ProjectSaveFailureMessage) }
+                    )
                 },
                 onDone = {
                     collectionMovies = MovieCollectionStore.list(context)

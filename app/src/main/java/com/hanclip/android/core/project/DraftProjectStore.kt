@@ -726,6 +726,17 @@ private fun ClipItem.toJson(): JSONObject {
         })
         .put("audioAvailability", audioAvailability.name)
         .put("highlightSource", highlightSource.name)
+        .put("protectedActions", JSONArray().also { array ->
+            protectedActions.forEach { action ->
+                array.put(
+                    JSONObject()
+                        .put("timeSeconds", action.timeSeconds)
+                        .put("isLoud", action.isLoud)
+                        .put("isSharpTransient", action.isSharpTransient)
+                )
+            }
+        })
+        .put("isProtectedActionSegment", isProtectedActionSegment)
         .put("videoSegmentMode", videoSegmentMode.name)
         .put("isVideoSegmentParent", isVideoSegmentParent)
         .put("videoSegmentParentId", videoSegmentParentId)
@@ -832,6 +843,19 @@ private fun JSONObject.toClipItem(): ClipItem {
             optString("highlightSource"),
             com.hanclip.android.core.model.ClipHighlightSource.Audio
         ),
+        protectedActions = optJSONArray("protectedActions")?.let { array ->
+            (0 until array.length()).mapNotNull { index ->
+                val action = array.optJSONObject(index) ?: return@mapNotNull null
+                val time = action.optDouble("timeSeconds")
+                if (!time.isFinite()) return@mapNotNull null
+                com.hanclip.android.core.model.ClipProtectedAction(
+                    timeSeconds = time,
+                    isLoud = action.optBoolean("isLoud", false),
+                    isSharpTransient = action.optBoolean("isSharpTransient", false)
+                )
+            }
+        } ?: emptyList(),
+        isProtectedActionSegment = optBoolean("isProtectedActionSegment", false),
         videoSegmentMode = enumValueOrDefault(optString("videoSegmentMode"), VideoSegmentMode.Single),
         isVideoSegmentParent = optBoolean("isVideoSegmentParent", false),
         videoSegmentParentId = optString("videoSegmentParentId")

@@ -11,6 +11,7 @@ import android.os.Build
 import android.net.Uri
 import com.hanclip.android.core.model.ClipAudioAvailability
 import com.hanclip.android.core.model.ClipHighlightSource
+import com.hanclip.android.core.model.ClipProtectedAction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.nio.ByteOrder
@@ -25,7 +26,8 @@ data class AudioAnalysisResult(
     val peakTimeSeconds: Double,
     val peakTimesSeconds: List<Double> = listOf(peakTimeSeconds),
     val audioAvailability: ClipAudioAvailability = ClipAudioAvailability.Present,
-    val highlightSource: ClipHighlightSource = ClipHighlightSource.Audio
+    val highlightSource: ClipHighlightSource = ClipHighlightSource.Audio,
+    val protectedActions: List<ClipProtectedAction> = emptyList()
 )
 
 private data class AudioImpactMetrics(
@@ -328,11 +330,12 @@ object AudioAnalysisService {
         values.forEachIndexed { index, value ->
             candidates += index to value * 0.55
         }
-        AudioImpactClassifier.rankedImpactTimes(
+        val classifiedPeaks = AudioImpactClassifier.rankedImpactTimes(
             frames = frames,
             durationSeconds = durationSeconds,
             limit = 12
-        ).forEach { peak ->
+        )
+        classifiedPeaks.forEach { peak ->
             val index = ((peak / durationSeconds) * bucketCount)
                 .toInt()
                 .coerceIn(0, bucketCount - 1)
@@ -364,7 +367,8 @@ object AudioAnalysisService {
             peakTimeSeconds = peakTimes.first(),
             peakTimesSeconds = peakTimes,
             audioAvailability = ClipAudioAvailability.Present,
-            highlightSource = ClipHighlightSource.Audio
+            highlightSource = ClipHighlightSource.Audio,
+            protectedActions = AudioImpactClassifier.protectedActionEvidence(frames, classifiedPeaks)
         )
     }
 
@@ -395,8 +399,93 @@ object AudioAnalysisService {
 
         private data class Decision(
             val isTriggered: Boolean,
-            val confidence: Double
+            val confidence: Double,
+            /** Strong-impact level score and peak. */
+            val isLoud: Boolean = false,
+            /** Sudden, high-crest click shape. */
+            val isSharpTransient: Boolean = false
         )
+
+        private fun impactDecisions(frames: List<AudioImpactFrame>): List<Decision> {
+            var baseline = 0.008
+            var recentLevel = 0.008
+            return frames.map { frame ->
+                val score = frame.metrics.impactScore
+                val previousRecentLevel = recentLevel
+                val baselineSample = min(score, max(0.004, baseline * 1.35))
+                baseline = baseline * 0.985 + max(0.002, baselineSample) * 0.015
+                recentLevel = recentLevel * 0.72 + max(0.002, score) * 0.28
+                detectImpact(
+                    metrics = frame.metrics,
+                    baseline = baseline,
+                    previousRecentLevel = previousRecentLevel,
+                    sensitivity = Sensitivity.Automatic
+                )
+            }
+        }
+
+        /**
+         * Action evidence for HanAI protected actions: every frame the classifier treats as a
+         * possible impact, without the ranking cap, so a quiet shot is not dropped for a louder
+         * one elsewhere. Only a triggered loud and sharp impact counts as a confirmed stroke;
+         * anything else may be a practice or quiet sound before a silent real stroke. With no
+         * possible impact at all, the ranked fallback times are used.
+         */
+        fun protectedActionEvidence(
+            frames: List<AudioImpactFrame>,
+            rankedTimes: List<Double>
+        ): List<ClipProtectedAction> {
+            val decisions = impactDecisions(frames)
+            val candidates = impactCandidates(frames, decisions)
+            if (candidates.isEmpty()) {
+                return rankedTimes.sorted().map {
+                    ClipProtectedAction(it, isLoud = false, isSharpTransient = false)
+                }
+            }
+            return candidates.map { (index, _) ->
+                val decision = decisions[index]
+                ClipProtectedAction(
+                    timeSeconds = frames[index].timeSeconds,
+                    isLoud = decision.isTriggered && decision.isLoud,
+                    isSharpTransient = decision.isTriggered && decision.isSharpTransient
+                )
+            }
+        }
+
+        /** Frames passing the classifier's possible-impact gate, with combined score. */
+        private fun impactCandidates(
+            frames: List<AudioImpactFrame>,
+            decisions: List<Decision>
+        ): List<Pair<Int, Double>> = frames.indices.mapNotNull { index ->
+            val decision = decisions[index]
+            val highlightScore = generalHighlightScore(frames, index)
+            val memorableMomentScore = memorableMomentScore(frames, index)
+            val combinedScore = combinedImpactScore(
+                frames, index, decision, highlightScore, memorableMomentScore
+            )
+            if (
+                decision.isTriggered ||
+                highlightScore > 0.82 ||
+                memorableMomentScore > 0.78 ||
+                combinedScore > 1.02
+            ) {
+                index to combinedScore
+            } else {
+                null
+            }
+        }
+
+        private fun combinedImpactScore(
+            frames: List<AudioImpactFrame>,
+            index: Int,
+            decision: Decision,
+            highlightScore: Double,
+            memorableMomentScore: Double
+        ): Double = decision.confidence +
+            localContrastScore(frames, index) * 0.45 +
+            highlightScore * 0.75 +
+            memorableMomentScore * 0.58 +
+            frames[index].metrics.impactScore * 0.12
 
         fun rankedImpactTimes(
             frames: List<AudioImpactFrame>,
@@ -405,46 +494,20 @@ object AudioAnalysisService {
         ): List<Double> {
             if (frames.isEmpty()) return emptyList()
 
-            var baseline = 0.008
-            var recentLevel = 0.008
-            val candidates = mutableListOf<Pair<Double, Double>>()
-            val fallback = mutableListOf<Pair<Double, Double>>()
-
-            frames.forEachIndexed { index, frame ->
-                val metrics = frame.metrics
-                val score = metrics.impactScore
-                val previousRecentLevel = recentLevel
-                val baselineSample = min(score, max(0.004, baseline * 1.35))
-                baseline = baseline * 0.985 + max(0.002, baselineSample) * 0.015
-                recentLevel = recentLevel * 0.72 + max(0.002, score) * 0.28
-
-                val decision = detectImpact(
-                    metrics = metrics,
-                    baseline = baseline,
-                    previousRecentLevel = previousRecentLevel,
-                    sensitivity = Sensitivity.Automatic
-                )
-                val neighborhoodScore = localContrastScore(frames, index)
-                val highlightScore = generalHighlightScore(frames, index)
-                val memorableMomentScore = memorableMomentScore(frames, index)
-                val combinedScore = decision.confidence +
-                    neighborhoodScore * 0.45 +
-                    highlightScore * 0.75 +
-                    memorableMomentScore * 0.58 +
-                    score * 0.12
-
-                fallback += frame.timeSeconds to combinedScore
-                if (
-                    decision.isTriggered ||
-                    highlightScore > 0.82 ||
-                    memorableMomentScore > 0.78 ||
-                    combinedScore > 1.02
-                ) {
-                    candidates += frame.timeSeconds to combinedScore
+            val decisions = impactDecisions(frames)
+            val candidates = impactCandidates(frames, decisions)
+                .map { (index, score) -> frames[index].timeSeconds to score }
+            val ranked = candidates.ifEmpty {
+                frames.indices.map { index ->
+                    frames[index].timeSeconds to combinedImpactScore(
+                        frames,
+                        index,
+                        decisions[index],
+                        generalHighlightScore(frames, index),
+                        memorableMomentScore(frames, index)
+                    )
                 }
             }
-
-            val ranked = if (candidates.isEmpty()) fallback else candidates
             val minimumSeparation = max(0.45, durationSeconds / 160.0)
             val selected = mutableListOf<Pair<Double, Double>>()
             ranked.sortedByDescending { it.second }.forEach { candidate ->
@@ -513,7 +576,10 @@ object AudioAnalysisService {
 
             return Decision(
                 isTriggered = !isSpeechLikePrompt && (isStrongImpact || isDistantSharpImpact),
-                confidence = if (isSpeechLikePrompt) 0.0 else confidence
+                confidence = if (isSpeechLikePrompt) 0.0 else confidence,
+                isLoud = score >= strongScoreRequirement && metrics.peak >= strongPeakRequirement,
+                isSharpTransient = suddenRise >= thresholds.distantRise &&
+                    crestFactor >= thresholds.distantCrestFactor
             )
         }
 

@@ -32,6 +32,13 @@ enum class ClipAudioAvailability {
         get() = this == Present || this == Unknown
 }
 
+/** Audio evidence of one possible golf stroke whose context HanAI keeps whole. */
+data class ClipProtectedAction(
+    val timeSeconds: Double,
+    val isLoud: Boolean,
+    val isSharpTransient: Boolean
+)
+
 enum class ClipHighlightSource(val displayTitle: String) {
     Audio("소리 분석"),
     VisualMotion("화면 움직임 분석"),
@@ -56,6 +63,9 @@ data class ClipItem(
     val audioPeakTimesSeconds: List<Double> = emptyList(),
     val audioAvailability: ClipAudioAvailability = ClipAudioAvailability.Unknown,
     val highlightSource: ClipHighlightSource = ClipHighlightSource.Audio,
+    val protectedActions: List<ClipProtectedAction> = emptyList(),
+    /** Range kept whole around protected golf strokes; automatic duration changes skip it. */
+    val isProtectedActionSegment: Boolean = false,
     val videoSegmentMode: VideoSegmentMode = VideoSegmentMode.Single,
     val isVideoSegmentParent: Boolean = false,
     val videoSegmentParentId: String? = null,
