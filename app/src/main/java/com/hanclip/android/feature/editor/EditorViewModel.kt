@@ -88,6 +88,7 @@ data class EditorUiState(
     val backgroundMusicFadeOutEnabled: Boolean = true,
     val backgroundMusicAutomaticallyDucksOriginalAudio: Boolean = true,
     val isExporting: Boolean = false,
+    val isSavingProject: Boolean = false,
     val isCancellingExport: Boolean = false,
     val exportedVideoUri: Uri? = null,
     val recentlySavedMovieUriString: String? = null,
@@ -133,6 +134,7 @@ class EditorViewModel : ViewModel() {
     private var exportApplicationContext: Context? = null
     private var foregroundExportToken: Long? = null
     private var importJob: Job? = null
+    private var saveJob: Job? = null
     private var lastUndoSnapshot: EditorUndoSnapshot? = null
     private var editingSessionBaseline: DraftProject? = null
     private var videoRangeSelectionSnapshot: VideoRangeSelectionSnapshot? = null
@@ -696,6 +698,9 @@ class EditorViewModel : ViewModel() {
                             sourceDurationSeconds = sourceDuration,
                             trimStartSeconds = max(0.0, (sourceDuration - selectedDuration) / 2.0)
                         )
+                    } else if (clip.isProtectedActionSegment) {
+                        // Protected golf stroke ranges stay whole.
+                        clip
                     } else if (clip.mediaKind == ClipMediaKind.Video) {
                         val sourceDuration = clip.sourceDurationSeconds ?: clip.durationSeconds
                         val selectedDuration = min(state.defaultDurationSeconds, sourceDuration)
@@ -1056,6 +1061,37 @@ class EditorViewModel : ViewModel() {
             context.applicationContext,
             _uiState.value.activeProjectId
         )
+    }
+
+    // The first save of a new project copies every source and builds thumbnails, which can take
+    // long enough to freeze the screen, so it runs off the main thread behind the work overlay.
+    fun saveEditingSessionInBackground(
+        context: Context,
+        onSaved: () -> Unit,
+        onFailure: (Throwable) -> Unit
+    ) {
+        if (saveJob?.isActive == true || exportJob?.isActive == true) return
+        val appContext = context.applicationContext
+        _uiState.update {
+            it.copy(
+                isSavingProject = true,
+                progressMessage = "프로젝트를 저장하는 중...",
+                workProgress = null,
+                workCurrent = 0,
+                workTotal = 0
+            )
+        }
+        saveJob = viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching { saveEditingSession(appContext) }
+            }
+            _uiState.update { it.copy(isSavingProject = false, progressMessage = "") }
+            saveBeforePreviewExport(
+                save = { result.getOrThrow() },
+                startExport = onSaved,
+                onSaveFailure = onFailure
+            )
+        }
     }
 
     fun isNewEditingSession(): Boolean = editingSessionBaseline == null

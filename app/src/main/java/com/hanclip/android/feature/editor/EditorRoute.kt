@@ -333,10 +333,10 @@ fun EditorRoute(
         }
     }
     fun startSavedMovieExport() {
-        saveBeforePreviewExport(
-            save = { viewModel.saveEditingSession(context) },
-            startExport = { viewModel.exportMovie(context, onPreview) },
-            onSaveFailure = {
+        viewModel.saveEditingSessionInBackground(
+            context = context,
+            onSaved = { viewModel.exportMovie(context, onPreview) },
+            onFailure = {
                 viewModel.showAlert("영화를 저장하지 못해 만들기를 시작하지 않았습니다. 저장 공간을 확인한 뒤 다시 시도해 주세요.")
             }
         )
@@ -772,7 +772,7 @@ fun EditorRoute(
                 onDismiss = { isImportMenuVisible = false }
             )
         }
-        if (state.isImportingMedia || state.isExporting) {
+        if (state.isImportingMedia || state.isExporting || state.isSavingProject) {
             WorkProgressOverlay(
                 palette = palette,
                 message = state.progressMessage.ifBlank {
@@ -790,7 +790,7 @@ fun EditorRoute(
                 watermarkSettings = state.watermarkSettings,
                 isExporting = state.isExporting,
                 isCancelling = state.isCancellingExport,
-                onCancel = if (state.isCancellingExport) {
+                onCancel = if (state.isCancellingExport || state.isSavingProject) {
                     null
                 } else if (state.isExporting) {
                     viewModel::cancelExport
@@ -965,8 +965,12 @@ fun EditorRoute(
                         }
                         OutlinedButton(
                             onClick = {
-                                viewModel.saveEditingSession(context)
                                 isExitConfirmationVisible = false
+                                viewModel.saveEditingSessionInBackground(
+                                    context = context,
+                                    onSaved = {},
+                                    onFailure = { viewModel.showAlert(ProjectSaveFailureMessage) }
+                                )
                             },
                             border = BorderStroke(1.dp, palette.border),
                             colors = ButtonDefaults.outlinedButtonColors(
@@ -979,8 +983,11 @@ fun EditorRoute(
                         Button(
                             onClick = {
                                 isExitConfirmationVisible = false
-                                viewModel.saveEditingSession(context)
-                                onBackHome()
+                                viewModel.saveEditingSessionInBackground(
+                                    context = context,
+                                    onSaved = onBackHome,
+                                    onFailure = { viewModel.showAlert(ProjectSaveFailureMessage) }
+                                )
                             },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = palette.primary,
