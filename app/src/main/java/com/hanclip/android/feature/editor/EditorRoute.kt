@@ -465,6 +465,7 @@ fun EditorRoute(
     }
 
     fun requestBackHome() {
+        if (state.isSavingProject) return
         if (state.clips.isEmpty()) {
             viewModel.discardPersistedProjectIfEmpty(context)
             onBackHome()
@@ -473,7 +474,7 @@ fun EditorRoute(
         }
     }
 
-    BackHandler(enabled = state.clips.isNotEmpty()) {
+    BackHandler(enabled = state.clips.isNotEmpty() || state.isSavingProject) {
         requestBackHome()
     }
 
@@ -950,7 +951,9 @@ fun EditorRoute(
                 confirmButton = {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         OutlinedButton(
+                            enabled = !state.isSavingProject,
                             onClick = {
+                                if (state.isSavingProject) return@OutlinedButton
                                 isExitConfirmationVisible = false
                                 viewModel.discardEditingSessionChanges(context)
                                 onBackHome()
@@ -964,7 +967,9 @@ fun EditorRoute(
                             Text("홈")
                         }
                         OutlinedButton(
+                            enabled = !state.isSavingProject,
                             onClick = {
+                                if (state.isSavingProject) return@OutlinedButton
                                 isExitConfirmationVisible = false
                                 viewModel.saveEditingSessionInBackground(
                                     context = context,
@@ -981,7 +986,9 @@ fun EditorRoute(
                             Text("저장")
                         }
                         Button(
+                            enabled = !state.isSavingProject,
                             onClick = {
+                                if (state.isSavingProject) return@Button
                                 isExitConfirmationVisible = false
                                 viewModel.saveEditingSessionInBackground(
                                     context = context,
