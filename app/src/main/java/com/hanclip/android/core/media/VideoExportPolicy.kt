@@ -48,16 +48,6 @@ internal fun keepsSourceAudio(mediaKind: ClipMediaKind, livePhotoMode: LivePhoto
         (mediaKind == ClipMediaKind.LivePhoto && livePhotoMode == LivePhotoMode.Motion)
 }
 
-// Media3 needs a forced (silence-filled) audio track when items without audio, such as photos,
-// share a sequence with items that keep their sound; otherwise a silent first item fails the export.
-internal fun clipSequenceNeedsForcedAudio(clips: List<ClipItem>): Boolean {
-    return sequenceNeedsForcedAudio(clips.map { it.mediaKind to it.livePhotoMode })
-}
-
-internal fun sequenceNeedsForcedAudio(items: List<Pair<ClipMediaKind, LivePhotoMode>>): Boolean {
-    return items.any { (mediaKind, livePhotoMode) -> keepsSourceAudio(mediaKind, livePhotoMode) }
-}
-
 internal data class OriginalAudioRangeUs(val startUs: Long, val endUs: Long)
 
 internal object BackgroundMusicDuckingPolicy {

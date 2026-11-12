@@ -20,8 +20,6 @@ import com.hanclip.android.core.model.EndingInfoCardTheme
 import com.hanclip.android.core.model.ClipMediaKind
 import com.hanclip.android.core.model.LivePhotoMode
 import com.hanclip.android.core.model.MoviePreset
-import com.hanclip.android.core.media.ProtectedActionSegmenter
-import com.hanclip.android.core.media.VideoSegmentRange
 import com.hanclip.android.core.model.OutputAspectRatio
 import com.hanclip.android.core.model.OutputQualityPreset
 import com.hanclip.android.core.model.WatermarkFontSize
@@ -90,7 +88,6 @@ data class EditorUiState(
     val backgroundMusicFadeOutEnabled: Boolean = true,
     val backgroundMusicAutomaticallyDucksOriginalAudio: Boolean = true,
     val isExporting: Boolean = false,
-    val isSavingProject: Boolean = false,
     val isCancellingExport: Boolean = false,
     val exportedVideoUri: Uri? = null,
     val recentlySavedMovieUriString: String? = null,
@@ -136,7 +133,6 @@ class EditorViewModel : ViewModel() {
     private var exportApplicationContext: Context? = null
     private var foregroundExportToken: Long? = null
     private var importJob: Job? = null
-    private var saveJob: Job? = null
     private var lastUndoSnapshot: EditorUndoSnapshot? = null
     private var editingSessionBaseline: DraftProject? = null
     private var videoRangeSelectionSnapshot: VideoRangeSelectionSnapshot? = null
@@ -272,8 +268,7 @@ class EditorViewModel : ViewModel() {
                         expandImportedClipForPreset(
                             clip = clip,
                             defaultDurationSeconds = it.defaultDurationSeconds,
-                            defaultVideoSegmentMode = it.defaultVideoSegmentMode,
-                            protectsActions = it.preset == MoviePreset.Golf
+                            defaultVideoSegmentMode = it.defaultVideoSegmentMode
                         )
                     }
                     val groupedImported = applySimilarPhotoGrouping(expandedImported, visualFeatures)
@@ -701,9 +696,6 @@ class EditorViewModel : ViewModel() {
                             sourceDurationSeconds = sourceDuration,
                             trimStartSeconds = max(0.0, (sourceDuration - selectedDuration) / 2.0)
                         )
-                    } else if (clip.isProtectedActionSegment) {
-                        // Protected golf stroke ranges stay whole.
-                        clip
                     } else if (clip.mediaKind == ClipMediaKind.Video) {
                         val sourceDuration = clip.sourceDurationSeconds ?: clip.durationSeconds
                         val selectedDuration = min(state.defaultDurationSeconds, sourceDuration)
@@ -1064,37 +1056,6 @@ class EditorViewModel : ViewModel() {
             context.applicationContext,
             _uiState.value.activeProjectId
         )
-    }
-
-    // The first save of a new project copies every source and builds thumbnails, which can take
-    // long enough to freeze the screen, so it runs off the main thread behind the work overlay.
-    fun saveEditingSessionInBackground(
-        context: Context,
-        onSaved: () -> Unit,
-        onFailure: (Throwable) -> Unit
-    ) {
-        if (saveJob?.isActive == true || exportJob?.isActive == true) return
-        val appContext = context.applicationContext
-        _uiState.update {
-            it.copy(
-                isSavingProject = true,
-                progressMessage = "프로젝트를 저장하는 중...",
-                workProgress = null,
-                workCurrent = 0,
-                workTotal = 0
-            )
-        }
-        saveJob = viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) {
-                runCatching { saveEditingSession(appContext) }
-            }
-            _uiState.update { it.copy(isSavingProject = false, progressMessage = "") }
-            saveBeforePreviewExport(
-                save = { result.getOrThrow() },
-                startExport = onSaved,
-                onSaveFailure = onFailure
-            )
-        }
     }
 
     fun isNewEditingSession(): Boolean = editingSessionBaseline == null
@@ -1576,8 +1537,7 @@ class EditorViewModel : ViewModel() {
             val split = expandImportedClipForPreset(
                 clip = clip,
                 defaultDurationSeconds = state.defaultDurationSeconds,
-                defaultVideoSegmentMode = VideoSegmentMode.Multiple,
-                protectsActions = state.preset == MoviePreset.Golf
+                defaultVideoSegmentMode = VideoSegmentMode.Multiple
             )
             if (split.size <= 1) {
                 return@update state.copy(
@@ -1640,8 +1600,7 @@ class EditorViewModel : ViewModel() {
             val split = expandImportedClipForPreset(
                 clip = baseClip,
                 defaultDurationSeconds = state.defaultDurationSeconds,
-                defaultVideoSegmentMode = VideoSegmentMode.Multiple,
-                protectsActions = state.preset == MoviePreset.Golf
+                defaultVideoSegmentMode = VideoSegmentMode.Multiple
             )
 
             if (split.size <= 1) {
@@ -2600,15 +2559,10 @@ class EditorViewModel : ViewModel() {
         }
     }
 
-    /**
-     * Golf movies keep every possible stroke whole through HanAI protected actions;
-     * other presets keep the existing peak-centered windows.
-     */
     private fun expandImportedClipForPreset(
         clip: ClipItem,
         defaultDurationSeconds: Double,
-        defaultVideoSegmentMode: VideoSegmentMode,
-        protectsActions: Boolean
+        defaultVideoSegmentMode: VideoSegmentMode
     ): List<ClipItem> {
         if (clip.mediaKind != ClipMediaKind.Video || defaultVideoSegmentMode != VideoSegmentMode.Multiple) {
             return listOf(clip.copy(videoSegmentMode = VideoSegmentMode.Single))
@@ -2622,25 +2576,7 @@ class EditorViewModel : ViewModel() {
             selectedDuration = selectedDuration
         )
 
-        val ranges = ProtectedActionSegmenter.ranges(
-            peaks = peaks,
-            protectedActions = if (protectsActions) clip.protectedActions else emptyList(),
-            sourceDurationSeconds = sourceDuration,
-            segmentDurationSeconds = selectedDuration
-        ) ?: peaks.map { peak ->
-            VideoSegmentRange(
-                startSeconds = max(
-                    0.0,
-                    min(sourceDuration - selectedDuration, peak - selectedDuration / 2.0)
-                ),
-                durationSeconds = selectedDuration,
-                peakSeconds = peak,
-                isProtectedAction = false
-            )
-        }
-
-        // A single protected range still replaces the default one-moment window.
-        if (ranges.size <= 1 && ranges.none { it.isProtectedAction }) {
+        if (peaks.size <= 1) {
             return listOf(clip.copy(videoSegmentMode = VideoSegmentMode.Single))
         }
 
@@ -2650,18 +2586,21 @@ class EditorViewModel : ViewModel() {
             isVideoSegmentParent = true,
             videoSegmentParentId = null
         )
-        val children = ranges.mapIndexed { index, range ->
+        val children = peaks.mapIndexed { index, peak ->
+            val trimStart = max(
+                0.0,
+                min(sourceDuration - selectedDuration, peak - selectedDuration / 2.0)
+            )
             clip.copy(
                 id = "${parentId}-segment-${index}-${UUID.randomUUID()}",
                 videoSegmentMode = VideoSegmentMode.Single,
                 isVideoSegmentParent = false,
                 videoSegmentParentId = parentId,
-                durationSeconds = range.durationSeconds,
-                photoDurationSeconds = range.durationSeconds,
-                trimStartSeconds = range.startSeconds,
-                audioPeakTimeSeconds = range.peakSeconds,
-                audioPeakTimesSeconds = ranges.map { it.peakSeconds },
-                isProtectedActionSegment = range.isProtectedAction
+                durationSeconds = selectedDuration,
+                photoDurationSeconds = selectedDuration,
+                trimStartSeconds = trimStart,
+                audioPeakTimeSeconds = peak,
+                audioPeakTimesSeconds = peaks
             )
         }
         return listOf(parent) + children

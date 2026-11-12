@@ -55,15 +55,6 @@ class VideoExportPolicyTest {
     }
 
     @Test
-    fun `sequence starting with photos forces audio when a later video keeps sound`() {
-        val still = ClipMediaKind.Photo to LivePhotoMode.Still
-        val video = ClipMediaKind.Video to LivePhotoMode.Still
-        assertTrue(sequenceNeedsForcedAudio(listOf(still, still, video)))
-        assertTrue(sequenceNeedsForcedAudio(listOf(video, still)))
-        assertFalse(sequenceNeedsForcedAudio(listOf(still, ClipMediaKind.LivePhoto to LivePhotoMode.Still)))
-    }
-
-    @Test
     fun `ending hides caption but keeps copyright logo`() {
         assertEquals(
             WatermarkLayerPolicy(rendersText = true, rendersLogo = true),

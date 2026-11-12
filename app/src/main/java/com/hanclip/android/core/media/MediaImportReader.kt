@@ -159,7 +159,6 @@ object MediaImportReader {
                 ?: com.hanclip.android.core.model.ClipAudioAvailability.Unknown,
             highlightSource = analysis?.highlightSource
                 ?: com.hanclip.android.core.model.ClipHighlightSource.Audio,
-            protectedActions = analysis?.protectedActions ?: emptyList(),
             videoSegmentMode = if (isVideo) defaultVideoSegmentMode else VideoSegmentMode.Single,
             photoSimilarityFingerprint = photoFingerprint,
             sourceCreatedAtMillis = sourceCreatedAtMillis,

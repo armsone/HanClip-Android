@@ -177,7 +177,6 @@ class Media3TransformerExportService(
         }
         val videoSequence = EditedMediaItemSequence.Builder(editedItems)
             .experimentalSetForceVideoTrack(true)
-            .experimentalSetForceAudioTrack(clipSequenceNeedsForcedAudio(effectiveClips))
             .build()
         val sequences = mutableListOf(videoSequence)
         request.backgroundMusicUri?.let { musicUri ->

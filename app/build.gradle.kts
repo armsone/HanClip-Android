@@ -66,7 +66,6 @@ dependencies {
     implementation("androidx.camera:camera-view:$cameraXVersion")
     implementation("com.google.mlkit:pose-detection:18.0.0-beta5")
     implementation(project(":hanai-onnx"))
-    implementation(project(":hanai-core"))
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.24.2")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
